@@ -1,0 +1,16 @@
+{
+  "uuid": "dynamic-island@xuanhong",
+  "name": "Dynamic Island",
+  "description": "Dynamic Island inspired by NotchNook for macOS - displays media playback info in a beautiful floating island",
+  "version": 2,
+  "shell-version": [
+    "42",
+    "43",
+    "44",
+    "45",
+    "46"
+  ],
+  "url": "https://github.com/xuanhong/dynamic-island-linux",
+  "settings-schema": "org.gnome.shell.extensions.dynamic-island"
+}
+

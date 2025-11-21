@@ -1,0 +1,115 @@
+/* stylesheet.css
+ * Dynamic Island Extension Styling
+ */
+
+.dynamic-island {
+    background-color: rgba(0, 0, 0, 0.95);
+    border-radius: 25px;
+    padding: 8px 16px;
+    margin: 5px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    transition-duration: 300ms;
+    transition-timing-function: cubic-bezier(0.4, 0.0, 0.2, 1);
+    cursor: pointer;
+}
+
+.dynamic-island:hover {
+    background-color: rgba(30, 30, 30, 0.98);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+
+.island-container {
+    spacing: 12px;
+    padding: 4px;
+}
+
+.island-idle-dot {
+    background-color: rgba(0, 0, 0, 0.9);
+    border-radius: 15px;
+    min-width: 120px;
+    min-height: 30px;
+    transition-duration: 300ms;
+}
+
+.island-icon {
+    color: #ffffff;
+    margin: 0 8px;
+    icon-size: 24px;
+}
+
+.island-label-box {
+    spacing: 2px;
+    padding: 2px 8px;
+}
+
+.island-title {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 12pt;
+    max-width: 300px;
+}
+
+.island-artist {
+    color: #cccccc;
+    font-size: 10pt;
+    max-width: 300px;
+}
+
+.island-title-expanded {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14pt;
+    max-width: 250px;
+}
+
+.island-artist-expanded {
+    color: #cccccc;
+    font-size: 11pt;
+    max-width: 250px;
+}
+
+/* Animations */
+.dynamic-island.expanded {
+    min-width: 320px;
+}
+
+.dynamic-island.collapsed {
+    min-width: 120px;
+}
+
+/* Media controls */
+.island-controls {
+    spacing: 8px;
+}
+
+.island-control-button {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    padding: 8px;
+    min-width: 36px;
+    min-height: 36px;
+    transition-duration: 200ms;
+    transition-timing-function: ease-out;
+    color: #ffffff;
+}
+
+.island-control-button:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    transform: scale(1.1);
+}
+
+.island-control-button:active {
+    background-color: rgba(255, 255, 255, 0.35);
+    transform: scale(0.95);
+}
+
+/* Expanded view styling */
+.dynamic-island.expanded {
+    min-width: 450px;
+    padding: 12px 20px;
+}
+
+.dynamic-island.collapsed {
+    min-width: 120px;
+}
+

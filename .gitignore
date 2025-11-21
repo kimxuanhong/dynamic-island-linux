@@ -1,0 +1,20 @@
+# GNOME Shell Extension build files
+*.gschema.xml~
+*.mo
+*.pot
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
