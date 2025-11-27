@@ -1,115 +1,183 @@
-/* stylesheet.css
- * Dynamic Island Extension Styling
- */
-
-.dynamic-island {
-    background-color: rgba(0, 0, 0, 0.95);
-    border-radius: 25px;
-    padding: 8px 16px;
-    margin: 5px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    transition-duration: 300ms;
-    transition-timing-function: cubic-bezier(0.4, 0.0, 0.2, 1);
-    cursor: pointer;
-}
-
-.dynamic-island:hover {
-    background-color: rgba(30, 30, 30, 0.98);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
-}
-
-.island-container {
-    spacing: 12px;
-    padding: 4px;
-}
-
-.island-idle-dot {
-    background-color: rgba(0, 0, 0, 0.9);
-    border-radius: 15px;
-    min-width: 120px;
-    min-height: 30px;
-    transition-duration: 300ms;
-}
-
-.island-icon {
-    color: #ffffff;
-    margin: 0 8px;
-    icon-size: 24px;
-}
-
-.island-label-box {
-    spacing: 2px;
-    padding: 2px 8px;
-}
-
-.island-title {
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 12pt;
-    max-width: 300px;
-}
-
-.island-artist {
-    color: #cccccc;
-    font-size: 10pt;
-    max-width: 300px;
-}
-
-.island-title-expanded {
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 14pt;
-    max-width: 250px;
-}
-
-.island-artist-expanded {
-    color: #cccccc;
-    font-size: 11pt;
-    max-width: 250px;
-}
-
-/* Animations */
-.dynamic-island.expanded {
-    min-width: 320px;
-}
-
-.dynamic-island.collapsed {
-    min-width: 120px;
-}
-
-/* Media controls */
-.island-controls {
-    spacing: 8px;
-}
-
-.island-control-button {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
+.notch {
+    background: #000;
     padding: 8px;
-    min-width: 36px;
-    min-height: 36px;
-    transition-duration: 200ms;
-    transition-timing-function: ease-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-radius: 0 0 24px 24px;
+}
+
+/* Layout styling with scale origins */
+.notch-left {
+    padding-left: 6px;
+}
+
+.notch-center {
+    /* Content scales smoothly */
+}
+
+.notch-right {
+    padding-right: 6px;
+}
+
+.notch-top-left,
+.notch-top-right,
+.notch-bottom-left,
+.notch-bottom-right {
+    /* Expanded content scales smoothly */
+}
+
+/* Battery styling */
+.battery-icon {
     color: #ffffff;
 }
 
-.island-control-button:hover {
-    background-color: rgba(255, 255, 255, 0.25);
-    transform: scale(1.1);
+.battery-percentage {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
 }
 
-.island-control-button:active {
-    background-color: rgba(255, 255, 255, 0.35);
-    transform: scale(0.95);
+/* Media styling */
+.media-thumbnail {
+    color: #ffffff;
 }
 
-/* Expanded view styling */
-.dynamic-island.expanded {
-    min-width: 450px;
-    padding: 12px 20px;
+.media-thumbnail-wrapper {
+    padding: 0;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 99px;
 }
 
-.dynamic-island.collapsed {
-    min-width: 120px;
+.media-audio-icon {
+    color: #ffffff;
 }
 
+.media-expanded-art-wrapper {
+    padding: 8px;
+}
+
+.media-expanded-art {
+    color: #ffffff;
+}
+
+.media-controls-box {
+    gap: 12px;
+    padding: 12px;
+}
+
+.media-control-button {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    padding: 6px;
+}
+
+.media-control-button:hover,
+.media-control-button:focus {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.media-control-icon {
+    color: #ffffff;
+}
+
+.media-title-wrapper {
+    padding: 8px 12px;
+}
+
+.media-title-label {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Bluetooth styling */
+.bluetooth-icon {
+    color: #ffffff;
+    opacity: 1.0;
+}
+
+.bluetooth-expanded-icon {
+    color: #0ea5e9;
+    opacity: 1.0;
+}
+
+.bluetooth-expanded-icon-disconnected {
+    color: #ef4444;
+    opacity: 1.0;
+}
+
+.bluetooth-status-label {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    opacity: 1.0;
+}
+
+.bluetooth-device-label {
+    color: #e0e0e0;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 1.0;
+    margin-top: 4px;
+}
+
+/* Volume styling */
+.volume-icon {
+    color: #ffffff;
+    opacity: 1.0;
+}
+
+.volume-box {
+    gap: 12px;
+    padding: 16px;
+}
+
+.volume-icon-large {
+    color: #ffffff;
+    opacity: 1.0;
+}
+
+.volume-bar-container {
+    margin: 8px 0;
+}
+
+.volume-bar-bg {
+    width: 280px;
+    height: 8px;
+    border-radius: 4px;
+}
+
+.volume-percentage {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+    opacity: 1.0;
+}
+
+/* Charging styling */
+.charging-box {
+    gap: 16px;
+    padding: 16px;
+}
+
+.charging-icon {
+    color: #22c55e;
+    /* Green color for charging */
+    opacity: 1.0;
+}
+
+.charging-text-box {
+    gap: 4px;
+}
+
+.charging-status-label {
+    color: #e0e0e0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.charging-percentage-label {
+    color: #22c55e;
+    font-size: 24px;
+    font-weight: 700;
+}
