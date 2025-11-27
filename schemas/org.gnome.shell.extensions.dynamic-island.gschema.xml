@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="dynamic-island">
+  <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/" gettext-domain="dynamic-island">
+    <key type="d" name="compact-width-factor">
+      <default>1.0</default>
+      <summary>Compact notch width factor</summary>
+      <description>Multiplier for compact notch width (0.5 - 1.5)</description>
+    </key>
+    <key type="b" name="move-date-panel">
+      <default>false</default>
+      <summary>Move date panel to right</summary>
+      <description>Move the date/clock panel to the right side of the screen</description>
+    </key>
+  </schema>
+</schemalist>

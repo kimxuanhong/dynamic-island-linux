@@ -1,13 +1,14 @@
 const { Clutter, GObject, St, UPowerGlib, Gio, Soup, GLib } = imports.gi;
 const Main = imports.ui.main;
 const Volume = imports.ui.status.volume;
+const ExtensionUtils = imports.misc.extensionUtils;
 
 // Constants
 const COMPACT_WIDTH = 200;
 const COMPACT_HEIGHT = 40;
 const EXPANDED_WIDTH = 400;
 const EXPANDED_HEIGHT = 160;
-const ANIMATION_DURATION = 300; // Increased for smoother animation
+const ANIMATION_DURATION = 300;
 const BOX_MARGIN_TOP = 0;
 
 let notch;
@@ -17,6 +18,10 @@ let bluetoothPresenter;
 let volumePresenter;
 let monitorsChangedId;
 let stageResizeId;
+let settings;
+let compactWidthFactor = 1.0;
+let datePanel;
+let dateMenuItem;
 
 const Notch = GObject.registerClass(
     class Notch extends St.BoxLayout {
@@ -90,13 +95,12 @@ const Notch = GObject.registerClass(
                     imports.mainloop.source_remove(this._collapseTimeoutId);
                     this._collapseTimeoutId = null;
                 }
-                return Clutter.EVENT_STOP;
+                return Clutter.EVENT_PROPAGATE;
             });
             this._expandedLayout.connect('leave-event', () => {
-                if (this._collapseTimeoutId)
-                    imports.mainloop.source_remove(this._collapseTimeoutId);
-                this._scheduleCollapseCheck(true);
-                return Clutter.EVENT_STOP;
+                // Don't collapse immediately - let the main notch's leave-event handle it
+                // This prevents conflicts when moving between child elements
+                return Clutter.EVENT_PROPAGATE;
             });
             this.add_child(this._expandedLayout);
 
@@ -164,12 +168,20 @@ const Notch = GObject.registerClass(
                 return Clutter.EVENT_STOP;
             });
 
-            this.connect('leave-event', () => {
+            this.connect('leave-event', (actor, event) => {
                 if (this._collapseTimeoutId)
                     imports.mainloop.source_remove(this._collapseTimeoutId);
 
-                this._scheduleCollapseCheck();
-                return Clutter.EVENT_STOP;
+                // Use a small delay to check if pointer is still in expanded area
+                this._collapseTimeoutId = imports.mainloop.timeout_add(50, () => {
+                    this._collapseTimeoutId = null;
+                    // Double-check pointer position before collapsing
+                    if (!this._isPointerInsideNotch()) {
+                        this._collapse();
+                    }
+                    return false;
+                });
+                return Clutter.EVENT_PROPAGATE;
             });
 
             // Block other events to prevent click-through
@@ -213,8 +225,8 @@ const Notch = GObject.registerClass(
             const duration = 300; // ms
             const startTime = GLib.get_monotonic_time();
             const totalDuration = duration * 1000;
-            const startWidth = COMPACT_WIDTH;
-            const minWidth = COMPACT_WIDTH * 0.9; // Shrink to 90%
+            const startWidth = this.getCompactWidth();
+            const minWidth = this.getCompactWidth() * 0.9; // Shrink to 90%
 
             this._hoverAnimationId = imports.mainloop.timeout_add(16, () => {
                 const elapsed = GLib.get_monotonic_time() - startTime;
@@ -247,9 +259,9 @@ const Notch = GObject.registerClass(
         }
 
         _setInitialGeometry() {
-            const { x, y } = this._getTargetCoords(COMPACT_WIDTH);
+            const { x, y } = this._getTargetCoords(this.getCompactWidth());
             this.set_position(x, y);
-            this.set_size(COMPACT_WIDTH, COMPACT_HEIGHT);
+            this.set_size(this.getCompactWidth(), COMPACT_HEIGHT);
         }
 
         _getTargetCoords(width) {
@@ -462,6 +474,15 @@ const Notch = GObject.registerClass(
         getNotchTopRight() { return this.notchTopRight; }
         getNotchBottomLeft() { return this.notchBottomLeft; }
         getNotchBottomRight() { return this.notchBottomRight; }
+        
+        getCompactWidth() {
+            return Math.round(COMPACT_WIDTH * (compactWidthFactor || 1.0));
+        }
+        
+        updateSize() {
+            // Recalculate size with new factor
+            this._setHoverProgress(this._hoverProgress);
+        }
 
         _scheduleCollapseCheck(forceImmediate = false) {
             // Clear any existing timeout
@@ -579,7 +600,55 @@ function _reposition() {
     notch.syncPosition();
 }
 
+function _moveDataPanel(shouldMove) {
+    try {
+        const center = Main.panel.statusArea['center'];
+        const right = Main.panel.statusArea['rightBox'];
+        
+        if (!center || !right) return;
+
+        // Find date menu item
+        let dateMenu = null;
+        for (let child of center.get_children()) {
+            if (child.toString?.()?.includes?.('ClockPanel') || 
+                child.get_child?.()?.toString?.()?.includes?.('StLabel')) {
+                dateMenu = child;
+                break;
+            }
+        }
+
+        if (shouldMove && dateMenu && dateMenu.get_parent() === center) {
+            center.remove_child(dateMenu);
+            right.insert_child_at_index(dateMenu, 0);
+        } else if (!shouldMove && dateMenu && dateMenu.get_parent() === right) {
+            right.remove_child(dateMenu);
+            center.add_child(dateMenu);
+        }
+    } catch (e) {
+        log(`Error moving date panel: ${e.message}`);
+    }
+}
+
 function enable() {
+    settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.dynamic-island');
+    
+    // Load initial settings
+    compactWidthFactor = settings.get_double('compact-width-factor');
+    
+    // Watch for setting changes
+    settings.connect('changed::compact-width-factor', (_settings) => {
+        compactWidthFactor = _settings.get_double('compact-width-factor');
+        if (notch) {
+            notch.updateSize();
+            notch.syncPosition();
+        }
+    });
+
+    settings.connect('changed::move-date-panel', (_settings) => {
+        const shouldMove = _settings.get_boolean('move-date-panel');
+        _moveDataPanel(shouldMove);
+    });
+    
     notch = new Notch();
     Main.uiGroup.add_child(notch);
 
@@ -603,6 +672,11 @@ function enable() {
     // Initialize volume display
     volumePresenter = new VolumePresenter(notch);
     volumePresenter.enable();
+
+    // Apply date panel setting if enabled
+    if (settings.get_boolean('move-date-panel')) {
+        _moveDataPanel(true);
+    }
 
     monitorsChangedId = Main.layoutManager.connect('monitors-changed', _reposition);
     stageResizeId = global.stage.connect('notify::allocation', _reposition);
@@ -647,6 +721,14 @@ function disable() {
         notch._hitTestOverlay?.destroy();
         notch.destroy();
         notch = null;
+    }
+
+    // Restore date panel if it was moved
+    if (settings) {
+        if (settings.get_boolean('move-date-panel')) {
+            _moveDataPanel(false);
+        }
+        settings = null;
     }
 }
 
