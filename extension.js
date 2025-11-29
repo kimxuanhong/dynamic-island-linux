@@ -559,12 +559,12 @@ class BluetoothView {
     }
 
     show() {
-        //this.compactContainer.show();
+        this.compactContainer.show();
         this.expandedContainer.show();  // Show cả expanded container
     }
 
     hide() {
-        //this.compactContainer.hide();
+        this.compactContainer.hide();
         this.expandedContainer.hide();  // Hide cả expanded container
     }
 
@@ -1609,6 +1609,8 @@ class NotchController {
 
     _updateUI() {
         const info = this.batteryManager.getBatteryInfo();
+        this.mediaView.hide();
+        this.bluetoothView.hide();
         this.batteryView.updateBattery(info);
     }
 
