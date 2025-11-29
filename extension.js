@@ -8,6 +8,8 @@ const Soup = imports.gi.Soup;
 
 // --- BIẾN TOÀN CỤC ---
 let notchController;
+let dateMenuActor = null;
+let dateMenuOriginalParent = null;
 
 // ============================================
 // 1. MODEL - Xử lý Dữ liệu (BatteryManager)
@@ -1839,11 +1841,111 @@ function init() {
 
 function enable() {
     notchController = new NotchController();
+    
+    // Di chuyển date panel của GNOME sang góc phải
+    _moveDatePanelToRight();
 }
 
 function disable() {
     if (notchController) {
         notchController.destroy();
         notchController = null;
+    }
+    
+    // Khôi phục date panel về vị trí ban đầu
+    _restoreDatePanel();
+}
+
+function _moveDatePanelToRight() {
+    try {
+        const panel = Main.panel;
+        if (!panel) {
+            log('[DynamicIsland] Panel not found');
+            return;
+        }
+        
+        // Tìm date menu trong statusArea
+        let dateMenu = null;
+        if (panel.statusArea && panel.statusArea.dateMenu) {
+            dateMenu = panel.statusArea.dateMenu;
+        }
+        
+        // Nếu không tìm thấy, thử tìm trong _centerBox
+        if (!dateMenu) {
+            if (panel._centerBox) {
+                const children = panel._centerBox.get_children();
+                for (let i = 0; i < children.length; i++) {
+                    const child = children[i];
+                    // Kiểm tra nếu có dateMenu trong child
+                    if (child._delegate && child._delegate.constructor && 
+                        child._delegate.constructor.name === 'DateMenuButton') {
+                        dateMenuActor = child;
+                        dateMenuOriginalParent = panel._centerBox;
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Lấy actor của date menu
+            dateMenuActor = dateMenu.actor || dateMenu;
+            if (!dateMenuActor) {
+                log('[DynamicIsland] Date menu actor not found');
+                return;
+            }
+        }
+        
+        if (!dateMenuActor) {
+            log('[DynamicIsland] Date menu not found');
+            return;
+        }
+        
+        // Lưu parent ban đầu nếu chưa có
+        if (!dateMenuOriginalParent) {
+            dateMenuOriginalParent = dateMenuActor.get_parent();
+        }
+        
+        // Xóa khỏi vị trí hiện tại
+        if (dateMenuOriginalParent && dateMenuActor.get_parent() === dateMenuOriginalParent) {
+            dateMenuOriginalParent.remove_child(dateMenuActor);
+        }
+        
+        // Thêm vào right box của panel
+        if (panel._rightBox) {
+            panel._rightBox.add_child(dateMenuActor);
+            log('[DynamicIsland] Date panel moved to right side');
+        } else {
+            log('[DynamicIsland] Panel right box not found');
+            // Khôi phục nếu không tìm thấy right box
+            if (dateMenuOriginalParent) {
+                dateMenuOriginalParent.add_child(dateMenuActor);
+            }
+        }
+    } catch (e) {
+        log(`[DynamicIsland] Error moving date panel: ${e.message}`);
+    }
+}
+
+function _restoreDatePanel() {
+    try {
+        if (!dateMenuActor || !dateMenuOriginalParent) {
+            return;
+        }
+        
+        // Xóa khỏi right box
+        const panel = Main.panel;
+        if (panel && panel._rightBox && dateMenuActor.get_parent() === panel._rightBox) {
+            panel._rightBox.remove_child(dateMenuActor);
+        }
+        
+        // Khôi phục về vị trí ban đầu
+        if (dateMenuOriginalParent) {
+            dateMenuOriginalParent.add_child(dateMenuActor);
+            log('[DynamicIsland] Date panel restored to original position');
+        }
+        
+        dateMenuActor = null;
+        dateMenuOriginalParent = null;
+    } catch (e) {
+        log(`[DynamicIsland] Error restoring date panel: ${e.message}`);
     }
 }
