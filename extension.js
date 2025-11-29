@@ -584,6 +584,7 @@ class BluetoothView {
 /**
  * Quản lý thông tin Media Player (Model).
  * Tương tác với D-Bus của MPRIS để lấy thông tin media player.
+ * Sử dụng XML interface definitions để giảm callback.
  */
 class MediaManager {
     constructor() {
@@ -594,13 +595,20 @@ class MediaManager {
         this._dbusSignalId = null;
         this._currentPlayerName = null;
         this._playbackStatus = null;
+        this._currentMetadata = null;
+        this._currentArtPath = null;
         this._checkTimeoutId = null;
         this._httpSession = new Soup.Session();
         this._artCache = new Map(); // URL -> local path
         this._destroyed = false;
+        this._pendingUpdate = null; // Batch updates
+
+        // Define XML interfaces
+        this._defineInterfaces();
 
         this._setupDBusNameOwnerChanged();
         this._watchForMediaPlayers();
+
         // Keep polling as a backup, but less frequent (5s)
         this._checkTimeoutId = imports.mainloop.timeout_add_seconds(5, () => {
             if (this._destroyed) return false;
@@ -611,21 +619,38 @@ class MediaManager {
         });
     }
 
+    _defineInterfaces() {
+        // MPRIS Player Interface
+        const MPRIS_PLAYER_INTERFACE = `
+        <node>
+            <interface name="org.mpris.MediaPlayer2.Player">
+                <property name="PlaybackStatus" type="s" access="read"/>
+                <property name="Metadata" type="a{sv}" access="read"/>
+                <method name="PlayPause"/>
+                <method name="Next"/>
+                <method name="Previous"/>
+            </interface>
+        </node>`;
+
+        // DBus Interface for NameOwnerChanged
+        const DBUS_INTERFACE = `
+        <node>
+            <interface name="org.freedesktop.DBus">
+                <signal name="NameOwnerChanged">
+                    <arg type="s" name="name"/>
+                    <arg type="s" name="old_owner"/>
+                    <arg type="s" name="new_owner"/>
+                </signal>
+            </interface>
+        </node>`;
+
+        this.MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(MPRIS_PLAYER_INTERFACE);
+        this.DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBUS_INTERFACE);
+    }
+
     _setupDBusNameOwnerChanged() {
         try {
-            const DBusInterface = `
-            <node>
-              <interface name="org.freedesktop.DBus">
-                <signal name="NameOwnerChanged">
-                  <arg type="s" name="name"/>
-                  <arg type="s" name="old_owner"/>
-                  <arg type="s" name="new_owner"/>
-                </signal>
-              </interface>
-            </node>`;
-
-            const DBusProxyWrapper = Gio.DBusProxy.makeProxyWrapper(DBusInterface);
-            this._dbusProxy = new DBusProxyWrapper(
+            this._dbusProxy = new this.DBusProxy(
                 Gio.DBus.session,
                 'org.freedesktop.DBus',
                 '/org/freedesktop/DBus',
@@ -706,46 +731,138 @@ class MediaManager {
     _connectToPlayer(busName) {
         try {
             this._currentPlayerName = busName;
-            this._playerProxy = new Gio.DBusProxy({
-                g_connection: Gio.DBus.session,
-                g_name: busName,
-                g_object_path: '/org/mpris/MediaPlayer2',
-                g_interface_name: 'org.mpris.MediaPlayer2.Player',
-            });
 
-            this._playerProxy.init(null);
+            // Use XML-defined proxy wrapper
+            this._playerProxy = new this.MprisPlayerProxy(
+                Gio.DBus.session,
+                busName,
+                '/org/mpris/MediaPlayer2',
+                (proxy, error) => {
+                    if (error) {
+                        log(`[DynamicIsland] Failed to connect to player: ${error.message}`);
+                        return;
+                    }
 
-            this._playerProxySignal = this._playerProxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
-                if (this._destroyed) return;
-                try {
-                    const changedProps = changed?.deep_unpack?.() ?? {};
-                    const metadata = changedProps.Metadata;
-                    if (metadata) {
-                        this._updateMetadata(metadata);
-                    }
-                    const playbackStatus = changedProps.PlaybackStatus;
-                    if (playbackStatus) {
-                        this._updatePlaybackStatus(playbackStatus);
-                    }
-                } catch (e) {
-                    if (!this._destroyed) {
-                        log(`[DynamicIsland] Error in properties-changed callback: ${e.message}`);
-                    }
+                    // Single callback for all property changes
+                    this._playerProxySignal = proxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
+                        if (this._destroyed) return;
+                        this._handlePropertiesChanged(changed);
+                    });
+
+                    // Initial update - batch both metadata and playback status
+                    this._performInitialUpdate();
                 }
-            });
+            );
+        } catch (e) {
+            log(`[DynamicIsland] Failed to connect to player: ${e.message}`);
+        }
+    }
 
-            // Initial update
-            const metadata = this._playerProxy.get_cached_property('Metadata');
-            if (metadata) {
-                this._updateMetadata(metadata.deep_unpack());
+    _performInitialUpdate() {
+        if (!this._playerProxy) return;
+
+        const metadata = this._playerProxy.Metadata;
+        const playbackStatus = this._playerProxy.PlaybackStatus;
+
+        if (metadata || playbackStatus) {
+            this._batchUpdate({
+                metadata: metadata,
+                playbackStatus: playbackStatus
+            });
+        }
+    }
+
+    _handlePropertiesChanged(changed) {
+        if (!changed) return;
+
+        try {
+            const changedProps = changed.deep_unpack ? changed.deep_unpack() : changed;
+
+            // Batch all changes into a single update
+            const updates = {};
+
+            if ('Metadata' in changedProps) {
+                updates.metadata = changedProps.Metadata;
             }
-            const playbackStatus = this._playerProxy.get_cached_property('PlaybackStatus');
-            if (playbackStatus) {
-                this._updatePlaybackStatus(playbackStatus);
+
+            if ('PlaybackStatus' in changedProps) {
+                updates.playbackStatus = changedProps.PlaybackStatus;
+            }
+
+            if (Object.keys(updates).length > 0) {
+                this._batchUpdate(updates);
             }
         } catch (e) {
-            log(`Failed to connect to player: ${e.message}`);
+            if (!this._destroyed) {
+                log(`[DynamicIsland] Error in properties-changed callback: ${e.message}`);
+            }
         }
+    }
+
+    _batchUpdate(updates) {
+        // Cancel pending update if exists
+        if (this._pendingUpdate) {
+            imports.mainloop.source_remove(this._pendingUpdate);
+            this._pendingUpdate = null;
+        }
+
+        // Merge updates
+        if (updates.metadata) {
+            const unpackedMetadata = updates.metadata.deep_unpack ? updates.metadata.deep_unpack() : updates.metadata;
+            this._currentMetadata = unpackedMetadata;
+
+            // Handle art URL
+            const artUrl = this._extractArtUrl(unpackedMetadata);
+            if (artUrl) {
+                if (artUrl.startsWith('http')) {
+                    if (this._artCache.has(artUrl)) {
+                        this._currentArtPath = this._artCache.get(artUrl);
+                    } else {
+                        // Download async but don't notify yet
+                        this._downloadImage(artUrl, (data) => {
+                            const path = this._saveAndCacheImage(artUrl, data);
+                            if (path) {
+                                this._currentArtPath = path;
+                                this._scheduleNotify();
+                            }
+                        });
+                        this._currentArtPath = null;
+                    }
+                } else {
+                    this._currentArtPath = artUrl;
+                }
+            } else {
+                this._currentArtPath = null;
+            }
+        }
+
+        if (updates.playbackStatus) {
+            const unpackedStatus = updates.playbackStatus.deep_unpack ?
+                updates.playbackStatus.deep_unpack() :
+                (updates.playbackStatus.unpack ? updates.playbackStatus.unpack() : updates.playbackStatus);
+            this._playbackStatus = unpackedStatus;
+        }
+
+        // Schedule a single notification
+        this._scheduleNotify();
+    }
+
+    _scheduleNotify() {
+        // Debounce notifications - wait 50ms for more updates
+        if (this._pendingUpdate) {
+            imports.mainloop.source_remove(this._pendingUpdate);
+        }
+
+        this._pendingUpdate = imports.mainloop.timeout_add(50, () => {
+            this._pendingUpdate = null;
+            this._notifyCallbacks({
+                isPlaying: this._playbackStatus === 'Playing',
+                metadata: this._currentMetadata,
+                playbackStatus: this._playbackStatus,
+                artPath: this._currentArtPath
+            });
+            return false;
+        });
     }
 
     _disconnectPlayer() {
@@ -758,63 +875,21 @@ class MediaManager {
         }
         this._currentPlayerName = null;
         this._playbackStatus = null;
+        this._currentMetadata = null;
+        this._currentArtPath = null;
+
+        // Clear pending update
+        if (this._pendingUpdate) {
+            imports.mainloop.source_remove(this._pendingUpdate);
+            this._pendingUpdate = null;
+        }
+
         // Notify với metadata và artPath = null để trigger switch về battery
         this._notifyCallbacks({
             isPlaying: false,
             metadata: null,
             playbackStatus: null,
             artPath: null
-        });
-    }
-
-    _updateMetadata(metadata) {
-        if (!metadata) return;
-        const unpackedMetadata = metadata.deep_unpack ? metadata.deep_unpack() : metadata;
-        
-        // Get art URL and handle download if needed
-        const artUrl = this._extractArtUrl(unpackedMetadata);
-        let artPath = null;
-        
-        if (artUrl) {
-            if (artUrl.startsWith('http')) {
-                // Check cache first
-                if (this._artCache.has(artUrl)) {
-                    artPath = this._artCache.get(artUrl);
-                } else {
-                    // Download async
-                    this._downloadImage(artUrl, (data) => {
-                        const path = this._saveAndCacheImage(artUrl, data);
-                        if (path) {
-                            this._notifyCallbacks({ 
-                                isPlaying: this._playbackStatus === 'Playing',
-                                metadata: unpackedMetadata,
-                                playbackStatus: this._playbackStatus,
-                                artPath: path
-                            });
-                        }
-                    });
-                }
-            } else {
-                artPath = artUrl; // Local file
-            }
-        }
-        
-        this._notifyCallbacks({ 
-            isPlaying: this._playbackStatus === 'Playing',
-            metadata: unpackedMetadata,
-            playbackStatus: this._playbackStatus,
-            artPath: artPath
-        });
-    }
-
-    _updatePlaybackStatus(status) {
-        const unpackedStatus = status?.deep_unpack ? status.deep_unpack() : (status?.unpack ? status.unpack() : status);
-        this._playbackStatus = unpackedStatus;
-        const isPlaying = unpackedStatus === 'Playing';
-        this._notifyCallbacks({ 
-            isPlaying: isPlaying,
-            metadata: null,
-            playbackStatus: unpackedStatus
         });
     }
 
@@ -842,22 +917,46 @@ class MediaManager {
     }
 
     _downloadImage(url, callback) {
+        log(`[DynamicIsland] Download image: ${url}`);
+
         const msg = Soup.Message.new('GET', url);
-        if (this._httpSession.queue_message) { // Soup 2.4
-            this._httpSession.queue_message(msg, (session, message) => {
-                if (message.status_code === 200) {
-                    callback(message.response_body.data);
+
+        // Nếu session có send_and_read_async → Soup 3
+        if (this._httpSession.send_and_read_async) {
+            this._httpSession.send_and_read_async(
+                msg,
+                GLib.PRIORITY_DEFAULT,
+                null,
+                (session, result) => {
+                    try {
+                        const bytes = session.send_and_read_finish(result);
+                        const data = bytes.get_data();   // Uint8Array
+                        callback(data);
+                    } catch (e) {
+                        log(`Image download failed (Soup3): ${e}`);
+                        callback(null);
+                    }
                 }
-            });
-        } else if (this._httpSession.send_and_read_async) { // Soup 3.0
-            this._httpSession.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null, (session, result) => {
-                try {
-                    const bytes = session.send_and_read_finish(result);
-                    callback(bytes.get_data());
-                } catch (e) { log(e); }
-            });
+            );
+            return;
         }
+
+        // Còn lại là Soup 2
+        this._httpSession.queue_message(msg, (session, message) => {
+            try {
+                if (message.status_code === 200 && message.response_body?.data) {
+                    callback(message.response_body.data);
+                } else {
+                    log(`Image download failed (Soup2): ${message.status_code}`);
+                    callback(null);
+                }
+            } catch (e) {
+                log(`Image download error (Soup2): ${e}`);
+                callback(null);
+            }
+        });
     }
+
 
     _saveAndCacheImage(url, data) {
         try {
@@ -893,7 +992,7 @@ class MediaManager {
             this._downloadImage(artUrl, (data) => {
                 const path = this._saveAndCacheImage(artUrl, data);
                 if (path) {
-                    this._notifyCallbacks({ 
+                    this._notifyCallbacks({
                         isPlaying: this._playbackStatus === 'Playing',
                         metadata: metadata,
                         playbackStatus: this._playbackStatus,
@@ -920,13 +1019,14 @@ class MediaManager {
     sendPlayerCommand(method) {
         if (!this._playerProxy) return;
         try {
-            this._playerProxy.call_sync(
-                method,
-                null,
-                Gio.DBusCallFlags.NONE,
-                -1,
-                null
-            );
+            // Use the methods defined in XML interface
+            if (method === 'PlayPause') {
+                this._playerProxy.PlayPauseRemote();
+            } else if (method === 'Next') {
+                this._playerProxy.NextRemote();
+            } else if (method === 'Previous') {
+                this._playerProxy.PreviousRemote();
+            }
         } catch (e) {
             log(`[DynamicIsland] Failed to send ${method}: ${e.message}`);
         }
@@ -954,6 +1054,11 @@ class MediaManager {
         if (this._checkTimeoutId) {
             imports.mainloop.source_remove(this._checkTimeoutId);
             this._checkTimeoutId = null;
+        }
+
+        if (this._pendingUpdate) {
+            imports.mainloop.source_remove(this._pendingUpdate);
+            this._pendingUpdate = null;
         }
 
         if (this._playerProxy && this._playerProxySignal) {
@@ -1143,7 +1248,7 @@ class MediaView {
             y_align: Clutter.ActorAlign.CENTER,
             style: 'spacing: 15px;',
         });
-        
+
         // Controls box wrapper
         const controlsWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.CENTER,
@@ -1153,7 +1258,7 @@ class MediaView {
         });
         controlsWrapper.set_child(this._controlsBox);
         rightColumn.add_child(controlsWrapper);
-        
+
         // Title wrapper
         const titleWrapperBin = new St.Bin({
             x_align: Clutter.ActorAlign.START,
@@ -1176,9 +1281,9 @@ class MediaView {
     }
 
     setCommandCallbacks(callbacks) {
-        this._onPrevious = callbacks.onPrevious || (() => {});
-        this._onPlayPause = callbacks.onPlayPause || (() => {});
-        this._onNext = callbacks.onNext || (() => {});
+        this._onPrevious = callbacks.onPrevious || (() => { });
+        this._onPlayPause = callbacks.onPlayPause || (() => { });
+        this._onNext = callbacks.onNext || (() => { });
     }
 
     updateMedia(mediaInfo) {
@@ -1494,6 +1599,9 @@ class NotchController {
         this._wasCharging = info.isCharging;
 
         if (shouldAutoExpand && !this.isExpanded) {
+            // Chuyển sang battery presenter để hiển thị charging notification
+            this._switchToBatteryPresenter();
+
             this.expandNotch(true);
 
             if (this._autoExpandTimeoutId) {
@@ -1503,6 +1611,13 @@ class NotchController {
                 if (this.isExpanded) {
                     this.compactNotch();
                 }
+
+                // Sau khi collapse, quay về presenter phù hợp
+                imports.mainloop.timeout_add(300, () => {
+                    this._switchToAppropriatePresenter();
+                    return false;
+                });
+
                 this._autoExpandTimeoutId = null;
                 return false;
             });
@@ -1521,7 +1636,7 @@ class NotchController {
         // 3. Expand notch để hiển thị thông báo (luôn gọi để cập nhật view)
         this.expandNotch(true);
 
-        // 4. Tự động collapse và quay lại Battery sau 3 giây
+        // 4. Tự động collapse và quay lại presenter phù hợp sau 3 giây
         if (this._bluetoothNotificationTimeoutId) {
             imports.mainloop.source_remove(this._bluetoothNotificationTimeoutId);
         }
@@ -1531,7 +1646,8 @@ class NotchController {
             }
 
             imports.mainloop.timeout_add(300, () => {
-                this._switchToBatteryPresenter();
+                // Quay về presenter phù hợp (media hoặc battery)
+                this._switchToAppropriatePresenter();
                 return false;
             });
 
@@ -1555,7 +1671,7 @@ class NotchController {
 
 
     _onMediaChanged(info) {
-        this.mediaView.updateMedia(info);
+        this.mediaView._updatePlayPauseIcon(info.isPlaying);
 
         // Clear timeout cũ nếu có
         if (this._mediaSwitchTimeoutId) {
@@ -1563,19 +1679,19 @@ class NotchController {
             this._mediaSwitchTimeoutId = null;
         }
 
-        if (info.isPlaying) {
-            // Chuyển sang media ngay lập tức
-            const previousPresenter = this._currentPresenter;
+        if (info.isPlaying && info.artPath) {
+            this.mediaView.updateMedia(info);
+            log(`[DynamicIsland] _onMediaChanged: ${JSON.stringify(info)}`);
+
             this._switchToMediaPresenter();
-            if (!this.isExpanded && previousPresenter !== this._currentPresenter) {
+            if (!this.isExpanded) {
                 this.squeeze();
             }
-        } else {
+        } else if (!info.isPlaying) {
             // Chờ 500ms trước khi chuyển về battery (tránh flicker khi next/back)
             this._mediaSwitchTimeoutId = imports.mainloop.timeout_add(10000, () => {
-                const previousPresenter = this._currentPresenter;
                 this._switchToBatteryPresenter();
-                if (!this.isExpanded && previousPresenter !== this._currentPresenter) {
+                if (!this.isExpanded) {
                     this.squeeze();
                 }
                 this._mediaSwitchTimeoutId = null;
@@ -1607,6 +1723,17 @@ class NotchController {
         // Nếu đang expanded thì giữ nguyên expanded view
     }
 
+    /**
+     * Tự động chuyển về presenter phù hợp (media nếu đang playing, không thì battery)
+     */
+    _switchToAppropriatePresenter() {
+        if (this.mediaManager.isMediaPlaying()) {
+            this._switchToMediaPresenter();
+        } else {
+            this._switchToBatteryPresenter();
+        }
+    }
+
     _updateUI() {
         const info = this.batteryManager.getBatteryInfo();
         this.mediaView.hide();
@@ -1632,7 +1759,7 @@ class NotchController {
             this.batteryView.expandedContainer.hide();
             this.bluetoothView.expandedContainer.hide();
             this.mediaView.expandedContainer.hide();
-            
+
             // Hiện expanded view tương ứng với presenter hiện tại
             if (this._currentPresenter === 'battery') {
                 if (!this.batteryView.expandedContainer.get_parent()) {
@@ -1652,7 +1779,7 @@ class NotchController {
             }
             return;
         }
-        
+
         if (this.isExpanded) return;
         // Chỉ chặn nếu không phải auto expand và đang có animation chạy
         if (!isAuto && this._isAnimating) return;
@@ -1843,7 +1970,7 @@ function init() {
 
 function enable() {
     notchController = new NotchController();
-    
+
     // Di chuyển date panel của GNOME sang góc phải
     _moveDatePanelToRight();
 }
@@ -1853,7 +1980,7 @@ function disable() {
         notchController.destroy();
         notchController = null;
     }
-    
+
     // Khôi phục date panel về vị trí ban đầu
     _restoreDatePanel();
 }
@@ -1865,13 +1992,13 @@ function _moveDatePanelToRight() {
             log('[DynamicIsland] Panel not found');
             return;
         }
-        
+
         // Tìm date menu trong statusArea
         let dateMenu = null;
         if (panel.statusArea && panel.statusArea.dateMenu) {
             dateMenu = panel.statusArea.dateMenu;
         }
-        
+
         // Nếu không tìm thấy, thử tìm trong _centerBox
         if (!dateMenu) {
             if (panel._centerBox) {
@@ -1879,7 +2006,7 @@ function _moveDatePanelToRight() {
                 for (let i = 0; i < children.length; i++) {
                     const child = children[i];
                     // Kiểm tra nếu có dateMenu trong child
-                    if (child._delegate && child._delegate.constructor && 
+                    if (child._delegate && child._delegate.constructor &&
                         child._delegate.constructor.name === 'DateMenuButton') {
                         dateMenuActor = child;
                         dateMenuOriginalParent = panel._centerBox;
@@ -1895,22 +2022,22 @@ function _moveDatePanelToRight() {
                 return;
             }
         }
-        
+
         if (!dateMenuActor) {
             log('[DynamicIsland] Date menu not found');
             return;
         }
-        
+
         // Lưu parent ban đầu nếu chưa có
         if (!dateMenuOriginalParent) {
             dateMenuOriginalParent = dateMenuActor.get_parent();
         }
-        
+
         // Xóa khỏi vị trí hiện tại
         if (dateMenuOriginalParent && dateMenuActor.get_parent() === dateMenuOriginalParent) {
             dateMenuOriginalParent.remove_child(dateMenuActor);
         }
-        
+
         // Thêm vào right box của panel
         if (panel._rightBox) {
             panel._rightBox.add_child(dateMenuActor);
@@ -1932,19 +2059,19 @@ function _restoreDatePanel() {
         if (!dateMenuActor || !dateMenuOriginalParent) {
             return;
         }
-        
+
         // Xóa khỏi right box
         const panel = Main.panel;
         if (panel && panel._rightBox && dateMenuActor.get_parent() === panel._rightBox) {
             panel._rightBox.remove_child(dateMenuActor);
         }
-        
+
         // Khôi phục về vị trí ban đầu
         if (dateMenuOriginalParent) {
             dateMenuOriginalParent.add_child(dateMenuActor);
             log('[DynamicIsland] Date panel restored to original position');
         }
-        
+
         dateMenuActor = null;
         dateMenuOriginalParent = null;
     } catch (e) {
