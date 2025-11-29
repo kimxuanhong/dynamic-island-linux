@@ -1,185 +1,230 @@
+/* ============================================
+   NOTCH - Container chính (giữ nguyên thiết kế gốc)
+   ============================================ */
+
 .notch {
-    background: #000;
-    padding: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    border-radius: 0 0 24px 24px;
-}
-
-/* Layout styling with scale origins */
-.notch-left {
-    padding-left: 6px;
-}
-
-.notch-center {
-    /* Content scales smoothly */
-}
-
-.notch-right {
-    padding-right: 6px;
-}
-
-.notch-top-left,
-.notch-top-right,
-.notch-bottom-left,
-.notch-bottom-right {
-    /* Expanded content scales smoothly */
-}
-
-/* Battery styling */
-.battery-icon {
-    color: #ffffff;
-}
-
-.battery-percentage {
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 500;
-}
-
-/* Media styling */
-.media-thumbnail {
-    color: #ffffff;
-}
-
-.media-thumbnail-wrapper {
+    transition: all 200ms ease-out;
     padding: 0;
+    background-color: #000;
+}
+
+/* Trạng thái Nhỏ gọn */
+.notch.compact-state {
+    border-radius: 0 0 20px 20px;
+    background-color: #000;
+}
+
+/* Trạng thái Mở rộng */
+.notch.expanded-state {
+    border-radius: 0 0 20px 20px;
+    background-color: #000;
+}
+
+/* Hiệu ứng khi hover (subtle) */
+.notch:hover {
+    background-color: #0a0a0a;
+}
+
+/* ============================================
+   BATTERY VIEW - Hiển thị pin
+   ============================================ */
+
+.battery-view {
+    spacing: 0;
+    padding: 0 10px;
+}
+
+/* Container expanded của battery */
+.battery-expanded {
+    spacing: 12px;
+    padding: 10px;
+}
+
+/* ============================================
+   BATTERY STATUS - Màu sắc theo trạng thái
+   ============================================ */
+
+/* Text chung */
+.notch-content {
+    color: white;
+    font-weight: bold;
+}
+
+/* Pin yếu - Đỏ nhấp nháy */
+.battery-low {
+    color: #ff0000 !important;
+    animation: blink-warning 1s ease-in-out infinite;
+}
+
+@keyframes blink-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Đang sạc - Xanh lá */
+.battery-charging {
+    color: #00ff00 !important;
+}
+
+/* Pin đầy */
+.battery-full {
+    color: #00ff00 !important;
+}
+
+/* ============================================
+   CHARGING EFFECTS - Hiệu ứng khi sạc
+   ============================================ */
+
+/* Thêm glow effect khi đang sạc (optional) */
+.notch.charging {
+    border-radius: 0 0 20px 20px;
+}
+
+/* Pulse animation cho icon khi sạc */
+.notch.expanded-state .battery-expanded StLabel:first-child {
+    animation: pulse-charging 2s ease-in-out infinite;
+}
+
+@keyframes pulse-charging {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+/* Icon glow effect */
+.icon-glow {
+    filter: drop-shadow(0 0 10px currentColor);
+}
+
+/* ============================================
+   TEXT STYLING
+   ============================================ */
+
+.text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   MEDIA VIEW - Hiển thị media player
+   ============================================ */
+
+/* Media compact container - padding giống battery */
+.media-compact-container {
+    spacing: 0;
+    padding: 0 10px;
+}
+
+/* Compact thumbnail */
+.media-thumbnail-wrapper {
     min-width: 24px;
     min-height: 24px;
     border-radius: 99px;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
+.media-thumbnail {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Audio icon */
 .media-audio-icon {
-    color: #ffffff;
+    padding-left: 16px;
+    color: rgba(255, 255, 255, 0.7);
 }
 
+/* Expanded album art */
 .media-expanded-art-wrapper {
-    padding: 0;
-    margin: 8px;
+    min-width: 120px;
+    min-height: 120px;
     border-radius: 16px;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.1);
+    background-size: cover;
+    background-position: center;
 }
 
 .media-expanded-art {
-    color: #ffffff;
+    color: rgba(255, 255, 255, 0.8);
 }
 
+/* Media controls box */
 .media-controls-box {
-    gap: 12px;
-    padding: 12px;
+    spacing: 15px;
+    padding: 10px;
 }
 
 .media-control-button {
-    background-color: rgba(255, 255, 255, 0.08);
-    border-radius: 999px;
-    padding: 6px;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 20px;
+    background-color: rgba(255, 255, 255, 0.1);
+    transition: all 200ms ease;
 }
 
-.media-control-button:hover,
-.media-control-button:focus {
-    background-color: rgba(255, 255, 255, 0.18);
+.media-control-button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.media-control-button:active {
+    background-color: rgba(255, 255, 255, 0.3);
+    transform: scale(0.95);
 }
 
 .media-control-icon {
-    color: #ffffff;
+    color: white;
+    icon-size: 20px;
 }
 
+/* Play/Pause button - larger and more prominent */
+.media-control-button:nth-child(2) {
+    min-width: 48px;
+    min-height: 48px;
+    border-radius: 24px;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.media-control-button:nth-child(2) .media-control-icon {
+    icon-size: 28px;
+}
+
+.media-control-button:nth-child(2):hover {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Title wrapper */
 .media-title-wrapper {
-    padding: 8px 12px;
+    padding: 10px;
+    max-width: 200px;
 }
 
 .media-title-label {
-    color: #ffffff;
+    color: white;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: bold;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    text-align: left;
+    ellipsize: true;
 }
 
-/* Bluetooth styling */
-.bluetooth-icon {
-    color: #ffffff;
-    opacity: 1.0;
-}
+/* ============================================
+   SMOOTH TRANSITIONS
+   ============================================ */
 
-.bluetooth-expanded-icon {
-    color: #0ea5e9;
-    opacity: 1.0;
-}
-
-.bluetooth-expanded-icon-disconnected {
-    color: #ef4444;
-    opacity: 1.0;
-}
-
-.bluetooth-status-label {
-    color: #ffffff;
-    font-size: 16px;
-    font-weight: 600;
-    opacity: 1.0;
-}
-
-.bluetooth-device-label {
-    color: #e0e0e0;
-    font-size: 14px;
-    font-weight: 500;
-    opacity: 1.0;
-    margin-top: 4px;
-}
-
-/* Volume styling */
-.volume-icon {
-    color: #ffffff;
-    opacity: 1.0;
-}
-
-.volume-box {
-    gap: 12px;
-    padding: 16px;
-}
-
-.volume-icon-large {
-    color: #ffffff;
-    opacity: 1.0;
-}
-
-.volume-bar-container {
-    margin: 8px 0;
-}
-
-.volume-bar-bg {
-    width: 340px;
-    height: 8px;
-    border-radius: 4px;
-}
-
-.volume-percentage {
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 600;
-    opacity: 1.0;
-}
-
-/* Charging styling */
-.charging-box {
-    gap: 16px;
-    padding: 16px;
-}
-
-.charging-icon {
-    color: #22c55e;
-    /* Green color for charging */
-    opacity: 1.0;
-}
-
-.charging-text-box {
-    gap: 4px;
-}
-
-.charging-status-label {
-    color: #e0e0e0;
-    font-size: 14px;
-    font-weight: 500;
-}
-
-.charging-percentage-label {
-    color: #22c55e;
-    font-size: 24px;
-    font-weight: 700;
+/* Chỉ áp dụng transition cho media view, không ảnh hưởng đến battery */
+.media-thumbnail-wrapper,
+.media-thumbnail,
+.media-audio-icon,
+.media-expanded-art-wrapper,
+.media-expanded-art,
+.media-control-button,
+.media-control-icon,
+.media-title-label {
+    transition: color 150ms ease, opacity 150ms ease;
 }

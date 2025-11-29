@@ -1,99 +1,1849 @@
+const St = imports.gi.St;
 const Main = imports.ui.main;
+const Clutter = imports.gi.Clutter;
+const Gio = imports.gi.Gio;
+const GLib = imports.gi.GLib;
+const UPower = imports.gi.UPowerGlib;
+const Soup = imports.gi.Soup;
 
-// Import modules
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
+// --- BIẾN TOÀN CỤC ---
+let notchController;
 
-const Notch = Me.imports.notch.Notch;
-const BatteryPresenter = Me.imports.batteryPresenter.BatteryPresenter;
-const MediaPresenter = Me.imports.mediaPresenter.MediaPresenter;
-const BluetoothPresenter = Me.imports.bluetoothPresenter.BluetoothPresenter;
-const VolumePresenter = Me.imports.volumePresenter.VolumePresenter;
+// ============================================
+// 1. MODEL - Xử lý Dữ liệu (BatteryManager)
+// ============================================
+/**
+ * Quản lý thông tin pin (Model).
+ * Tương tác với D-Bus của UPower để lấy trạng thái pin.
+ */
+class BatteryManager {
+    constructor() {
+        this._proxy = null;
+        this._signalId = null;
+        this._callbacks = [];
 
-let notch;
-let batteryPresenter;
-let mediaPresenter;
-let bluetoothPresenter;
-let volumePresenter;
-let monitorsChangedId;
-let stageResizeId;
+        this._initProxy();
+    }
 
-function _reposition() {
-    if (!notch) return;
+    _initProxy() {
+        // Định nghĩa interface D-Bus cho UPower Device
+        let BatteryProxyInterface = `
+            <node>
+                <interface name="org.freedesktop.UPower.Device">
+                    <property name="Percentage" type="d" access="read"/>
+                    <property name="State" type="u" access="read"/>
+                    <property name="IsPresent" type="b" access="read"/>
+                </interface>
+            </node>
+        `;
 
-    notch.syncPosition();
+        const BatteryProxy = Gio.DBusProxy.makeProxyWrapper(BatteryProxyInterface);
+
+        // Tạo Proxy tới Display Device của UPower qua System Bus
+        this._proxy = new BatteryProxy(
+            Gio.DBus.system,
+            'org.freedesktop.UPower',
+            '/org/freedesktop/UPower/devices/DisplayDevice'
+        );
+
+        // Lắng nghe thay đổi thuộc tính
+        this._signalId = this._proxy.connect('g-properties-changed', () => {
+            this._notifyCallbacks();
+        });
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks() {
+        const info = this.getBatteryInfo();
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+    getBatteryInfo() {
+        if (!this._proxy) {
+            return { percentage: 0, isCharging: false, isPresent: false };
+        }
+
+        const percentage = Math.round(this._proxy.Percentage || 0);
+        const state = this._proxy.State || 0;
+        const isPresent = this._proxy.IsPresent || false;
+
+        const isCharging = (state === UPower.DeviceState.CHARGING || state === UPower.DeviceState.FULLY_CHARGED);
+
+        return {
+            percentage: percentage,
+            isCharging: isCharging,
+            isPresent: isPresent
+        };
+    }
+
+    destroy() {
+        if (this._signalId && this._proxy) {
+            this._proxy.disconnect(this._signalId);
+            this._signalId = null;
+        }
+        this._proxy = null;
+        this._callbacks = [];
+    }
+}
+
+// ============================================
+// 1B. MODEL - Xử lý Bluetooth (BluetoothManager)
+// ============================================
+/**
+ * Quản lý thông tin Bluetooth (Model).
+ * Tương tác với D-Bus của BlueZ sử dụng XML Interface và ObjectManager.
+ */
+class BluetoothManager {
+    constructor() {
+        this._callbacks = [];
+        this._devices = new Map();
+        this._objectManager = null;
+        this._destroyed = false;
+        this._isInitializing = true; // FIX: Cờ để bỏ qua notifications khi khởi tạo
+
+        this._initProxies();
+    }
+
+    _initProxies() {
+        // 1. Định nghĩa Interface cho Device
+        const DeviceInterface = `
+            <node>
+                <interface name="org.bluez.Device1">
+                    <property name="Connected" type="b" access="read"/>
+                    <property name="Alias" type="s" access="read"/>
+                    <property name="Icon" type="s" access="read"/>
+                </interface>
+            </node>
+        `;
+        this.DeviceProxy = Gio.DBusProxy.makeProxyWrapper(DeviceInterface);
+
+        // 2. Định nghĩa Interface cho ObjectManager
+        const ObjectManagerInterface = `
+            <node>
+                <interface name="org.freedesktop.DBus.ObjectManager">
+                    <method name="GetManagedObjects">
+                        <arg type="a{oa{sa{sv}}}" name="objects" direction="out"/>
+                    </method>
+                    <signal name="InterfacesAdded">
+                        <arg type="o" name="object_path"/>
+                        <arg type="a{sa{sv}}" name="interfaces_and_properties"/>
+                    </signal>
+                    <signal name="InterfacesRemoved">
+                        <arg type="o" name="object_path"/>
+                        <arg type="as" name="interfaces"/>
+                    </signal>
+                </interface>
+            </node>
+        `;
+        const ObjectManagerProxy = Gio.DBusProxy.makeProxyWrapper(ObjectManagerInterface);
+
+        try {
+            // 3. Kết nối tới ObjectManager của BlueZ
+            this._objectManager = new ObjectManagerProxy(
+                Gio.DBus.system,
+                'org.bluez',
+                '/'
+            );
+
+            // 4. Lắng nghe tín hiệu thêm/xóa thiết bị
+            this._objectManager.connectSignal('InterfacesAdded', (proxy, senderName, [objectPath, interfaces]) => {
+                log(`[DynamicIsland] InterfacesAdded: ${objectPath}`);
+                this._onInterfacesAdded(objectPath, interfaces);
+            });
+
+            this._objectManager.connectSignal('InterfacesRemoved', (proxy, senderName, [objectPath, interfaces]) => {
+                log(`[DynamicIsland] InterfacesRemoved: ${objectPath}`);
+                this._onInterfacesRemoved(objectPath, interfaces);
+            });
+
+            // 5. Lấy danh sách thiết bị hiện tại
+            this._syncDevices();
+
+            log('[DynamicIsland] BluetoothManager initialized successfully');
+        } catch (e) {
+            log(`[DynamicIsland] Error initializing BluetoothManager: ${e.message}`);
+        }
+    }
+
+    _syncDevices() {
+        if (!this._objectManager) return;
+
+        this._objectManager.GetManagedObjectsRemote((result, error) => {
+            if (this._destroyed) return;
+            if (error) {
+                log(`[DynamicIsland] Error getting managed objects: ${error.message}`);
+                return;
+            }
+
+            const objects = result[0];
+            for (const path in objects) {
+                this._onInterfacesAdded(path, objects[path]);
+            }
+
+            // FIX: Sau khi sync xong tất cả devices, mới bật notifications
+            imports.mainloop.timeout_add(1000, () => {
+                this._isInitializing = false;
+                log('[DynamicIsland] BluetoothManager initialization complete, notifications enabled');
+                return false;
+            });
+        });
+    }
+
+    _onInterfacesAdded(objectPath, interfaces) {
+        if (this._destroyed) return;
+        if (interfaces['org.bluez.Device1']) {
+            this._addDevice(objectPath);
+        }
+    }
+
+    _onInterfacesRemoved(objectPath, interfaces) {
+        if (this._destroyed) return;
+        if (interfaces.includes('org.bluez.Device1')) {
+            this._removeDevice(objectPath);
+        }
+    }
+
+    _addDevice(path) {
+        if (this._devices.has(path)) return;
+
+        try {
+            log(`[DynamicIsland] Adding Bluetooth device: ${path}`);
+            const deviceProxy = new this.DeviceProxy(
+                Gio.DBus.system,
+                'org.bluez',
+                path,
+                (proxy, error) => {
+                    if (error) {
+                        log(`[DynamicIsland] Error creating proxy for ${path}: ${error.message}`);
+                    }
+                }
+            );
+
+            // Lắng nghe thay đổi thuộc tính
+            const signalId = deviceProxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
+                this._onDevicePropertiesChanged(proxy, changed);
+            });
+
+            deviceProxy._signalId = signalId;
+            this._devices.set(path, deviceProxy);
+        } catch (e) {
+            log(`[DynamicIsland] Error adding device ${path}: ${e.message}`);
+        }
+    }
+
+    _removeDevice(path) {
+        const deviceProxy = this._devices.get(path);
+        if (deviceProxy) {
+            log(`[DynamicIsland] Removing Bluetooth device: ${path}`);
+            if (deviceProxy._signalId) {
+                deviceProxy.disconnect(deviceProxy._signalId);
+            }
+            this._devices.delete(path);
+        }
+    }
+
+    _onDevicePropertiesChanged(proxy, changedProperties) {
+        if (this._destroyed) return;
+
+        // FIX: Bỏ qua notifications trong lúc khởi tạo
+        if (this._isInitializing) {
+            log(`[DynamicIsland] Skipping notification during initialization for ${proxy.g_object_path}`);
+            return;
+        }
+
+        // changedProperties là GLib.Variant (a{sv})
+        const changed = changedProperties.deep_unpack();
+
+        log(`[DynamicIsland] Properties changed for ${proxy.g_object_path}: ${JSON.stringify(changed)}`);
+
+        if ('Connected' in changed) {
+            try {
+                let rawConnected = changed['Connected'];
+                log(`[DynamicIsland] Raw Connected value: ${rawConnected} (Type: ${typeof rawConnected})`);
+
+                // FIX: Xử lý đúng cả GVariant và boolean thô
+                let isConnected;
+                if (rawConnected && typeof rawConnected.deep_unpack === 'function') {
+                    isConnected = Boolean(rawConnected.deep_unpack());
+                } else {
+                    isConnected = Boolean(rawConnected);
+                }
+
+                const alias = proxy.Alias || 'Unknown Device';
+
+                log(`[DynamicIsland] Bluetooth Device ${alias} Connected status changed to: ${isConnected}`);
+
+                // LUÔN gọi callback cho cả connect và disconnect
+                this._notifyCallbacks({
+                    deviceName: alias,
+                    isConnected: isConnected
+                });
+            } catch (e) {
+                log(`[DynamicIsland] Error handling Bluetooth property change: ${e.message}`);
+            }
+        }
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        log(`[DynamicIsland] Notifying Bluetooth callbacks: ${JSON.stringify(info)}`);
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+    destroy() {
+        this._destroyed = true;
+
+        this._devices.forEach((proxy) => {
+            if (proxy._signalId) proxy.disconnect(proxy._signalId);
+        });
+        this._devices.clear();
+
+        if (this._objectManager) {
+            this._objectManager = null;
+        }
+
+        this._callbacks = [];
+    }
+}
+
+// ============================================
+// 2. VIEW - Xử lý Giao diện (BatteryView)
+// ============================================
+class BatteryView {
+    constructor() {
+        this._buildCompactView();
+        this._buildExpandedView();
+    }
+
+    _buildCompactView() {
+        this.iconLeft = new St.Icon({
+            icon_name: 'battery-good-symbolic',
+            icon_size: 24,
+            x_align: Clutter.ActorAlign.START
+        });
+
+        this.iconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            style: 'padding-left: 16px;',
+        });
+        this.iconWrapper.set_child(this.iconLeft);
+
+        this.percentageLabel = new St.Label({
+            text: '0%',
+            style: 'color: white; font-size: 14px; font-weight: bold; padding-right: 16px;',
+            x_align: Clutter.ActorAlign.END
+        });
+
+        this.percentageWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true
+        });
+        this.percentageWrapper.set_child(this.percentageLabel);
+
+        this.compactContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+        });
+        this.compactContainer.add_child(this.iconWrapper);
+        this.compactContainer.add_child(this.percentageWrapper);
+    }
+
+    _buildExpandedView() {
+        this.iconExpanded = new St.Icon({
+            icon_name: 'battery-good-symbolic',
+            icon_size: 64,
+        });
+
+        this.statusLabel = new St.Label({
+            text: 'Đang sạc...',
+            style: 'color: white; font-size: 18px; font-weight: bold; margin-top: 10px;'
+        });
+
+        this.expandedContainer = new St.BoxLayout({
+            style_class: 'battery-expanded',
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: true,
+            visible: false
+        });
+        this.expandedContainer.add_child(this.iconExpanded);
+        this.expandedContainer.add_child(this.statusLabel);
+    }
+
+    updateBattery(batteryInfo) {
+        const { percentage, isCharging, isPresent } = batteryInfo;
+        let iconName;
+
+        if (!isPresent) {
+            this.percentageLabel.set_text('N/A');
+            this.iconLeft.icon_name = 'battery-missing-symbolic';
+            this.iconExpanded.icon_name = 'battery-missing-symbolic';
+            this.iconLeft.set_style(`color: #ffffff;`);
+            this.iconExpanded.set_style(`color: #ffffff;`);
+            this.statusLabel.set_text('Không có pin');
+            return;
+        }
+
+        this.percentageLabel.set_text(`${percentage}%`);
+
+        if (isCharging) {
+            iconName = 'battery-charging-symbolic';
+        } else if (percentage === 100) {
+            iconName = 'battery-full-charged-symbolic';
+        } else if (percentage >= 90) {
+            iconName = 'battery-full-symbolic';
+        } else if (percentage >= 60) {
+            iconName = 'battery-good-symbolic';
+        } else if (percentage >= 30) {
+            iconName = 'battery-low-symbolic';
+        } else {
+            iconName = 'battery-empty-symbolic';
+        }
+
+        this.iconLeft.icon_name = iconName;
+        this.iconExpanded.icon_name = iconName;
+
+        const color = this._getBatteryColor(percentage);
+        const statusClass = this._getBatteryStatusClass(percentage, isCharging);
+
+        this.iconLeft.set_style(`color: ${color};`);
+        this.iconExpanded.set_style(`color: ${color};`);
+        this.percentageLabel.style_class = `text-shadow ${statusClass}`;
+
+        if (isCharging) {
+            this.statusLabel.set_text(`⚡ Đang sạc - ${percentage}%`);
+            this.iconExpanded.style_class = 'icon-glow battery-charging';
+        } else {
+            this.statusLabel.set_text(`Pin: ${percentage}%`);
+            this.iconExpanded.style_class = statusClass;
+        }
+    }
+
+    _getBatteryColor(percentage) {
+        if (percentage > 60) return '#00ff00';
+        if (percentage > 30) return '#ffff00';
+        return '#ff0000';
+    }
+
+    _getBatteryStatusClass(percentage, isCharging) {
+        if (isCharging) return 'battery-charging';
+        if (percentage <= 20) return 'battery-low';
+        if (percentage === 100) return 'battery-full';
+        return '';
+    }
+
+    destroy() {
+        if (this.compactContainer) {
+            this.compactContainer.destroy();
+        }
+        if (this.expandedContainer) {
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+// ============================================
+// 2B. VIEW - Xử lý Giao diện Bluetooth (BluetoothView)
+// ============================================
+class BluetoothView {
+    constructor() {
+        this._buildCompactView();
+        this._buildExpandedView();
+    }
+
+    _buildCompactView() {
+        this.icon = new St.Icon({
+            icon_name: 'bluetooth-active-symbolic',
+            icon_size: 20,
+        });
+
+        this.compactContainer = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: true,
+            visible: false,
+        });
+        this.compactContainer.set_child(this.icon);
+    }
+
+    _buildExpandedView() {
+        // Icon lớn
+        this.expandedIcon = new St.Icon({
+            icon_name: 'bluetooth-active-symbolic',
+            icon_size: 64,
+        });
+
+        this.expandedIconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.expandedIconWrapper.set_child(this.expandedIcon);
+
+        // Text
+        this.statusLabel = new St.Label({
+            text: 'Connected',
+            style: 'color: white; font-size: 18px; font-weight: bold;'
+        });
+
+        this.deviceLabel = new St.Label({
+            text: '',
+            style: 'color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 5px;'
+        });
+
+        const textBox = new St.BoxLayout({
+            vertical: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
+        });
+        textBox.add_child(this.statusLabel);
+        textBox.add_child(this.deviceLabel);
+
+        this.textWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.textWrapper.set_child(textBox);
+
+        // ✅ TẠO SẴN EXPANDED CONTAINER NGAY TẠI ĐÂY
+        this.expandedContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            style: 'spacing: 20px; padding: 20px;',
+            visible: false  // Ẩn mặc định
+        });
+        this.expandedContainer.add_child(this.expandedIconWrapper);
+        this.expandedContainer.add_child(this.textWrapper);
+    }
+
+    /**
+     * Cập nhật UI với thông tin Bluetooth mới.
+     * @param {{deviceName: string, isConnected: boolean}} bluetoothInfo
+     */
+    updateBluetooth(bluetoothInfo) {
+        const { deviceName, isConnected } = bluetoothInfo;
+
+        log(`[DynamicIsland] View updating Bluetooth: ${deviceName}, Connected: ${isConnected}`);
+
+        // FIX: Hiển thị rõ ràng cả trạng thái connected và disconnected
+        if (isConnected) {
+            this.statusLabel.set_text('✓ Connected!');
+            this.expandedIcon.icon_name = 'bluetooth-active-symbolic';
+            this.expandedIcon.set_style('color: #00aaff;'); // Xanh dương
+            this.icon.icon_name = 'bluetooth-active-symbolic';
+            this.icon.set_style('color: #00aaff;');
+        } else {
+            this.statusLabel.set_text('✗ Disconnected!');
+            this.expandedIcon.icon_name = 'bluetooth-disabled-symbolic';
+            this.expandedIcon.set_style('color: #ff6666;'); // Đỏ nhạt
+            this.icon.icon_name = 'bluetooth-disabled-symbolic';
+            this.icon.set_style('color: #ff6666;');
+        }
+
+        this.deviceLabel.set_text(deviceName);
+    }
+
+    show() {
+        //this.compactContainer.show();
+        this.expandedContainer.show();  // Show cả expanded container
+    }
+
+    hide() {
+        //this.compactContainer.hide();
+        this.expandedContainer.hide();  // Hide cả expanded container
+    }
+
+    destroy() {
+        if (this.compactContainer) {
+            this.compactContainer.destroy();
+        }
+        if (this.expandedContainer) {  // Destroy expanded container
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+// ============================================
+// 1C. MODEL - Xử lý Media Player (MediaManager)
+// ============================================
+/**
+ * Quản lý thông tin Media Player (Model).
+ * Tương tác với D-Bus của MPRIS để lấy thông tin media player.
+ */
+class MediaManager {
+    constructor() {
+        this._callbacks = [];
+        this._playerProxy = null;
+        this._playerProxySignal = null;
+        this._dbusProxy = null;
+        this._dbusSignalId = null;
+        this._currentPlayerName = null;
+        this._playbackStatus = null;
+        this._checkTimeoutId = null;
+        this._httpSession = new Soup.Session();
+        this._artCache = new Map(); // URL -> local path
+        this._destroyed = false;
+
+        this._setupDBusNameOwnerChanged();
+        this._watchForMediaPlayers();
+        // Keep polling as a backup, but less frequent (5s)
+        this._checkTimeoutId = imports.mainloop.timeout_add_seconds(5, () => {
+            if (this._destroyed) return false;
+            if (!this._playerProxy) {
+                this._watchForMediaPlayers();
+            }
+            return true;
+        });
+    }
+
+    _setupDBusNameOwnerChanged() {
+        try {
+            const DBusInterface = `
+            <node>
+              <interface name="org.freedesktop.DBus">
+                <signal name="NameOwnerChanged">
+                  <arg type="s" name="name"/>
+                  <arg type="s" name="old_owner"/>
+                  <arg type="s" name="new_owner"/>
+                </signal>
+              </interface>
+            </node>`;
+
+            const DBusProxyWrapper = Gio.DBusProxy.makeProxyWrapper(DBusInterface);
+            this._dbusProxy = new DBusProxyWrapper(
+                Gio.DBus.session,
+                'org.freedesktop.DBus',
+                '/org/freedesktop/DBus',
+                (proxy, error) => {
+                    if (error) {
+                        log(`[DynamicIsland] Failed to connect to DBus: ${error.message}`);
+                        return;
+                    }
+
+                    this._dbusSignalId = proxy.connectSignal('NameOwnerChanged', (proxy, sender, [name, oldOwner, newOwner]) => {
+                        if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
+                            if (newOwner && !oldOwner) {
+                                log(`[DynamicIsland] New player appeared: ${name}`);
+                                // If we don't have a player, or if this is Spotify (priority), connect
+                                if (!this._playerProxy || name.includes('spotify')) {
+                                    this._connectToPlayer(name);
+                                }
+                            } else if (oldOwner && !newOwner) {
+                                log(`[DynamicIsland] Player disappeared: ${name}`);
+                                // If the disconnected player was our current one
+                                if (this._currentPlayerName && this._currentPlayerName === name) {
+                                    this._disconnectPlayer();
+                                    this._watchForMediaPlayers(); // Look for other players
+                                }
+                            }
+                        }
+                    });
+                }
+            );
+        } catch (e) {
+            log(`[DynamicIsland] Error setting up DBus listener: ${e.message}`);
+        }
+    }
+
+    _findBestPlayer(playerNames) {
+        if (playerNames.includes('org.mpris.MediaPlayer2.spotify')) {
+            return 'org.mpris.MediaPlayer2.spotify';
+        }
+        return playerNames.length > 0 ? playerNames[0] : null;
+    }
+
+    _watchForMediaPlayers() {
+        try {
+            Gio.DBus.session.call(
+                'org.freedesktop.DBus',
+                '/org/freedesktop/DBus',
+                'org.freedesktop.DBus',
+                'ListNames',
+                null,
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                (conn, res) => {
+                    try {
+                        const reply = conn.call_finish(res);
+                        const names = reply.deep_unpack()[0];
+                        const players = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
+                        const playerBusName = this._findBestPlayer(players);
+
+                        if (playerBusName) {
+                            // Only connect if we are not already connected to this specific player
+                            if (!this._playerProxy || this._playerProxy.g_name !== playerBusName) {
+                                log(`[DynamicIsland] Connecting to player: ${playerBusName}`);
+                                this._connectToPlayer(playerBusName);
+                            }
+                        } else {
+                            if (this._playerProxy) {
+                                this._disconnectPlayer();
+                            }
+                        }
+                    } catch (e) { log(e); }
+                }
+            );
+        } catch (e) { log(e); }
+    }
+
+    _connectToPlayer(busName) {
+        try {
+            this._currentPlayerName = busName;
+            this._playerProxy = new Gio.DBusProxy({
+                g_connection: Gio.DBus.session,
+                g_name: busName,
+                g_object_path: '/org/mpris/MediaPlayer2',
+                g_interface_name: 'org.mpris.MediaPlayer2.Player',
+            });
+
+            this._playerProxy.init(null);
+
+            this._playerProxySignal = this._playerProxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
+                if (this._destroyed) return;
+                try {
+                    const changedProps = changed?.deep_unpack?.() ?? {};
+                    const metadata = changedProps.Metadata;
+                    if (metadata) {
+                        this._updateMetadata(metadata);
+                    }
+                    const playbackStatus = changedProps.PlaybackStatus;
+                    if (playbackStatus) {
+                        this._updatePlaybackStatus(playbackStatus);
+                    }
+                } catch (e) {
+                    if (!this._destroyed) {
+                        log(`[DynamicIsland] Error in properties-changed callback: ${e.message}`);
+                    }
+                }
+            });
+
+            // Initial update
+            const metadata = this._playerProxy.get_cached_property('Metadata');
+            if (metadata) {
+                this._updateMetadata(metadata.deep_unpack());
+            }
+            const playbackStatus = this._playerProxy.get_cached_property('PlaybackStatus');
+            if (playbackStatus) {
+                this._updatePlaybackStatus(playbackStatus);
+            }
+        } catch (e) {
+            log(`Failed to connect to player: ${e.message}`);
+        }
+    }
+
+    _disconnectPlayer() {
+        if (this._playerProxy) {
+            if (this._playerProxySignal) {
+                this._playerProxy.disconnect(this._playerProxySignal);
+                this._playerProxySignal = null;
+            }
+            this._playerProxy = null;
+        }
+        this._currentPlayerName = null;
+        this._playbackStatus = null;
+        // Notify với metadata và artPath = null để trigger switch về battery
+        this._notifyCallbacks({
+            isPlaying: false,
+            metadata: null,
+            playbackStatus: null,
+            artPath: null
+        });
+    }
+
+    _updateMetadata(metadata) {
+        if (!metadata) return;
+        const unpackedMetadata = metadata.deep_unpack ? metadata.deep_unpack() : metadata;
+        
+        // Get art URL and handle download if needed
+        const artUrl = this._extractArtUrl(unpackedMetadata);
+        let artPath = null;
+        
+        if (artUrl) {
+            if (artUrl.startsWith('http')) {
+                // Check cache first
+                if (this._artCache.has(artUrl)) {
+                    artPath = this._artCache.get(artUrl);
+                } else {
+                    // Download async
+                    this._downloadImage(artUrl, (data) => {
+                        const path = this._saveAndCacheImage(artUrl, data);
+                        if (path) {
+                            this._notifyCallbacks({ 
+                                isPlaying: this._playbackStatus === 'Playing',
+                                metadata: unpackedMetadata,
+                                playbackStatus: this._playbackStatus,
+                                artPath: path
+                            });
+                        }
+                    });
+                }
+            } else {
+                artPath = artUrl; // Local file
+            }
+        }
+        
+        this._notifyCallbacks({ 
+            isPlaying: this._playbackStatus === 'Playing',
+            metadata: unpackedMetadata,
+            playbackStatus: this._playbackStatus,
+            artPath: artPath
+        });
+    }
+
+    _updatePlaybackStatus(status) {
+        const unpackedStatus = status?.deep_unpack ? status.deep_unpack() : (status?.unpack ? status.unpack() : status);
+        this._playbackStatus = unpackedStatus;
+        const isPlaying = unpackedStatus === 'Playing';
+        this._notifyCallbacks({ 
+            isPlaying: isPlaying,
+            metadata: null,
+            playbackStatus: unpackedStatus
+        });
+    }
+
+    _extractMetadataValue(metadata, keys) {
+        try {
+            if (!metadata) return null;
+            for (const key of keys) {
+                if (metadata[key]) {
+                    const value = metadata[key];
+                    return value.unpack ? value.unpack() : value.toString();
+                }
+            }
+        } catch (e) {
+            log(`[DynamicIsland] Error extracting metadata: ${e.message}`);
+        }
+        return null;
+    }
+
+    _extractArtUrl(metadata) {
+        return this._extractMetadataValue(metadata, ['mpris:artUrl', 'xesam:artUrl', 'mpris:arturl']);
+    }
+
+    _extractTitle(metadata) {
+        return this._extractMetadataValue(metadata, ['xesam:title', 'mpris:title']);
+    }
+
+    _downloadImage(url, callback) {
+        const msg = Soup.Message.new('GET', url);
+        if (this._httpSession.queue_message) { // Soup 2.4
+            this._httpSession.queue_message(msg, (session, message) => {
+                if (message.status_code === 200) {
+                    callback(message.response_body.data);
+                }
+            });
+        } else if (this._httpSession.send_and_read_async) { // Soup 3.0
+            this._httpSession.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null, (session, result) => {
+                try {
+                    const bytes = session.send_and_read_finish(result);
+                    callback(bytes.get_data());
+                } catch (e) { log(e); }
+            });
+        }
+    }
+
+    _saveAndCacheImage(url, data) {
+        try {
+            const dir = GLib.get_user_cache_dir() + '/dynamic-island-art';
+            if (GLib.mkdir_with_parents(dir, 0o755) !== 0) return;
+
+            const checksum = new GLib.Checksum(GLib.ChecksumType.MD5);
+            checksum.update(url);
+            const filename = checksum.get_string() + '.jpg';
+            const path = dir + '/' + filename;
+
+            const file = Gio.File.new_for_path(path);
+            file.replace_contents(data, null, false, Gio.FileCreateFlags.NONE, null);
+
+            this._artCache.set(url, path);
+            return path;
+        } catch (e) {
+            log(`[DynamicIsland] Failed to save image: ${e.message}`);
+            return null;
+        }
+    }
+
+    getArtUrl(metadata) {
+        if (!metadata) return null;
+        const artUrl = this._extractArtUrl(metadata);
+        if (!artUrl) return null;
+
+        if (artUrl.startsWith('http')) {
+            if (this._artCache.has(artUrl)) {
+                return this._artCache.get(artUrl);
+            }
+            // Download async
+            this._downloadImage(artUrl, (data) => {
+                const path = this._saveAndCacheImage(artUrl, data);
+                if (path) {
+                    this._notifyCallbacks({ 
+                        isPlaying: this._playbackStatus === 'Playing',
+                        metadata: metadata,
+                        playbackStatus: this._playbackStatus,
+                        artPath: path
+                    });
+                }
+            });
+            return null; // Will be updated via callback
+        }
+        return artUrl; // Local file
+    }
+
+    getTitle(metadata) {
+        if (!metadata) return null;
+        return this._extractTitle(metadata);
+    }
+
+    hasArtUrl(metadata) {
+        if (!metadata) return false;
+        const artUrl = this._extractArtUrl(metadata);
+        return !!artUrl;
+    }
+
+    sendPlayerCommand(method) {
+        if (!this._playerProxy) return;
+        try {
+            this._playerProxy.call_sync(
+                method,
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null
+            );
+        } catch (e) {
+            log(`[DynamicIsland] Failed to send ${method}: ${e.message}`);
+        }
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+    isMediaPlaying() {
+        return this._playerProxy !== null && this._playbackStatus === 'Playing';
+    }
+
+    hasPlayer() {
+        return this._playerProxy !== null;
+    }
+
+    destroy() {
+        this._destroyed = true;
+
+        if (this._checkTimeoutId) {
+            imports.mainloop.source_remove(this._checkTimeoutId);
+            this._checkTimeoutId = null;
+        }
+
+        if (this._playerProxy && this._playerProxySignal) {
+            try {
+                this._playerProxy.disconnect(this._playerProxySignal);
+            } catch (e) {
+                log(`[DynamicIsland] Error disconnecting player proxy: ${e.message}`);
+            }
+            this._playerProxySignal = null;
+        }
+
+        if (this._dbusSignalId && this._dbusProxy) {
+            try {
+                this._dbusProxy.disconnectSignal(this._dbusSignalId);
+            } catch (e) {
+                log(`[DynamicIsland] Error disconnecting DBus signal: ${e.message}`);
+            }
+            this._dbusSignalId = null;
+        }
+
+        this._httpSession?.abort();
+
+        this._playerProxy = null;
+        this._dbusProxy = null;
+        this._httpSession = null;
+        this._artCache.clear();
+        this._callbacks = [];
+    }
+}
+
+// ============================================
+// 2C. VIEW - Xử lý Giao diện Media (MediaView)
+// ============================================
+class MediaView {
+    constructor() {
+        this._lastMetadata = null;
+        this._lastArtPath = null;
+        this._buildCompactView();
+        this._buildExpandedView();
+    }
+
+    _buildCompactView() {
+        // Thumbnail on the left (album art)
+        this._thumbnail = new St.Icon({
+            style_class: 'media-thumbnail',
+            icon_name: 'audio-x-generic-symbolic',
+            icon_size: 24,
+        });
+
+        // Thumbnail on the left (giống battery iconWrapper)
+        this._thumbnail = new St.Icon({
+            style_class: 'media-thumbnail',
+            icon_name: 'audio-x-generic-symbolic',
+            icon_size: 24,
+            x_align: Clutter.ActorAlign.START
+        });
+
+        this._thumbnailWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            style_class: 'media-thumbnail-wrapper',
+            style: 'padding-left: 16px;',
+            visible: false,
+            clip_to_allocation: true,
+        });
+        this._thumbnailWrapper.set_child(this._thumbnail);
+
+        // Audio icon on the right
+        this._audioIcon = new St.Icon({
+            style_class: 'media-audio-icon',
+            icon_name: 'audio-volume-high-symbolic',
+            icon_size: 20,
+            x_align: Clutter.ActorAlign.END
+        });
+
+        this._audioIconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+        });
+        this._audioIconWrapper.set_child(this._audioIcon);
+
+        // Compact container giống hệt battery
+        this.compactContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            style_class: 'media-compact-container',
+        });
+        this.compactContainer.add_child(this._thumbnailWrapper);
+        this.compactContainer.add_child(this._audioIconWrapper);
+    }
+
+    _buildExpandedView() {
+        // Expanded album art (left side)
+        this._expandedArt = new St.Icon({
+            style_class: 'media-expanded-art',
+            icon_name: 'audio-x-generic-symbolic',
+            icon_size: 96,
+        });
+
+        this._expandedArtWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: true,
+            style_class: 'media-expanded-art-wrapper',
+            visible: true,
+            reactive: true,
+            clip_to_allocation: true,
+        });
+        this._expandedArtWrapper.set_child(this._expandedArt);
+        this._expandedArtWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+
+        // Expanded controls (right side - top)
+        this._controlsBox = new St.BoxLayout({
+            style_class: 'media-controls-box',
+            x_expand: true,
+            y_expand: false,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: true,
+            reactive: true,
+        });
+        this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
+
+        const controlConfig = [
+            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
+            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
+            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
+        ];
+
+        controlConfig.forEach(config => {
+            const button = new St.Button({
+                style_class: 'media-control-button',
+                reactive: true,
+                can_focus: true,
+            });
+            const icon = new St.Icon({
+                style_class: 'media-control-icon',
+                icon_name: config.icon,
+            });
+            button.set_child(icon);
+            button.connect('clicked', () => config.handler());
+            button.connect('scroll-event', () => Clutter.EVENT_STOP);
+
+            if (config.playPause) {
+                this._playPauseIcon = icon;
+            }
+            this._controlsBox.add_child(button);
+        });
+
+        // Expanded song title (right side - bottom)
+        this._titleLabel = new St.Label({
+            style_class: 'media-title-label',
+            text: '',
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        this._titleWrapper = new St.BoxLayout({
+            style_class: 'media-title-wrapper',
+            x_expand: true,
+            y_expand: false,
+            visible: true,
+            reactive: true,
+        });
+        this._titleWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+        this._titleWrapper.add_child(this._titleLabel);
+
+        // Expanded container layout (2 columns: left = art, right = controls + title)
+        const leftColumn = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        leftColumn.add_child(this._expandedArtWrapper);
+
+        // Right column: controls on top, title on bottom
+        const rightColumn = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'spacing: 15px;',
+        });
+        
+        // Controls box wrapper
+        const controlsWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: false,
+        });
+        controlsWrapper.set_child(this._controlsBox);
+        rightColumn.add_child(controlsWrapper);
+        
+        // Title wrapper
+        const titleWrapperBin = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: false,
+        });
+        titleWrapperBin.set_child(this._titleWrapper);
+        rightColumn.add_child(titleWrapperBin);
+
+        this.expandedContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            style: 'spacing: 20px; padding: 20px;',
+            visible: false,
+        });
+        this.expandedContainer.add_child(leftColumn);
+        this.expandedContainer.add_child(rightColumn);
+    }
+
+    setCommandCallbacks(callbacks) {
+        this._onPrevious = callbacks.onPrevious || (() => {});
+        this._onPlayPause = callbacks.onPlayPause || (() => {});
+        this._onNext = callbacks.onNext || (() => {});
+    }
+
+    updateMedia(mediaInfo) {
+        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+
+        // Lưu lại metadata và artPath cuối cùng để restore khi play lại
+        if (metadata) {
+            this._lastMetadata = metadata;
+        }
+        if (artPath) {
+            this._lastArtPath = artPath;
+        }
+
+        // Update visibility for compact view
+        const shouldShow = isPlaying;
+        if (shouldShow) {
+            this._thumbnailWrapper.show();
+            this._audioIconWrapper.show();
+        } else {
+            this._thumbnailWrapper.hide();
+            this._audioIconWrapper.hide();
+        }
+
+        // Always show expanded components when expanded
+        if (this.expandedContainer && this.expandedContainer.visible) {
+            this._expandedArtWrapper.show();
+            this._controlsBox.show();
+            this._titleWrapper.show();
+        }
+
+        // Sử dụng metadata/artPath hiện tại hoặc đã lưu
+        const currentMetadata = metadata || this._lastMetadata;
+        const currentArtPath = artPath || this._lastArtPath;
+
+        if (!currentMetadata && !currentArtPath) {
+            // Reset to default
+            this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+            if (this._expandedArtWrapper) {
+                this._expandedArtWrapper.style = null;
+                this._expandedArt.icon_name = 'audio-x-generic-symbolic';
+                this._expandedArt.opacity = 255;
+                this._expandedArt.visible = true;
+            }
+            if (this._thumbnailWrapper) {
+                this._thumbnailWrapper.style = null;
+                this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+                this._thumbnail.opacity = 255;
+                this._thumbnail.visible = true;
+            }
+            return;
+        }
+
+        // Update art - sử dụng metadata/artPath hiện tại hoặc đã lưu
+        let artUrl = currentArtPath;
+        let isDownloading = false;
+        if (!artUrl && currentMetadata && this._mediaManager) {
+            // Try to get art URL from metadata using public method
+            const artUrlFromMeta = this._mediaManager.getArtUrl(currentMetadata);
+            if (artUrlFromMeta) {
+                artUrl = artUrlFromMeta;
+            } else {
+                // Check if there's an HTTP URL being downloaded
+                if (this._mediaManager.hasArtUrl(currentMetadata)) {
+                    isDownloading = true;
+                }
+            }
+        }
+
+        if (artUrl) {
+            if (artUrl.startsWith('http')) {
+                // Will be updated via callback when downloaded
+                return;
+            } else if (artUrl.startsWith('file://') || artUrl.startsWith('/')) {
+                // Local file
+                const path = artUrl.replace('file://', '');
+                const file = Gio.File.new_for_path(path);
+                const gicon = new Gio.FileIcon({ file: file });
+                this._thumbnail.set_gicon(gicon);
+
+                if (this._expandedArtWrapper) {
+                    this._expandedArtWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 16px;`;
+                    this._expandedArt.opacity = 0;
+                    this._expandedArt.visible = true;
+                }
+                if (this._thumbnailWrapper) {
+                    this._thumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 99px;`;
+                    this._thumbnail.opacity = 0;
+                    this._thumbnail.visible = true;
+                }
+            } else {
+                try {
+                    // Other URI
+                    const gicon = Gio.icon_new_for_string(artUrl);
+                    this._thumbnail.set_gicon(gicon);
+
+                    if (this._expandedArtWrapper) {
+                        const cssUrl = artUrl.replace(/'/g, "\\'");
+                        this._expandedArtWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 16px;`;
+                        this._expandedArt.opacity = 0;
+                        this._expandedArt.visible = true;
+
+                        if (this._thumbnailWrapper) {
+                            this._thumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 99px;`;
+                            this._thumbnail.opacity = 0;
+                            this._thumbnail.visible = true;
+                        }
+                    }
+                } catch (e) {
+                    // Fallback
+                    this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+                    if (this._expandedArtWrapper) {
+                        this._expandedArtWrapper.style = null;
+                        this._expandedArt.icon_name = 'audio-x-generic-symbolic';
+                        this._expandedArt.opacity = 255;
+                        this._expandedArt.visible = true;
+                    }
+                    if (this._thumbnailWrapper) {
+                        this._thumbnailWrapper.style = null;
+                        this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+                        this._thumbnail.opacity = 255;
+                        this._thumbnail.visible = true;
+                    }
+                }
+            }
+        } else if (!isDownloading) {
+            // Only reset to default if not downloading
+            this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+            if (this._expandedArtWrapper) {
+                this._expandedArtWrapper.style = null;
+                this._expandedArt.icon_name = 'audio-x-generic-symbolic';
+                this._expandedArt.opacity = 255;
+                this._expandedArt.visible = true;
+            }
+            if (this._thumbnailWrapper) {
+                this._thumbnailWrapper.style = null;
+                this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+                this._thumbnail.opacity = 255;
+                this._thumbnail.visible = true;
+            }
+        }
+
+        // Update title - sử dụng metadata hiện tại hoặc đã lưu
+        if (currentMetadata) {
+            const manager = this._mediaManager;
+            if (manager) {
+                const title = manager.getTitle(currentMetadata);
+                if (this._titleLabel) {
+                    this._titleLabel.text = title || 'Unknown Title';
+                }
+            }
+        }
+
+        // Update play/pause icon
+        this._updatePlayPauseIcon(playbackStatus);
+    }
+
+    _updatePlayPauseIcon(playbackStatus) {
+        if (!this._playPauseIcon) return;
+        const iconName = playbackStatus === 'Playing'
+            ? 'media-playback-pause-symbolic'
+            : 'media-playback-start-symbolic';
+        this._playPauseIcon.icon_name = iconName;
+    }
+
+    setMediaManager(manager) {
+        this._mediaManager = manager;
+    }
+
+    show() {
+        this.compactContainer.show();
+        this.expandedContainer.show();
+    }
+
+    hide() {
+        this.compactContainer.hide();
+        this.expandedContainer.hide();
+    }
+
+    destroy() {
+        if (this.compactContainer) {
+            this.compactContainer.destroy();
+        }
+        if (this.expandedContainer) {
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+// ============================================
+// 3. CONTROLLER - Xử lý Logic (NotchController)
+// ============================================
+class NotchController {
+    constructor() {
+        this.width = 220;
+        this.height = 40;
+        this.expandedWidth = 440;
+        this.expandedHeight = 160;
+
+        this.isExpanded = false;
+        this._isAnimating = false;
+
+        this._collapseTimeoutId = null;
+        this._autoExpandTimeoutId = null;
+        this._wasCharging = false;
+        this._bluetoothNotificationTimeoutId = null;
+        this._currentPresenter = 'battery';
+
+        this.batteryManager = new BatteryManager();
+        this.batteryView = new BatteryView();
+        this.bluetoothManager = new BluetoothManager();
+        this.bluetoothView = new BluetoothView();
+        this.mediaManager = new MediaManager();
+        this.mediaView = new MediaView();
+
+        // Setup media view callbacks
+        this.mediaView.setMediaManager(this.mediaManager);
+        this.mediaView.setCommandCallbacks({
+            onPrevious: () => this.mediaManager.sendPlayerCommand('Previous'),
+            onPlayPause: () => this.mediaManager.sendPlayerCommand('PlayPause'),
+            onNext: () => this.mediaManager.sendPlayerCommand('Next')
+        });
+
+        const monitor = Main.layoutManager.primaryMonitor;
+        this.monitorWidth = monitor.width;
+
+        this._createNotchActor();
+        this._setupBatteryMonitoring();
+        this._setupBluetoothMonitoring();
+        this._setupMediaMonitoring();
+        this._setupMouseEvents();
+
+        this._updateUI();
+    }
+
+    _createNotchActor() {
+        this.notch = new St.BoxLayout({
+            style_class: 'notch compact-state',
+            vertical: false,
+            reactive: true,
+            track_hover: true,
+            x_expand: false,
+            can_focus: true,
+            clip_to_allocation: true
+        });
+
+        this.notch.set_width(this.width);
+        this.notch.set_height(this.height);
+        this.originalScale = 1.0;
+        this.notch.set_scale(this.originalScale, this.originalScale);
+        this.notch.set_pivot_point(0.5, 0.5)
+
+        const initialX = Math.floor((this.monitorWidth - this.width) / 2);
+        this.notch.set_position(initialX, 0);
+
+        this.notch.add_child(this.batteryView.compactContainer);
+        this.notch.add_child(this.bluetoothView.compactContainer);
+        this.notch.add_child(this.mediaView.compactContainer);
+
+        Main.layoutManager.addChrome(this.notch, {
+            affectsInputRegion: true,
+            trackFullscreen: false
+        });
+    }
+
+    _setupMouseEvents() {
+        this._motionEventId = this.notch.connect('motion-event', () => {
+            this._cancelAutoCollapse();
+            if (!this.isExpanded) {
+                this.expandNotch(false);
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this._leaveEventId = this.notch.connect('leave-event', () => {
+            if (this.isExpanded && !this._collapseTimeoutId) {
+                this._collapseTimeoutId = imports.mainloop.timeout_add(300, () => {
+                    this.compactNotch();
+                    this._collapseTimeoutId = null;
+                    return false;
+                });
+            }
+        });
+    }
+
+    _setupBatteryMonitoring() {
+        this.batteryManager.addCallback((info) => {
+            this._onBatteryChanged(info);
+        });
+    }
+
+    _setupBluetoothMonitoring() {
+        this.bluetoothManager.addCallback((info) => {
+            this._onBluetoothChanged(info);
+        });
+    }
+
+    _setupMediaMonitoring() {
+        this.mediaManager.addCallback((info) => {
+            this._onMediaChanged(info);
+        });
+    }
+
+    _onBatteryChanged(info) {
+        this.batteryView.updateBattery(info);
+
+        if (info.isCharging) {
+            this.notch.add_style_class_name('charging');
+        } else {
+            this.notch.remove_style_class_name('charging');
+        }
+
+        const shouldAutoExpand = info.isCharging && !this._wasCharging;
+        this._wasCharging = info.isCharging;
+
+        if (shouldAutoExpand && !this.isExpanded) {
+            this.expandNotch(true);
+
+            if (this._autoExpandTimeoutId) {
+                imports.mainloop.source_remove(this._autoExpandTimeoutId);
+            }
+            this._autoExpandTimeoutId = imports.mainloop.timeout_add(3000, () => {
+                if (this.isExpanded) {
+                    this.compactNotch();
+                }
+                this._autoExpandTimeoutId = null;
+                return false;
+            });
+        }
+    }
+
+    _onBluetoothChanged(info) {
+        log(`[DynamicIsland] Controller received Bluetooth change: ${JSON.stringify(info)}`);
+
+        // 1. Cập nhật View
+        this.bluetoothView.updateBluetooth(info);
+
+        // 2. Chuyển sang Bluetooth presenter
+        this._switchToBluetoothPresenter();
+
+        // 3. Expand notch để hiển thị thông báo (luôn gọi để cập nhật view)
+        this.expandNotch(true);
+
+        // 4. Tự động collapse và quay lại Battery sau 3 giây
+        if (this._bluetoothNotificationTimeoutId) {
+            imports.mainloop.source_remove(this._bluetoothNotificationTimeoutId);
+        }
+        this._bluetoothNotificationTimeoutId = imports.mainloop.timeout_add(3000, () => {
+            if (this.isExpanded) {
+                this.compactNotch();
+            }
+
+            imports.mainloop.timeout_add(300, () => {
+                this._switchToBatteryPresenter();
+                return false;
+            });
+
+            this._bluetoothNotificationTimeoutId = null;
+            return false;
+        });
+    }
+
+    _switchToBatteryPresenter() {
+        if (this._currentPresenter === 'battery') return;
+
+        this._currentPresenter = 'battery';
+        this.bluetoothView.hide();
+        this.mediaView.hide();
+
+        // CHỈ show compact khi KHÔNG expanded
+        if (!this.isExpanded) {
+            this.batteryView.compactContainer.show();
+        }
+    }
+
+
+    _onMediaChanged(info) {
+        this.mediaView.updateMedia(info);
+
+        // Clear timeout cũ nếu có
+        if (this._mediaSwitchTimeoutId) {
+            imports.mainloop.source_remove(this._mediaSwitchTimeoutId);
+            this._mediaSwitchTimeoutId = null;
+        }
+
+        if (info.isPlaying) {
+            // Chuyển sang media ngay lập tức
+            const previousPresenter = this._currentPresenter;
+            this._switchToMediaPresenter();
+            if (!this.isExpanded && previousPresenter !== this._currentPresenter) {
+                this.squeeze();
+            }
+        } else {
+            // Chờ 500ms trước khi chuyển về battery (tránh flicker khi next/back)
+            this._mediaSwitchTimeoutId = imports.mainloop.timeout_add(10000, () => {
+                const previousPresenter = this._currentPresenter;
+                this._switchToBatteryPresenter();
+                if (!this.isExpanded && previousPresenter !== this._currentPresenter) {
+                    this.squeeze();
+                }
+                this._mediaSwitchTimeoutId = null;
+                return false;
+            });
+        }
+    }
+
+    _switchToBluetoothPresenter() {
+        if (this._currentPresenter === 'bluetooth') return;
+
+        this._currentPresenter = 'bluetooth';
+        this.batteryView.compactContainer.hide();
+        this.mediaView.hide();
+        this.bluetoothView.show();
+    }
+
+    _switchToMediaPresenter() {
+        if (this._currentPresenter === 'media') return;
+
+        this._currentPresenter = 'media';
+        this.batteryView.compactContainer.hide();
+        this.bluetoothView.hide();
+
+        // CHỈ show compact khi KHÔNG expanded
+        if (!this.isExpanded) {
+            this.mediaView.compactContainer.show();
+        }
+        // Nếu đang expanded thì giữ nguyên expanded view
+    }
+
+    _updateUI() {
+        const info = this.batteryManager.getBatteryInfo();
+        this.batteryView.updateBattery(info);
+    }
+
+    _cancelAutoCollapse() {
+        if (this._collapseTimeoutId) {
+            imports.mainloop.source_remove(this._collapseTimeoutId);
+            this._collapseTimeoutId = null;
+        }
+        if (this._autoExpandTimeoutId) {
+            imports.mainloop.source_remove(this._autoExpandTimeoutId);
+            this._autoExpandTimeoutId = null;
+        }
+    }
+
+    expandNotch(isAuto = false) {
+        // Nếu đang expanded và là auto expand, chỉ cập nhật presenter/view
+        if (this.isExpanded && isAuto) {
+            // Ẩn TẤT CẢ expanded views
+            this.batteryView.expandedContainer.hide();
+            this.bluetoothView.expandedContainer.hide();
+            this.mediaView.expandedContainer.hide();
+            
+            // Hiện expanded view tương ứng với presenter hiện tại
+            if (this._currentPresenter === 'battery') {
+                if (!this.batteryView.expandedContainer.get_parent()) {
+                    this.notch.add_child(this.batteryView.expandedContainer);
+                }
+                this.batteryView.expandedContainer.show();
+            } else if (this._currentPresenter === 'bluetooth') {
+                if (!this.bluetoothView.expandedContainer.get_parent()) {
+                    this.notch.add_child(this.bluetoothView.expandedContainer);
+                }
+                this.bluetoothView.expandedContainer.show();
+            } else if (this._currentPresenter === 'media') {
+                if (!this.mediaView.expandedContainer.get_parent()) {
+                    this.notch.add_child(this.mediaView.expandedContainer);
+                }
+                this.mediaView.expandedContainer.show();
+            }
+            return;
+        }
+        
+        if (this.isExpanded) return;
+        // Chỉ chặn nếu không phải auto expand và đang có animation chạy
+        if (!isAuto && this._isAnimating) return;
+        this.isExpanded = true;
+        this._isAnimating = true;
+        this.notch.remove_all_transitions();
+
+        // Ẩn TẤT CẢ compact views
+        this.batteryView.compactContainer.hide();
+        this.bluetoothView.compactContainer.hide();
+        this.mediaView.compactContainer.hide();
+
+        // Hiện expanded view tương ứng
+        if (this._currentPresenter === 'battery') {
+            if (!this.batteryView.expandedContainer.get_parent()) {
+                this.notch.add_child(this.batteryView.expandedContainer);
+            }
+            this.batteryView.expandedContainer.show();
+        } else if (this._currentPresenter === 'bluetooth') {
+            // ✅ ĐƠN GIẢN: Chỉ cần add và show
+            if (!this.bluetoothView.expandedContainer.get_parent()) {
+                this.notch.add_child(this.bluetoothView.expandedContainer);
+            }
+            this.bluetoothView.expandedContainer.show();
+        } else if (this._currentPresenter === 'media') {
+            if (!this.mediaView.expandedContainer.get_parent()) {
+                this.notch.add_child(this.mediaView.expandedContainer);
+            }
+            this.mediaView.expandedContainer.show();
+        }
+
+        // Animation...
+        this.notch.add_style_class_name('expanded-state');
+        this.notch.remove_style_class_name('compact-state');
+
+        const newX = Math.floor((this.monitorWidth - this.expandedWidth) / 2);
+
+        this.notch.ease({
+            width: this.expandedWidth,
+            height: this.expandedHeight,
+            x: newX,
+            duration: 200,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this._isAnimating = false;
+            }
+        });
+    }
+
+    compactNotch() {
+        if (!this.isExpanded) return;
+        if (this._isAnimating) return; // Chặn nếu đang có animation chạy
+        this.isExpanded = false;
+        this._isAnimating = true;
+        this.notch.remove_all_transitions();
+
+        // ✅ ĐƠN GIẢN: Ẩn expanded views
+        this.batteryView.expandedContainer.hide();
+        this.bluetoothView.expandedContainer.hide();
+        this.mediaView.expandedContainer.hide();
+
+        // Hiện compact view tương ứng
+        if (this._currentPresenter === 'battery') {
+            this.batteryView.compactContainer.show();
+        } else if (this._currentPresenter === 'bluetooth') {
+            this.batteryView.compactContainer.show();
+        } else if (this._currentPresenter === 'media') {
+            this.mediaView.compactContainer.show();
+        }
+
+        // Animation...
+        this.notch.add_style_class_name('compact-state');
+        this.notch.remove_style_class_name('expanded-state');
+
+        const originalX = Math.floor((this.monitorWidth - this.width) / 2);
+
+        this.notch.ease({
+            width: this.width,
+            height: this.height,
+            x: originalX,
+            duration: 200,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.squeeze();
+            }
+        });
+    }
+
+    squeeze() {
+        this.notch.remove_all_transitions();
+
+        this.notch.ease({
+            scale_x: 0.75,
+            scale_y: 1.0,
+            duration: 150,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.notch.ease({
+                    scale_x: this.originalScale,
+                    scale_y: this.originalScale,
+                    duration: 200,
+                    mode: Clutter.AnimationMode.EASE_OUT_BACK,
+                    onComplete: () => {
+                        this._isAnimating = false;
+                    }
+                });
+            }
+        });
+    }
+
+    destroy() {
+        this._cancelAutoCollapse();
+
+        // Hủy media switch timeout
+        if (this._mediaSwitchTimeoutId) {
+            imports.mainloop.source_remove(this._mediaSwitchTimeoutId);
+            this._mediaSwitchTimeoutId = null;
+        }
+
+        // Hủy Bluetooth notification timeout
+        if (this._bluetoothNotificationTimeoutId) {
+            imports.mainloop.source_remove(this._bluetoothNotificationTimeoutId);
+            this._bluetoothNotificationTimeoutId = null;
+        }
+
+        // Hủy Model
+        if (this.batteryManager) {
+            this.batteryManager.destroy();
+            this.batteryManager = null;
+        }
+
+        if (this.bluetoothManager) {
+            this.bluetoothManager.destroy();
+            this.bluetoothManager = null;
+        }
+
+        if (this.mediaManager) {
+            this.mediaManager.destroy();
+            this.mediaManager = null;
+        }
+
+        // Hủy View
+        if (this.batteryView) {
+            this.batteryView.destroy();
+            this.batteryView = null;
+        }
+
+        if (this.bluetoothView) {
+            this.bluetoothView.destroy();
+            this.bluetoothView = null;
+        }
+
+        if (this.mediaView) {
+            this.mediaView.destroy();
+            this.mediaView = null;
+        }
+
+        // Hủy Bluetooth expanded container
+        if (this._bluetoothExpandedContainer) {
+            this._bluetoothExpandedContainer.destroy();
+            this._bluetoothExpandedContainer = null;
+        }
+
+        // Hủy Actor chính và sự kiện
+        if (this.notch) {
+            if (this._motionEventId) {
+                this.notch.disconnect(this._motionEventId);
+            }
+            if (this._leaveEventId) {
+                this.notch.disconnect(this._leaveEventId);
+            }
+
+            Main.layoutManager.removeChrome(this.notch);
+            this.notch.destroy();
+            this.notch = null;
+        }
+    }
+}
+
+
+// ============================================
+// GNOME SHELL EXTENSION API
+// ============================================
+
+function init() {
+    // Không làm gì nhiều ở đây theo quy ước
 }
 
 function enable() {
-    notch = new Notch();
-    Main.uiGroup.add_child(notch);
-
-
-
-    _reposition();
-
-    // Initialize battery display
-    batteryPresenter = new BatteryPresenter(notch);
-    batteryPresenter.enable();
-
-    // Initialize media display
-    mediaPresenter = new MediaPresenter(notch);
-    mediaPresenter.enable();
-
-    // Initialize bluetooth display
-    bluetoothPresenter = new BluetoothPresenter(notch);
-    bluetoothPresenter.enable();
-
-    // Initialize volume display
-    volumePresenter = new VolumePresenter(notch);
-    volumePresenter.enable();
-
-    // Wire up presenter dependencies
-    batteryPresenter.setPresenters(mediaPresenter, bluetoothPresenter, volumePresenter);
-    mediaPresenter.setBatteryPresenter(batteryPresenter);
-    bluetoothPresenter.setPresenters(mediaPresenter, batteryPresenter);
-    volumePresenter.setPresenters(mediaPresenter, bluetoothPresenter, batteryPresenter);
-
-    monitorsChangedId = Main.layoutManager.connect('monitors-changed', _reposition);
-    stageResizeId = global.stage.connect('notify::allocation', _reposition);
+    notchController = new NotchController();
 }
 
 function disable() {
-    if (monitorsChangedId) {
-        Main.layoutManager.disconnect(monitorsChangedId);
-        monitorsChangedId = null;
-    }
-
-    if (stageResizeId) {
-        global.stage.disconnect(stageResizeId);
-        stageResizeId = null;
-    }
-
-    if (mediaPresenter) {
-        mediaPresenter.destroy();
-        mediaPresenter = null;
-    }
-
-    if (batteryPresenter) {
-        batteryPresenter.destroy();
-        batteryPresenter = null;
-    }
-
-    if (bluetoothPresenter) {
-        bluetoothPresenter.destroy();
-        bluetoothPresenter = null;
-    }
-
-    if (volumePresenter) {
-        volumePresenter.destroy();
-        volumePresenter = null;
-    }
-
-    if (notch) {
-
-        notch.destroy();
-        notch = null;
+    if (notchController) {
+        notchController.destroy();
+        notchController = null;
     }
 }
-
-function init() { }
