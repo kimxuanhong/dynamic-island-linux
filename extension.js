@@ -1090,6 +1090,106 @@ class MediaManager {
 }
 
 // ============================================
+// 1D. MODEL - Xử lý Volume (VolumeManager)
+// ============================================
+/**
+ * Quản lý thông tin âm lượng (Model).
+ * Tương tác với GNOME Shell's Volume Control.
+ */
+class VolumeManager {
+    constructor() {
+        this._callbacks = [];
+        this._currentVolume = 0;
+        this._isMuted = false;
+        this._control = null;
+        this._streamChangedId = null;
+        this._destroyed = false;
+
+        this._initVolumeControl();
+    }
+
+    _initVolumeControl() {
+        try {
+            // Sử dụng Volume Control của GNOME Shell
+            const Volume = imports.ui.status.volume;
+
+            // Lấy MixerControl từ Volume indicator
+            this._control = Volume.getMixerControl();
+
+            if (!this._control) {
+                log('[DynamicIsland] Failed to get MixerControl');
+                return;
+            }
+
+            // Lắng nghe thay đổi stream
+            this._streamChangedId = this._control.connect('stream-changed', () => {
+                this._onVolumeChanged();
+            });
+
+            // Lấy giá trị ban đầu
+            this._updateVolume();
+
+            log('[DynamicIsland] VolumeManager initialized successfully');
+        } catch (e) {
+            log(`[DynamicIsland] Error initializing VolumeManager: ${e.message}`);
+        }
+    }
+
+    _onVolumeChanged() {
+        if (this._destroyed) return;
+        this._updateVolume();
+    }
+
+    _updateVolume() {
+        if (!this._control) return;
+
+        const stream = this._control.get_default_sink();
+        if (!stream) return;
+
+        const oldVolume = this._currentVolume;
+        const oldMuted = this._isMuted;
+
+        this._currentVolume = Math.round(stream.volume / this._control.get_vol_max_norm() * 100);
+        this._isMuted = stream.is_muted;
+
+        // Chỉ notify khi có thay đổi thực sự
+        if (this._currentVolume !== oldVolume || this._isMuted !== oldMuted) {
+            this._notifyCallbacks({
+                volume: this._currentVolume,
+                isMuted: this._isMuted
+            });
+        }
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+    getVolumeInfo() {
+        return {
+            volume: this._currentVolume,
+            isMuted: this._isMuted
+        };
+    }
+
+    destroy() {
+        this._destroyed = true;
+
+        if (this._streamChangedId && this._control) {
+            this._control.disconnect(this._streamChangedId);
+            this._streamChangedId = null;
+        }
+
+        this._control = null;
+        this._callbacks = [];
+    }
+}
+
+// ============================================
 // 2C. VIEW - Xử lý Giao diện Media (MediaView)
 // ============================================
 class MediaView {
@@ -1473,6 +1573,111 @@ class MediaView {
 }
 
 // ============================================
+// 2D. VIEW - Xử lý Giao diện Volume (VolumeView)
+// ============================================
+class VolumeView {
+    constructor() {
+        this._buildExpandedView();
+    }
+
+    _buildExpandedView() {
+        // Icon lớn ở giữa
+        this.expandedIcon = new St.Icon({
+            icon_name: 'audio-volume-high-symbolic',
+            icon_size: 64,
+            style: 'color: white;'
+        });
+
+        this.expandedIconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.expandedIconWrapper.set_child(this.expandedIcon);
+
+        // Volume percentage label
+        this.volumeLabel = new St.Label({
+            text: '0%',
+            style: 'color: white; font-size: 18px; font-weight: bold; margin-top: 10px;'
+        });
+
+        // Progress bar lớn hơn
+        this.expandedProgressBarBg = new St.Widget({
+            style_class: 'volume-progress-bg-expanded',
+            style: 'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this.expandedProgressBarFill = new St.Widget({
+            style_class: 'volume-progress-fill-expanded',
+            style: 'background-color: white; border-radius: 8px; height: 12px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this.expandedProgressBarBg.add_child(this.expandedProgressBarFill);
+
+        this.expandedProgressWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'margin-top: 15px;'
+        });
+        this.expandedProgressWrapper.set_child(this.expandedProgressBarBg);
+
+        // Container expanded
+        this.expandedContainer = new St.BoxLayout({
+            style_class: 'volume-expanded',
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: true,
+            visible: false
+        });
+        this.expandedContainer.add_child(this.expandedIconWrapper);
+        this.expandedContainer.add_child(this.volumeLabel);
+        this.expandedContainer.add_child(this.expandedProgressWrapper);
+    }
+
+    updateVolume(volumeInfo) {
+        const { volume, isMuted } = volumeInfo;
+
+        // Cập nhật icon
+        let iconName;
+        if (isMuted || volume === 0) {
+            iconName = 'audio-volume-muted-symbolic';
+        } else if (volume < 33) {
+            iconName = 'audio-volume-low-symbolic';
+        } else if (volume < 66) {
+            iconName = 'audio-volume-medium-symbolic';
+        } else {
+            iconName = 'audio-volume-high-symbolic';
+        }
+        this.expandedIcon.icon_name = iconName;
+
+        // Cập nhật progress bar expanded (300px width)
+        const percentage = isMuted ? 0 : volume;
+        const expandedBarWidth = Math.round(300 * percentage / 100);
+        this.expandedProgressBarFill.set_width(expandedBarWidth);
+
+        // Cập nhật label
+        this.volumeLabel.set_text(`${percentage}%`);
+    }
+
+    show() {
+        this.expandedContainer.show();
+    }
+
+    hide() {
+        this.expandedContainer.hide();
+    }
+
+    destroy() {
+        if (this.expandedContainer) {
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+// ============================================
 // 3. CONTROLLER - Xử lý Logic (NotchController)
 // ============================================
 class NotchController {
@@ -1497,6 +1702,8 @@ class NotchController {
         this.bluetoothView = new BluetoothView();
         this.mediaManager = new MediaManager();
         this.mediaView = new MediaView();
+        this.volumeManager = new VolumeManager();
+        this.volumeView = new VolumeView();
 
         // Setup media view callbacks
         this.mediaView.setMediaManager(this.mediaManager);
@@ -1513,6 +1720,7 @@ class NotchController {
         this._setupBatteryMonitoring();
         this._setupBluetoothMonitoring();
         this._setupMediaMonitoring();
+        this._setupVolumeMonitoring();
         this._setupMouseEvents();
 
         this._updateUI();
@@ -1583,6 +1791,48 @@ class NotchController {
     _setupMediaMonitoring() {
         this.mediaManager.addCallback((info) => {
             this._onMediaChanged(info);
+        });
+    }
+
+    _setupVolumeMonitoring() {
+        this._volumeTimeoutId = null;
+
+        this.volumeManager.addCallback((info) => {
+            this._onVolumeChanged(info);
+        });
+    }
+
+    _onVolumeChanged(info) {
+        this.volumeView.updateVolume(info);
+
+        // Chuyển sang volume presenter
+        this._switchToVolumePresenter();
+
+        // Auto expand để hiển thị volume expanded view
+        if (!this.isExpanded) {
+            this.expandNotch(true);
+        }
+
+        // Tự động collapse và quay về presenter phù hợp sau 2 giây
+        if (this._volumeTimeoutId) {
+            imports.mainloop.source_remove(this._volumeTimeoutId);
+        }
+
+        this._volumeTimeoutId = imports.mainloop.timeout_add(2000, () => {
+            if (this.isExpanded) {
+                this.compactNotch();
+            }
+
+            imports.mainloop.timeout_add(300, () => {
+                this._switchToAppropriatePresenter();
+                if (!this.isExpanded) {
+                    this.squeeze();
+                }
+                return false;
+            });
+
+            this._volumeTimeoutId = null;
+            return false;
         });
     }
 
@@ -1662,6 +1912,7 @@ class NotchController {
         this._currentPresenter = 'battery';
         this.bluetoothView.hide();
         this.mediaView.hide();
+        this.volumeView.hide();
 
         // CHỈ show compact khi KHÔNG expanded
         if (!this.isExpanded) {
@@ -1706,6 +1957,7 @@ class NotchController {
         this._currentPresenter = 'bluetooth';
         this.batteryView.compactContainer.hide();
         this.mediaView.hide();
+        this.volumeView.hide();
         this.bluetoothView.show();
     }
 
@@ -1715,12 +1967,23 @@ class NotchController {
         this._currentPresenter = 'media';
         this.batteryView.compactContainer.hide();
         this.bluetoothView.hide();
+        this.volumeView.hide();
 
         // CHỈ show compact khi KHÔNG expanded
         if (!this.isExpanded) {
             this.mediaView.compactContainer.show();
         }
         // Nếu đang expanded thì giữ nguyên expanded view
+    }
+
+    _switchToVolumePresenter() {
+        if (this._currentPresenter === 'volume') return;
+
+        this._currentPresenter = 'volume';
+        this.batteryView.compactContainer.hide();
+        this.bluetoothView.hide();
+        this.mediaView.hide();
+        // Volume chỉ có expanded view, không có compact
     }
 
     /**
@@ -1738,6 +2001,7 @@ class NotchController {
         const info = this.batteryManager.getBatteryInfo();
         this.mediaView.hide();
         this.bluetoothView.hide();
+        this.volumeView.hide();
         this.batteryView.updateBattery(info);
     }
 
@@ -1759,6 +2023,7 @@ class NotchController {
             this.batteryView.expandedContainer.hide();
             this.bluetoothView.expandedContainer.hide();
             this.mediaView.expandedContainer.hide();
+            this.volumeView.expandedContainer.hide();
 
             // Hiện expanded view tương ứng với presenter hiện tại
             if (this._currentPresenter === 'battery') {
@@ -1776,6 +2041,11 @@ class NotchController {
                     this.notch.add_child(this.mediaView.expandedContainer);
                 }
                 this.mediaView.expandedContainer.show();
+            } else if (this._currentPresenter === 'volume') {
+                if (!this.volumeView.expandedContainer.get_parent()) {
+                    this.notch.add_child(this.volumeView.expandedContainer);
+                }
+                this.volumeView.expandedContainer.show();
             }
             return;
         }
@@ -1799,7 +2069,6 @@ class NotchController {
             }
             this.batteryView.expandedContainer.show();
         } else if (this._currentPresenter === 'bluetooth') {
-            // ✅ ĐƠN GIẢN: Chỉ cần add và show
             if (!this.bluetoothView.expandedContainer.get_parent()) {
                 this.notch.add_child(this.bluetoothView.expandedContainer);
             }
@@ -1809,6 +2078,11 @@ class NotchController {
                 this.notch.add_child(this.mediaView.expandedContainer);
             }
             this.mediaView.expandedContainer.show();
+        } else if (this._currentPresenter === 'volume') {
+            if (!this.volumeView.expandedContainer.get_parent()) {
+                this.notch.add_child(this.volumeView.expandedContainer);
+            }
+            this.volumeView.expandedContainer.show();
         }
 
         // Animation...
@@ -1840,14 +2114,19 @@ class NotchController {
         this.batteryView.expandedContainer.hide();
         this.bluetoothView.expandedContainer.hide();
         this.mediaView.expandedContainer.hide();
+        this.volumeView.expandedContainer.hide();
 
         // Hiện compact view tương ứng
         if (this._currentPresenter === 'battery') {
             this.batteryView.compactContainer.show();
         } else if (this._currentPresenter === 'bluetooth') {
-            this.batteryView.compactContainer.show();
+            // Volume không có compact view, switch về presenter phù hợp
+            this._switchToAppropriatePresenter();
         } else if (this._currentPresenter === 'media') {
             this.mediaView.compactContainer.show();
+        } else if (this._currentPresenter === 'volume') {
+            // Volume không có compact view, switch về presenter phù hợp
+            this._switchToAppropriatePresenter();
         }
 
         // Animation...
@@ -1905,6 +2184,12 @@ class NotchController {
             this._bluetoothNotificationTimeoutId = null;
         }
 
+        // Hủy volume timeout
+        if (this._volumeTimeoutId) {
+            imports.mainloop.source_remove(this._volumeTimeoutId);
+            this._volumeTimeoutId = null;
+        }
+
         // Hủy Model
         if (this.batteryManager) {
             this.batteryManager.destroy();
@@ -1921,6 +2206,11 @@ class NotchController {
             this.mediaManager = null;
         }
 
+        if (this.volumeManager) {
+            this.volumeManager.destroy();
+            this.volumeManager = null;
+        }
+
         // Hủy View
         if (this.batteryView) {
             this.batteryView.destroy();
@@ -1935,6 +2225,11 @@ class NotchController {
         if (this.mediaView) {
             this.mediaView.destroy();
             this.mediaView = null;
+        }
+
+        if (this.volumeView) {
+            this.volumeView.destroy();
+            this.volumeView = null;
         }
 
         // Hủy Bluetooth expanded container
