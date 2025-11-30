@@ -65,7 +65,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return { percentage: 0, isCharging: false, isPresent: false };
+            return {percentage: 0, isCharging: false, isPresent: false};
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -385,7 +385,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const { percentage, isCharging, isPresent } = batteryInfo;
+        const {percentage, isCharging, isPresent} = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -536,7 +536,7 @@ class BluetoothView {
      * @param {{deviceName: string, isConnected: boolean}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const { deviceName, isConnected } = bluetoothInfo;
+        const {deviceName, isConnected} = bluetoothInfo;
 
         log(`[DynamicIsland] View updating Bluetooth: ${deviceName}, Connected: ${isConnected}`);
 
@@ -593,7 +593,6 @@ class MediaManager {
         this._playerProxySignal = null;
         this._dbusProxy = null;
         this._dbusSignalId = null;
-        this._currentPlayerName = null;
         this._playbackStatus = null;
         this._currentMetadata = null;
         this._currentArtPath = null;
@@ -602,21 +601,12 @@ class MediaManager {
         this._artCache = new Map(); // URL -> local path
         this._destroyed = false;
         this._pendingUpdate = null; // Batch updates
+        this._playerListeners = [];
 
         // Define XML interfaces
         this._defineInterfaces();
-
         this._setupDBusNameOwnerChanged();
         this._watchForMediaPlayers();
-
-        // Keep polling as a backup, but less frequent (5s)
-        this._checkTimeoutId = imports.mainloop.timeout_add_seconds(5, () => {
-            if (this._destroyed) return false;
-            if (!this._playerProxy) {
-                this._watchForMediaPlayers();
-            }
-            return true;
-        });
     }
 
     _defineInterfaces() {
@@ -649,113 +639,87 @@ class MediaManager {
     }
 
     _setupDBusNameOwnerChanged() {
-        try {
-            this._dbusProxy = new this.DBusProxy(
-                Gio.DBus.session,
-                'org.freedesktop.DBus',
-                '/org/freedesktop/DBus',
-                (proxy, error) => {
-                    if (error) {
-                        log(`[DynamicIsland] Failed to connect to DBus: ${error.message}`);
-                        return;
-                    }
-
-                    this._dbusSignalId = proxy.connectSignal('NameOwnerChanged', (proxy, sender, [name, oldOwner, newOwner]) => {
-                        if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
-                            if (newOwner && !oldOwner) {
-                                log(`[DynamicIsland] New player appeared: ${name}`);
-                                // If we don't have a player, or if this is Spotify (priority), connect
-                                if (!this._playerProxy || name.includes('spotify')) {
-                                    this._connectToPlayer(name);
-                                }
-                            } else if (oldOwner && !newOwner) {
-                                log(`[DynamicIsland] Player disappeared: ${name}`);
-                                // If the disconnected player was our current one
-                                if (this._currentPlayerName && this._currentPlayerName === name) {
-                                    this._disconnectPlayer();
-                                    this._watchForMediaPlayers(); // Look for other players
-                                }
-                            }
-                        }
-                    });
+        this._dbusProxy = new this.DBusProxy(
+            Gio.DBus.session,
+            'org.freedesktop.DBus',
+            '/org/freedesktop/DBus',
+            (proxy, error) => {
+                if (error) {
+                    log(`[DynamicIsland] Failed to connect to DBus: ${error.message}`);
+                    return;
                 }
-            );
-        } catch (e) {
-            log(`[DynamicIsland] Error setting up DBus listener: ${e.message}`);
-        }
-    }
 
-    _findBestPlayer(playerNames) {
-        if (playerNames.includes('org.mpris.MediaPlayer2.spotify')) {
-            return 'org.mpris.MediaPlayer2.spotify';
-        }
-        return playerNames.length > 0 ? playerNames[0] : null;
+                this._dbusSignalId = proxy.connectSignal('NameOwnerChanged', (proxy, sender, [name, oldOwner, newOwner]) => {
+                    if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
+                        if (newOwner && !oldOwner) {
+                            log(`[DynamicIsland] New player appeared: ${name}`);
+                            this._disconnectPlayer();
+                            this._connectToPlayer(name);
+                            this._playerListeners.push(name);
+                        } else if (oldOwner && !newOwner) {
+                            log(`[DynamicIsland] Player disappeared: ${name}`);
+                            // If the disconnected player was our current one
+                            this._disconnectPlayer();
+                            this._playerListeners = this._playerListeners.filter(player => player !== name);
+                            if (this._playerListeners.length > 0) {
+                                this._connectToPlayer(this._playerListeners[0]);
+                            }
+
+                        }
+                    }
+                });
+            }
+        );
     }
 
     _watchForMediaPlayers() {
-        try {
-            Gio.DBus.session.call(
-                'org.freedesktop.DBus',
-                '/org/freedesktop/DBus',
-                'org.freedesktop.DBus',
-                'ListNames',
-                null,
-                null,
-                Gio.DBusCallFlags.NONE,
-                -1,
-                null,
-                (conn, res) => {
-                    try {
-                        const reply = conn.call_finish(res);
-                        const names = reply.deep_unpack()[0];
-                        const players = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
-                        const playerBusName = this._findBestPlayer(players);
-
-                        if (playerBusName) {
-                            // Only connect if we are not already connected to this specific player
-                            if (!this._playerProxy || this._playerProxy.g_name !== playerBusName) {
-                                log(`[DynamicIsland] Connecting to player: ${playerBusName}`);
-                                this._connectToPlayer(playerBusName);
-                            }
-                        } else {
-                            if (this._playerProxy) {
-                                this._disconnectPlayer();
-                            }
-                        }
-                    } catch (e) { log(e); }
+        Gio.DBus.session.call(
+            'org.freedesktop.DBus',
+            '/org/freedesktop/DBus',
+            'org.freedesktop.DBus',
+            'ListNames',
+            null,
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (conn, res) => {
+                try {
+                    const reply = conn.call_finish(res);
+                    const names = reply.deep_unpack()[0];
+                    this._playerListeners = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
+                    if(this._playerListeners.length > 0) {
+                        this._connectToPlayer(this._playerListeners[0]);
+                    }
+                } catch (e) {
+                    log(`[DynamicIsland] _watchForMediaPlayers error: ${e}`);
                 }
-            );
-        } catch (e) { log(e); }
+            }
+        );
     }
 
     _connectToPlayer(busName) {
-        try {
-            this._currentPlayerName = busName;
-
-            // Use XML-defined proxy wrapper
-            this._playerProxy = new this.MprisPlayerProxy(
-                Gio.DBus.session,
-                busName,
-                '/org/mpris/MediaPlayer2',
-                (proxy, error) => {
-                    if (error) {
-                        log(`[DynamicIsland] Failed to connect to player: ${error.message}`);
-                        return;
-                    }
-
-                    // Single callback for all property changes
-                    this._playerProxySignal = proxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
-                        if (this._destroyed) return;
-                        this._handlePropertiesChanged(changed);
-                    });
-
-                    // Initial update - batch both metadata and playback status
-                    this._performInitialUpdate();
+        // Use XML-defined proxy wrapper
+        this._playerProxy = new this.MprisPlayerProxy(
+            Gio.DBus.session,
+            busName,
+            '/org/mpris/MediaPlayer2',
+            (proxy, error) => {
+                if (error) {
+                    log(`[DynamicIsland] Failed to connect to player: ${error.message}`);
+                    return;
                 }
-            );
-        } catch (e) {
-            log(`[DynamicIsland] Failed to connect to player: ${e.message}`);
-        }
+
+                // Single callback for all property changes
+                this._playerProxySignal = proxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
+                    if (this._destroyed) return;
+                    this._handlePropertiesChanged(changed);
+                });
+
+                // Initial update - batch both metadata and playback status
+                this._performInitialUpdate();
+            }
+        );
     }
 
     _performInitialUpdate() {
@@ -873,7 +837,7 @@ class MediaManager {
             }
             this._playerProxy = null;
         }
-        this._currentPlayerName = null;
+
         this._playbackStatus = null;
         this._currentMetadata = null;
         this._currentArtPath = null;
@@ -1287,9 +1251,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
-            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
-            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
+            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
+            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
+            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
         ];
 
         controlConfig.forEach(config => {
@@ -1381,13 +1345,16 @@ class MediaView {
     }
 
     setCommandCallbacks(callbacks) {
-        this._onPrevious = callbacks.onPrevious || (() => { });
-        this._onPlayPause = callbacks.onPlayPause || (() => { });
-        this._onNext = callbacks.onNext || (() => { });
+        this._onPrevious = callbacks.onPrevious || (() => {
+        });
+        this._onPlayPause = callbacks.onPlayPause || (() => {
+        });
+        this._onNext = callbacks.onNext || (() => {
+        });
     }
 
     updateMedia(mediaInfo) {
-        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
         if (metadata) {
@@ -1460,7 +1427,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({ file: file });
+                const gicon = new Gio.FileIcon({file: file});
                 this._thumbnail.set_gicon(gicon);
 
                 if (this._expandedArtWrapper) {
@@ -1638,7 +1605,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const { volume, isMuted } = volumeInfo;
+        const {volume, isMuted} = volumeInfo;
 
         // Cập nhật icon
         let iconName;
