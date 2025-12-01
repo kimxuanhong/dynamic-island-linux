@@ -4,7 +4,6 @@
 
 .notch {
     transition: all 200ms ease-out;
-    padding: 5px;
     background-color: #000;
 }
 
@@ -238,3 +237,40 @@
 .media-title-label {
     transition: color 150ms ease, opacity 150ms ease;
 }
+
+/* ============================================
+   SECONDARY NOTCH STYLES
+   ============================================ */
+
+.notch-secondary {
+    transition: all 200ms ease-out;
+    border-radius: 99px;
+    background-color: #000;
+}
+
+/* Minimal View Styles */
+.battery-minimal-container,
+.media-minimal-container {
+    padding: 0;
+    margin: 0;
+}
+
+.battery-icon-secondary,
+.media-thumbnail-secondary {
+    icon-size: 24px;
+    margin: 0;
+    padding: 0;
+}
+
+.media-thumbnail-wrapper-secondary {
+    border-radius: 99px;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.1);
+    width: 24px;
+    height: 24px;
+    margin: 0 auto;
+    /* Center horizontally */
+}
+
+/* Restore padding for normal compact view (when NOT in secondary) */
+/* Removed as we reverted to inline styles in extension.js */
