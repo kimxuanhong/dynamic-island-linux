@@ -5,6 +5,8 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const UPower = imports.gi.UPowerGlib;
 const Soup = imports.gi.Soup;
+const Pango = imports.gi.Pango;
+const MessageTray = imports.ui.messageTray;
 
 // --- BIẾN TOÀN CỤC ---
 let notchController;
@@ -1221,6 +1223,103 @@ class VolumeManager {
 }
 
 // ============================================
+// 1E. MODEL - Xử lý Notification (NotificationManager)
+// ============================================
+class NotificationManager {
+    constructor() {
+        this._callbacks = [];
+        this._sources = new Map(); // Map<Source, SignalId>
+        this._sourceAddedId = 0;
+        this._destroyed = false;
+
+        this._initNotificationListener();
+    }
+
+    _initNotificationListener() {
+        log('[DynamicIsland] NotificationManager: Initializing listener...');
+        // Lắng nghe khi có nguồn thông báo mới (App vừa mở hoặc gửi thông báo lần đầu)
+        this._sourceAddedId = Main.messageTray.connect('source-added', (tray, source) => {
+            log(`[DynamicIsland] NotificationManager: Source added - ${source.title}`);
+            this._onSourceAdded(source);
+        });
+
+        // Đăng ký cho các nguồn hiện có
+        const sources = Main.messageTray.getSources();
+        log(`[DynamicIsland] NotificationManager: Found ${sources.length} existing sources`);
+        sources.forEach(source => {
+            log(`[DynamicIsland] NotificationManager: Existing source - ${source.title}`);
+            this._onSourceAdded(source);
+        });
+    }
+
+    _onSourceAdded(source) {
+        if (this._sources.has(source)) return;
+
+        // Lắng nghe khi nguồn này gửi thông báo
+        const signalId = source.connect('notification-added', (source, notification) => {
+            log(`[DynamicIsland] NotificationManager: Notification added from ${source.title} - ${notification.title}`);
+            this._onNotificationAdded(source, notification);
+        });
+
+        // Lắng nghe khi nguồn bị xóa (để cleanup)
+        source.connect('destroy', () => {
+            this._onSourceRemoved(source);
+        });
+
+        this._sources.set(source, signalId);
+    }
+
+    _onSourceRemoved(source) {
+        this._sources.delete(source);
+    }
+
+    _onNotificationAdded(source, notification) {
+        if (this._destroyed) return;
+
+        log(`[DynamicIsland] Processing notification: ${notification.title}`);
+
+        const info = {
+            title: notification.title || '',
+            body: notification.body || notification.bannerBodyText || '',
+            appName: source.title,
+            gicon: source.icon, // GIcon object
+            isUrgent: notification.urgency === MessageTray.Urgency.CRITICAL
+        };
+
+        this._notifyCallbacks(info);
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+
+    destroy() {
+        this._destroyed = true;
+
+        if (this._sourceAddedId) {
+            Main.messageTray.disconnect(this._sourceAddedId);
+            this._sourceAddedId = 0;
+        }
+
+        // Disconnect tất cả sources
+        this._sources.forEach((signalId, source) => {
+            try {
+                source.disconnect(signalId);
+            } catch (e) {
+                // Ignore
+            }
+        });
+        this._sources.clear();
+        this._callbacks = [];
+    }
+}
+
+// ============================================
 // 2C. VIEW - Xử lý Giao diện Media (MediaView)
 // ============================================
 class MediaView {
@@ -1786,6 +1885,96 @@ class VolumeView {
 }
 
 // ============================================
+// 2E. VIEW - Xử lý Giao diện Notification (NotificationView)
+// ============================================
+class NotificationView {
+    constructor() {
+        this._buildExpandedView();
+    }
+
+    _buildExpandedView() {
+        // Icon App (trái)
+        this.appIcon = new St.Icon({
+            icon_size: 48,
+            style: 'margin-right: 16px; color: white;'
+        });
+
+        // Nội dung (phải)
+        this.titleLabel = new St.Label({
+            text: '',
+            style: 'font-weight: bold; font-size: 16px; color: white; padding-bottom: 4px;',
+            x_align: Clutter.ActorAlign.START
+        });
+
+        this.bodyLabel = new St.Label({
+            text: '',
+            style: 'color: rgba(255,255,255,0.8); font-size: 14px;',
+            x_align: Clutter.ActorAlign.START
+        });
+
+        // Giới hạn độ dài text
+        this.bodyLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        this.bodyLabel.clutter_text.line_wrap = true;
+        this.bodyLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+
+        this.textContainer = new St.BoxLayout({
+            vertical: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
+            x_expand: true,
+            style: 'min-width: 200px;'
+        });
+        this.textContainer.add_child(this.titleLabel);
+        this.textContainer.add_child(this.bodyLabel);
+
+        // Container chính
+        this.expandedContainer = new St.BoxLayout({
+            style_class: 'notification-expanded',
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            style: 'padding: 12px 24px;',
+            visible: false
+        });
+
+        this.expandedContainer.add_child(this.appIcon);
+        this.expandedContainer.add_child(this.textContainer);
+    }
+
+    updateNotification(info) {
+        this.titleLabel.set_text(info.title);
+        this.bodyLabel.set_text(info.body);
+
+        // Force show body label even if empty (for debugging)
+        if (!info.body || info.body.length === 0) {
+            this.bodyLabel.hide();
+        } else {
+            this.bodyLabel.show();
+        }
+
+        if (info.gicon) {
+            this.appIcon.gicon = info.gicon;
+        } else {
+            this.appIcon.icon_name = 'dialog-information-symbolic';
+        }
+    }
+
+    show() {
+        this.expandedContainer.show();
+    }
+
+    hide() {
+        this.expandedContainer.hide();
+    }
+
+    destroy() {
+        if (this.expandedContainer) {
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+// ============================================
 // 3. CONTROLLER - Xử lý Logic (NotchController)
 // ============================================
 class NotchController {
@@ -1819,6 +2008,8 @@ class NotchController {
         this.mediaView = new MediaView();
         this.volumeManager = new VolumeManager();
         this.volumeView = new VolumeView();
+        this.notificationManager = new NotificationManager();
+        this.notificationView = new NotificationView();
 
         // Setup media view callbacks
         this.mediaView.setMediaManager(this.mediaManager);
@@ -1836,6 +2027,7 @@ class NotchController {
         this._setupBluetoothMonitoring();
         this._setupMediaMonitoring();
         this._setupVolumeMonitoring();
+        this._setupNotificationMonitoring();
         this._setupMouseEvents();
 
         this._updateUI();
@@ -1950,6 +2142,51 @@ class NotchController {
 
         this.volumeManager.addCallback((info) => {
             this._onVolumeChanged(info);
+        });
+    }
+
+    _setupNotificationMonitoring() {
+        this._notificationTimeoutId = null;
+
+        this.notificationManager.addCallback((info) => {
+            this._onNotificationAdded(info);
+        });
+    }
+
+    _onNotificationAdded(info) {
+        log(`[DynamicIsland] Controller received notification: ${info.title}`);
+        // Cập nhật view
+        this.notificationView.updateNotification(info);
+
+        // Chuyển sang notification presenter
+        this._switchToNotificationPresenter();
+
+        // Expand để hiện thông báo
+        if (!this.isExpanded) {
+            this.expandNotch(true);
+        }
+
+        // Reset timeout cũ nếu có
+        if (this._notificationTimeoutId) {
+            imports.mainloop.source_remove(this._notificationTimeoutId);
+        }
+
+        // Tự động tắt sau 4s
+        this._notificationTimeoutId = imports.mainloop.timeout_add(4000, () => {
+            if (this.isExpanded) {
+                this.compactNotch();
+            }
+
+            imports.mainloop.timeout_add(300, () => {
+                this._switchToAppropriatePresenter();
+                if (!this.isExpanded) {
+                    this.squeeze();
+                }
+                return false;
+            });
+
+            this._notificationTimeoutId = null;
+            return false;
         });
     }
 
@@ -2113,6 +2350,7 @@ class NotchController {
         this.mediaView.hide();
         this.volumeView.hide();
         this.bluetoothView.show();
+        this.notificationView.hide();
     }
 
     _switchToMediaPresenter() {
@@ -2130,7 +2368,19 @@ class NotchController {
         this.batteryView.compactContainer.hide();
         this.bluetoothView.hide();
         this.mediaView.hide();
-        // Volume chỉ có expanded view, không có compact
+        this.notificationView.hide();
+    }
+
+    _switchToNotificationPresenter() {
+        if (this._currentPresenter === 'notification') return;
+
+        this._currentPresenter = 'notification';
+        this.batteryView.compactContainer.hide();
+        this.bluetoothView.hide();
+        this.mediaView.hide();
+        this.volumeView.hide(); // Hide volume if any
+
+        this.notificationView.show();
     }
 
     /**
@@ -2273,6 +2523,7 @@ class NotchController {
             this.bluetoothView.expandedContainer.hide();
             this.mediaView.expandedContainer.hide();
             this.volumeView.expandedContainer.hide();
+            this.notificationView.expandedContainer.hide();
 
             // Hiện expanded view tương ứng với presenter hiện tại
             if (this._currentPresenter === 'battery') {
@@ -2295,6 +2546,11 @@ class NotchController {
                     this.notch.add_child(this.volumeView.expandedContainer);
                 }
                 this.volumeView.expandedContainer.show();
+            } else if (this._currentPresenter === 'notification') {
+                if (!this.notificationView.expandedContainer.get_parent()) {
+                    this.notch.add_child(this.notificationView.expandedContainer);
+                }
+                this.notificationView.expandedContainer.show();
             }
             return;
         }
@@ -2332,6 +2588,11 @@ class NotchController {
                 this.notch.add_child(this.volumeView.expandedContainer);
             }
             this.volumeView.expandedContainer.show();
+        } else if (this._currentPresenter === 'notification') {
+            if (!this.notificationView.expandedContainer.get_parent()) {
+                this.notch.add_child(this.notificationView.expandedContainer);
+            }
+            this.notificationView.expandedContainer.show();
         }
 
         // Animation...
@@ -2364,6 +2625,7 @@ class NotchController {
         this.bluetoothView.expandedContainer.hide();
         this.mediaView.expandedContainer.hide();
         this.volumeView.expandedContainer.hide();
+        this.notificationView.expandedContainer.hide();
 
         // Hiện compact view tương ứng (Main Notch)
         let mainContent;
@@ -2371,6 +2633,10 @@ class NotchController {
             mainContent = this.bluetoothView.compactContainer;
             this._switchToAppropriatePresenter(); // Logic check?
         } else if (this._currentPresenter === 'volume') {
+            this._switchToAppropriatePresenter();
+        }
+        else if (this._currentPresenter === 'notification') {
+            // Notification không có compact view, switch về presenter phù hợp
             this._switchToAppropriatePresenter();
         } else if (this.hasMedia) {
             mainContent = this.isSwapped ? this.batteryView.compactContainer : this.mediaView.compactContainer;
@@ -2477,6 +2743,12 @@ class NotchController {
             this._volumeTimeoutId = null;
         }
 
+        // Hủy notification timeout
+        if (this._notificationTimeoutId) {
+            imports.mainloop.source_remove(this._notificationTimeoutId);
+            this._notificationTimeoutId = null;
+        }
+
         // Hủy Model
         if (this.batteryManager) {
             this.batteryManager.destroy();
@@ -2498,6 +2770,11 @@ class NotchController {
             this.volumeManager = null;
         }
 
+        if (this.notificationManager) {
+            this.notificationManager.destroy();
+            this.notificationManager = null;
+        }
+
         // Hủy View
         if (this.batteryView) {
             this.batteryView.destroy();
@@ -2517,6 +2794,11 @@ class NotchController {
         if (this.volumeView) {
             this.volumeView.destroy();
             this.volumeView = null;
+        }
+
+        if (this.notificationView) {
+            this.notificationView.destroy();
+            this.notificationView = null;
         }
 
         // Hủy Bluetooth expanded container
