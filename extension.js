@@ -31,6 +31,8 @@ class BatteryManager {
 
     _initProxy() {
         // log('[DynamicIsland] BatteryManager: Initializing proxy...');
+        this._proxyReady = false;
+
         // Định nghĩa interface D-Bus cho UPower Device
         let BatteryProxyInterface = `
             <node>
@@ -44,18 +46,40 @@ class BatteryManager {
 
         const BatteryProxy = Gio.DBusProxy.makeProxyWrapper(BatteryProxyInterface);
 
-        // Tạo Proxy tới Display Device của UPower qua System Bus
-        this._proxy = new BatteryProxy(
-            Gio.DBus.system,
-            'org.freedesktop.UPower',
-            '/org/freedesktop/UPower/devices/DisplayDevice'
-        );
+        try {
+            // Tạo Proxy tới Display Device của UPower qua System Bus
+            new BatteryProxy(
+                Gio.DBus.system,
+                'org.freedesktop.UPower',
+                '/org/freedesktop/UPower/devices/DisplayDevice',
+                (proxy, error) => {
+                    if (error) {
+                        log(`[DynamicIsland] BatteryManager: Failed to connect to UPower (probably desktop without battery): ${error.message}`);
+                        this._proxy = null;
+                        this._proxyReady = false;
+                        return;
+                    }
 
-        // Lắng nghe thay đổi thuộc tính
-        this._signalId = this._proxy.connect('g-properties-changed', () => {
-            this._notifyCallbacks();
-        });
-        // log('[DynamicIsland] BatteryManager: Proxy initialized successfully');
+                    // Proxy ready, gán vào this._proxy
+                    this._proxy = proxy;
+                    this._proxyReady = true;
+
+                    // Lắng nghe thay đổi thuộc tính
+                    try {
+                        this._signalId = proxy.connect('g-properties-changed', () => {
+                            this._notifyCallbacks();
+                        });
+                        // log('[DynamicIsland] BatteryManager: Proxy initialized successfully');
+                    } catch (e) {
+                        log(`[DynamicIsland] BatteryManager: Error connecting signal: ${e.message}`);
+                    }
+                }
+            );
+        } catch (e) {
+            log(`[DynamicIsland] BatteryManager: Error creating proxy (desktop system?): ${e.message}`);
+            this._proxy = null;
+            this._proxyReady = false;
+        }
     }
 
     addCallback(callback) {
@@ -69,7 +93,7 @@ class BatteryManager {
     }
 
     getBatteryInfo() {
-        if (!this._proxy) {
+        if (!this._proxy || !this._proxyReady) {
             return { percentage: 0, isCharging: false, isPresent: false };
         }
 
@@ -415,12 +439,16 @@ class BatteryView {
         let iconName;
 
         if (!isPresent) {
-            this.percentageLabel.set_text('N/A');
-            this.iconLeft.icon_name = 'battery-missing-symbolic';
-            this.iconExpanded.icon_name = 'battery-missing-symbolic';
-            this.iconLeft.set_style(`color: #ffffff;`);
-            this.iconExpanded.set_style(`color: #ffffff;`);
-            this.statusLabel.set_text('Không có pin');
+            this.percentageLabel.set_text('AC');
+            this.iconLeft.icon_name = 'ac-adapter-symbolic';
+            this.iconExpanded.icon_name = 'ac-adapter-symbolic';
+            this.iconLeft.set_style(`color: #00ff00;`);
+            this.iconExpanded.set_style(`color: #00ff00;`);
+            if (this.secondaryIcon) {
+                this.secondaryIcon.icon_name = 'ac-adapter-symbolic';
+                this.secondaryIcon.set_style(`color: #00ff00;`);
+            }
+            this.statusLabel.set_text('AC Power');
             return;
         }
 
