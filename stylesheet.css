@@ -4,19 +4,19 @@
 
 .notch {
     transition: all 200ms ease-out;
-    padding: 0;
+    padding: 5px;
     background-color: #000;
 }
 
 /* Trạng thái Nhỏ gọn */
 .notch.compact-state {
-    border-radius: 0 0 20px 20px;
+    border-radius: 20px;
     background-color: #000;
 }
 
 /* Trạng thái Mở rộng */
 .notch.expanded-state {
-    border-radius: 0 0 20px 20px;
+    border-radius: 24px;
     background-color: #000;
 }
 
@@ -57,8 +57,15 @@
 }
 
 @keyframes blink-warning {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
 }
 
 /* Đang sạc - Xanh lá */
@@ -77,7 +84,7 @@
 
 /* Thêm glow effect khi đang sạc (optional) */
 .notch.charging {
-    border-radius: 0 0 20px 20px;
+    border-radius: 20px;
 }
 
 /* Pulse animation cho icon khi sạc */
@@ -86,10 +93,13 @@
 }
 
 @keyframes pulse-charging {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
         transform: scale(1);
     }
+
     50% {
         opacity: 0.7;
         transform: scale(1.1);
