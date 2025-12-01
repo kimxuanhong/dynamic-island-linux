@@ -1791,7 +1791,7 @@ class VolumeView {
 class NotchController {
     constructor() {
         // log('[DynamicIsland] NotchController: Initializing...');
-        this.width = 220;
+        this.width = 180;
         this.height = 40;
         this.expandedWidth = 440;
         this.expandedHeight = 160;
@@ -2221,8 +2221,8 @@ class NotchController {
                 this.secondaryNotch.hide();
                 this.secondaryNotch.set_opacity(0);
             }
-            this.notch.set_width(220);
-            const startX = Math.floor((this.monitorWidth - 220) / 2);
+            this.notch.set_width(this.width);
+            const startX = Math.floor((this.monitorWidth - this.width) / 2);
             this.notch.set_position(startX, 5);
 
             this.notch.remove_all_children();
