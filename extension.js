@@ -68,7 +68,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return {percentage: 0, isCharging: false, isPresent: false};
+            return { percentage: 0, isCharging: false, isPresent: false };
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -389,7 +389,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const {percentage, isCharging, isPresent} = batteryInfo;
+        const { percentage, isCharging, isPresent } = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -542,7 +542,7 @@ class BluetoothView {
      * @param {{deviceName: string, isConnected: boolean}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const {deviceName, isConnected} = bluetoothInfo;
+        const { deviceName, isConnected } = bluetoothInfo;
 
         log(`[DynamicIsland] View updating Bluetooth: ${deviceName}, Connected: ${isConnected}`);
 
@@ -1295,9 +1295,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
-            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
-            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
+            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
+            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
+            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
         ];
 
         controlConfig.forEach(config => {
@@ -1398,7 +1398,7 @@ class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
+        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
         if (metadata) {
@@ -1471,7 +1471,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({file: file});
+                const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
 
                 if (this._expandedArtWrapper) {
@@ -1650,7 +1650,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const {volume, isMuted} = volumeInfo;
+        const { volume, isMuted } = volumeInfo;
 
         // Cập nhật icon
         let iconName;
@@ -1760,7 +1760,7 @@ class NotchController {
         this.notch.set_pivot_point(0.5, 0.5)
 
         const initialX = Math.floor((this.monitorWidth - this.width) / 2);
-        this.notch.set_position(initialX, 0);
+        this.notch.set_position(initialX, 5);
 
         this.notch.add_child(this.batteryView.compactContainer);
         this.notch.add_child(this.bluetoothView.compactContainer);
