@@ -120,6 +120,8 @@ class BluetoothManager {
                     <property name="Connected" type="b" access="read"/>
                     <property name="Alias" type="s" access="read"/>
                     <property name="Icon" type="s" access="read"/>
+                    <property name="Paired" type="b" access="read"/>
+                    <property name="Trusted" type="b" access="read"/>
                 </interface>
             </node>
         `;
@@ -145,32 +147,27 @@ class BluetoothManager {
         `;
         const ObjectManagerProxy = Gio.DBusProxy.makeProxyWrapper(ObjectManagerInterface);
 
-        try {
-            // 3. Kết nối tới ObjectManager của BlueZ
-            this._objectManager = new ObjectManagerProxy(
-                Gio.DBus.system,
-                'org.bluez',
-                '/'
-            );
+        // 3. Kết nối tới ObjectManager của BlueZ
+        this._objectManager = new ObjectManagerProxy(
+            Gio.DBus.system,
+            'org.bluez',
+            '/'
+        );
 
-            // 4. Lắng nghe tín hiệu thêm/xóa thiết bị
-            this._objectManager.connectSignal('InterfacesAdded', (proxy, senderName, [objectPath, interfaces]) => {
-                log(`[DynamicIsland] InterfacesAdded: ${objectPath}`);
-                this._onInterfacesAdded(objectPath, interfaces);
-            });
+        // 4. Lắng nghe tín hiệu thêm/xóa thiết bị
+        this._objectManager.connectSignal('InterfacesAdded', (proxy, senderName, [objectPath, interfaces]) => {
+            this._onInterfacesAdded(objectPath, interfaces);
+        });
 
-            this._objectManager.connectSignal('InterfacesRemoved', (proxy, senderName, [objectPath, interfaces]) => {
-                log(`[DynamicIsland] InterfacesRemoved: ${objectPath}`);
-                this._onInterfacesRemoved(objectPath, interfaces);
-            });
+        this._objectManager.connectSignal('InterfacesRemoved', (proxy, senderName, [objectPath, interfaces]) => {
+            this._onInterfacesRemoved(objectPath, interfaces);
+        });
 
-            // 5. Lấy danh sách thiết bị hiện tại
-            this._syncDevices();
+        // 5. Lấy danh sách thiết bị hiện tại
+        this._syncDevices();
 
-            log('[DynamicIsland] BluetoothManager initialized successfully');
-        } catch (e) {
-            log(`[DynamicIsland] Error initializing BluetoothManager: ${e.message}`);
-        }
+        log('[DynamicIsland] BluetoothManager initialized successfully');
+
     }
 
     _syncDevices() {
@@ -199,8 +196,17 @@ class BluetoothManager {
 
     _onInterfacesAdded(objectPath, interfaces) {
         if (this._destroyed) return;
-        if (interfaces['org.bluez.Device1']) {
-            this._addDevice(objectPath);
+        const deviceProps = interfaces['org.bluez.Device1'];
+        if (deviceProps) {
+            // FIX: Chỉ add device nếu đã Paired hoặc Trusted
+            const getValue = (prop) => (prop && prop.deep_unpack) ? prop.deep_unpack() : prop;
+
+            const isPaired = deviceProps['Paired'] ? Boolean(getValue(deviceProps['Paired'])) : false;
+            const isTrusted = deviceProps['Trusted'] ? Boolean(getValue(deviceProps['Trusted'])) : false;
+
+            if (isPaired || isTrusted) {
+                this._addDevice(objectPath);
+            }
         }
     }
 
@@ -214,29 +220,25 @@ class BluetoothManager {
     _addDevice(path) {
         if (this._devices.has(path)) return;
 
-        try {
-            log(`[DynamicIsland] Adding Bluetooth device: ${path}`);
-            const deviceProxy = new this.DeviceProxy(
-                Gio.DBus.system,
-                'org.bluez',
-                path,
-                (proxy, error) => {
-                    if (error) {
-                        log(`[DynamicIsland] Error creating proxy for ${path}: ${error.message}`);
-                    }
+        log(`[DynamicIsland] Adding Bluetooth device: ${path}`);
+        const deviceProxy = new this.DeviceProxy(
+            Gio.DBus.system,
+            'org.bluez',
+            path,
+            (proxy, error) => {
+                if (error) {
+                    log(`[DynamicIsland] Error creating proxy for ${path}: ${error.message}`);
                 }
-            );
+            }
+        );
 
-            // Lắng nghe thay đổi thuộc tính
-            const signalId = deviceProxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
-                this._onDevicePropertiesChanged(proxy, changed);
-            });
+        // Lắng nghe thay đổi thuộc tính
+        const signalId = deviceProxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
+            this._onDevicePropertiesChanged(proxy, changed);
+        });
 
-            deviceProxy._signalId = signalId;
-            this._devices.set(path, deviceProxy);
-        } catch (e) {
-            log(`[DynamicIsland] Error adding device ${path}: ${e.message}`);
-        }
+        deviceProxy._signalId = signalId;
+        this._devices.set(path, deviceProxy);
     }
 
     _removeDevice(path) {
@@ -261,34 +263,32 @@ class BluetoothManager {
 
         // changedProperties là GLib.Variant (a{sv})
         const changed = changedProperties.deep_unpack();
-
-        log(`[DynamicIsland] Properties changed for ${proxy.g_object_path}: ${JSON.stringify(changed)}`);
-
         if ('Connected' in changed) {
-            try {
-                let rawConnected = changed['Connected'];
-                log(`[DynamicIsland] Raw Connected value: ${rawConnected} (Type: ${typeof rawConnected})`);
 
-                // FIX: Xử lý đúng cả GVariant và boolean thô
-                let isConnected;
-                if (rawConnected && typeof rawConnected.deep_unpack === 'function') {
-                    isConnected = Boolean(rawConnected.deep_unpack());
-                } else {
-                    isConnected = Boolean(rawConnected);
-                }
+            // FIX: Chỉ notify cho device đã paired hoặc trusted
+            const isPaired = proxy.Paired || false;
+            const isTrusted = proxy.Trusted || false;
 
-                const alias = proxy.Alias || 'Unknown Device';
-
-                log(`[DynamicIsland] Bluetooth Device ${alias} Connected status changed to: ${isConnected}`);
-
-                // LUÔN gọi callback cho cả connect và disconnect
-                this._notifyCallbacks({
-                    deviceName: alias,
-                    isConnected: isConnected
-                });
-            } catch (e) {
-                log(`[DynamicIsland] Error handling Bluetooth property change: ${e.message}`);
+            if (!isPaired && !isTrusted) {
+                return;
             }
+
+            let rawConnected = changed['Connected'];
+
+            // FIX: Xử lý đúng cả GVariant và boolean thô
+            let isConnected;
+            if (rawConnected && typeof rawConnected.deep_unpack === 'function') {
+                isConnected = Boolean(rawConnected.deep_unpack());
+            } else {
+                isConnected = Boolean(rawConnected);
+            }
+
+            const alias = proxy.Alias || 'Unknown Device';
+            // LUÔN gọi callback cho cả connect và disconnect
+            this._notifyCallbacks({
+                deviceName: alias,
+                isConnected: isConnected
+            });
         }
     }
 
@@ -297,7 +297,6 @@ class BluetoothManager {
     }
 
     _notifyCallbacks(info) {
-        log(`[DynamicIsland] Notifying Bluetooth callbacks: ${JSON.stringify(info)}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -701,7 +700,7 @@ class MediaManager {
                     const names = reply.deep_unpack()[0];
                     this._playerListeners = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
                     log(`[DynamicIsland] MediaManager: Found ${this._playerListeners.length} media player(s)`);
-                    if(this._playerListeners.length > 0) {
+                    if (this._playerListeners.length > 0) {
                         log(`[DynamicIsland] MediaManager: Connecting to ${this._playerListeners[0]}`);
                         this._connectToPlayer(this._playerListeners[0]);
                     }
