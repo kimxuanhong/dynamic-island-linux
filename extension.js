@@ -28,7 +28,7 @@ class BatteryManager {
     }
 
     _initProxy() {
-        log('[DynamicIsland] BatteryManager: Initializing proxy...');
+        // log('[DynamicIsland] BatteryManager: Initializing proxy...');
         // Định nghĩa interface D-Bus cho UPower Device
         let BatteryProxyInterface = `
             <node>
@@ -53,7 +53,7 @@ class BatteryManager {
         this._signalId = this._proxy.connect('g-properties-changed', () => {
             this._notifyCallbacks();
         });
-        log('[DynamicIsland] BatteryManager: Proxy initialized successfully');
+        // log('[DynamicIsland] BatteryManager: Proxy initialized successfully');
     }
 
     addCallback(callback) {
@@ -62,7 +62,7 @@ class BatteryManager {
 
     _notifyCallbacks() {
         const info = this.getBatteryInfo();
-        log(`[DynamicIsland] BatteryManager: Notifying callbacks - ${JSON.stringify(info)}`);
+        // log(`[DynamicIsland] BatteryManager: Notifying callbacks - ${JSON.stringify(info)}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -166,7 +166,7 @@ class BluetoothManager {
         // 5. Lấy danh sách thiết bị hiện tại
         this._syncDevices();
 
-        log('[DynamicIsland] BluetoothManager initialized successfully');
+        // log('[DynamicIsland] BluetoothManager initialized successfully');
 
     }
 
@@ -176,7 +176,7 @@ class BluetoothManager {
         this._objectManager.GetManagedObjectsRemote((result, error) => {
             if (this._destroyed) return;
             if (error) {
-                log(`[DynamicIsland] Error getting managed objects: ${error.message}`);
+                // log(`[DynamicIsland] Error getting managed objects: ${error.message}`);
                 return;
             }
 
@@ -188,7 +188,7 @@ class BluetoothManager {
             // FIX: Sau khi sync xong tất cả devices, mới bật notifications
             imports.mainloop.timeout_add(1000, () => {
                 this._isInitializing = false;
-                log('[DynamicIsland] BluetoothManager initialization complete, notifications enabled');
+                // log('[DynamicIsland] BluetoothManager initialization complete, notifications enabled');
                 return false;
             });
         });
@@ -220,14 +220,14 @@ class BluetoothManager {
     _addDevice(path) {
         if (this._devices.has(path)) return;
 
-        log(`[DynamicIsland] Adding Bluetooth device: ${path}`);
+        // log(`[DynamicIsland] Adding Bluetooth device: ${path}`);
         const deviceProxy = new this.DeviceProxy(
             Gio.DBus.system,
             'org.bluez',
             path,
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] Error creating proxy for ${path}: ${error.message}`);
+                    // log(`[DynamicIsland] Error creating proxy for ${path}: ${error.message}`);
                 }
             }
         );
@@ -244,7 +244,7 @@ class BluetoothManager {
     _removeDevice(path) {
         const deviceProxy = this._devices.get(path);
         if (deviceProxy) {
-            log(`[DynamicIsland] Removing Bluetooth device: ${path}`);
+            // log(`[DynamicIsland] Removing Bluetooth device: ${path}`);
             if (deviceProxy._signalId) {
                 deviceProxy.disconnect(deviceProxy._signalId);
             }
@@ -257,7 +257,7 @@ class BluetoothManager {
 
         // FIX: Bỏ qua notifications trong lúc khởi tạo
         if (this._isInitializing) {
-            log(`[DynamicIsland] Skipping notification during initialization for ${proxy.g_object_path}`);
+            // log(`[DynamicIsland] Skipping notification during initialization for ${proxy.g_object_path}`);
             return;
         }
 
@@ -323,10 +323,30 @@ class BatteryView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
+        this._buildMinimalView();
+    }
+
+    _buildMinimalView() {
+        this.secondaryIcon = new St.Icon({
+            icon_name: 'battery-good-symbolic',
+            icon_size: 24,
+            style_class: 'battery-icon-secondary',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this.secondaryContainer = new St.Bin({
+            child: this.secondaryIcon,
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'battery-minimal-container'
+        });
     }
 
     _buildCompactView() {
-        log('[DynamicIsland] BatteryView: Building compact view...');
+        // log('[DynamicIsland] BatteryView: Building compact view...');
         this.iconLeft = new St.Icon({
             icon_name: 'battery-good-symbolic',
             icon_size: 24,
@@ -364,7 +384,7 @@ class BatteryView {
     }
 
     _buildExpandedView() {
-        log('[DynamicIsland] BatteryView: Building expanded view...');
+        // log('[DynamicIsland] BatteryView: Building expanded view...');
         this.iconExpanded = new St.Icon({
             icon_name: 'battery-good-symbolic',
             icon_size: 64,
@@ -420,12 +440,15 @@ class BatteryView {
 
         this.iconLeft.icon_name = iconName;
         this.iconExpanded.icon_name = iconName;
+        if (this.secondaryIcon) this.secondaryIcon.icon_name = iconName;
 
         const color = this._getBatteryColor(percentage);
         const statusClass = this._getBatteryStatusClass(percentage, isCharging);
 
         this.iconLeft.set_style(`color: ${color};`);
         this.iconExpanded.set_style(`color: ${color};`);
+        if (this.secondaryIcon) this.secondaryIcon.set_style(`color: ${color};`);
+
         this.percentageLabel.style_class = `text-shadow ${statusClass}`;
 
         if (isCharging) {
@@ -470,7 +493,7 @@ class BluetoothView {
     }
 
     _buildCompactView() {
-        log('[DynamicIsland] BluetoothView: Building compact view...');
+        // log('[DynamicIsland] BluetoothView: Building compact view...');
         this.icon = new St.Icon({
             icon_name: 'bluetooth-active-symbolic',
             icon_size: 20,
@@ -487,7 +510,7 @@ class BluetoothView {
     }
 
     _buildExpandedView() {
-        log('[DynamicIsland] BluetoothView: Building expanded view...');
+        // log('[DynamicIsland] BluetoothView: Building expanded view...');
         // Icon lớn
         this.expandedIcon = new St.Icon({
             icon_name: 'bluetooth-active-symbolic',
@@ -525,7 +548,7 @@ class BluetoothView {
         });
         this.textWrapper.set_child(textBox);
 
-        // ✅ TẠO SẴN EXPANDED CONTAINER NGAY TẠI ĐÂY
+        // ✅ TẠO SẴN EXPANDED CONTAINER NGAY TẠY ĐÂY
         this.expandedContainer = new St.BoxLayout({
             vertical: false,
             x_expand: true,
@@ -544,7 +567,7 @@ class BluetoothView {
     updateBluetooth(bluetoothInfo) {
         const { deviceName, isConnected } = bluetoothInfo;
 
-        log(`[DynamicIsland] View updating Bluetooth: ${deviceName}, Connected: ${isConnected}`);
+        // log(`[DynamicIsland] View updating Bluetooth: ${deviceName}, Connected: ${isConnected}`);
 
         // FIX: Hiển thị rõ ràng cả trạng thái connected và disconnected
         if (isConnected) {
@@ -608,6 +631,7 @@ class MediaManager {
         this._destroyed = false;
         this._pendingUpdate = null; // Batch updates
         this._playerListeners = [];
+        this._currentPlayer = null;
 
         // Define XML interfaces
         this._defineInterfaces();
@@ -616,7 +640,7 @@ class MediaManager {
     }
 
     _defineInterfaces() {
-        log('[DynamicIsland] MediaManager: Defining interfaces...');
+        // log('[DynamicIsland] MediaManager: Defining interfaces...');
         // MPRIS Player Interface
         const MPRIS_PLAYER_INTERFACE = `
         <node>
@@ -643,22 +667,22 @@ class MediaManager {
 
         this.MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(MPRIS_PLAYER_INTERFACE);
         this.DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBUS_INTERFACE);
-        log('[DynamicIsland] MediaManager: Interfaces defined successfully');
+        // log('[DynamicIsland] MediaManager: Interfaces defined successfully');
     }
 
     _setupDBusNameOwnerChanged() {
-        log('[DynamicIsland] MediaManager: Setting up DBus NameOwnerChanged...');
+        // log('[DynamicIsland] MediaManager: Setting up DBus NameOwnerChanged...');
         this._dbusProxy = new this.DBusProxy(
             Gio.DBus.session,
             'org.freedesktop.DBus',
             '/org/freedesktop/DBus',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] Failed to connect to DBus: ${error.message}`);
+                    // log(`[DynamicIsland] Failed to connect to DBus: ${error.message}`);
                     return;
                 }
 
-                log('[DynamicIsland] MediaManager: DBus proxy connected, listening for NameOwnerChanged');
+                // log('[DynamicIsland] MediaManager: DBus proxy connected, listening for NameOwnerChanged');
                 this._dbusSignalId = proxy.connectSignal('NameOwnerChanged', (proxy, sender, [name, oldOwner, newOwner]) => {
                     if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
                         if (newOwner && !oldOwner) {
@@ -683,7 +707,7 @@ class MediaManager {
     }
 
     _watchForMediaPlayers() {
-        log('[DynamicIsland] MediaManager: Watching for media players...');
+        // log('[DynamicIsland] MediaManager: Watching for media players...');
         Gio.DBus.session.call(
             'org.freedesktop.DBus',
             '/org/freedesktop/DBus',
@@ -701,7 +725,7 @@ class MediaManager {
                     this._playerListeners = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
                     log(`[DynamicIsland] MediaManager: Found ${this._playerListeners.length} media player(s)`);
                     if (this._playerListeners.length > 0) {
-                        log(`[DynamicIsland] MediaManager: Connecting to ${this._playerListeners[0]}`);
+                        // log(`[DynamicIsland] MediaManager: Connecting to ${this._playerListeners[0]}`);
                         this._connectToPlayer(this._playerListeners[0]);
                     }
                 } catch (e) {
@@ -713,6 +737,7 @@ class MediaManager {
 
     _connectToPlayer(busName) {
         log(`[DynamicIsland] MediaManager: Connecting to player ${busName}...`);
+        this._currentPlayer = busName
         // Use XML-defined proxy wrapper
         this._playerProxy = new this.MprisPlayerProxy(
             Gio.DBus.session,
@@ -740,12 +765,12 @@ class MediaManager {
     _performInitialUpdate() {
         if (!this._playerProxy) return;
 
-        log('[DynamicIsland] MediaManager: Performing initial update...');
+        // log('[DynamicIsland] MediaManager: Performing initial update...');
         const metadata = this._playerProxy.Metadata;
         const playbackStatus = this._playerProxy.PlaybackStatus;
 
         if (metadata || playbackStatus) {
-            log(`[DynamicIsland] MediaManager: Initial playback status: ${playbackStatus}`);
+            // log(`[DynamicIsland] MediaManager: Initial playback status: ${playbackStatus}`);
             this._batchUpdate({
                 metadata: metadata,
                 playbackStatus: playbackStatus
@@ -765,12 +790,12 @@ class MediaManager {
 
             if ('Metadata' in changedProps) {
                 updates.metadata = changedProps.Metadata;
-                log('[DynamicIsland] MediaManager: Metadata changed');
+                // log('[DynamicIsland] MediaManager: Metadata changed');
             }
 
             if ('PlaybackStatus' in changedProps) {
                 updates.playbackStatus = changedProps.PlaybackStatus;
-                log(`[DynamicIsland] MediaManager: PlaybackStatus changed to: ${changedProps.PlaybackStatus}`);
+                // log(`[DynamicIsland] MediaManager: PlaybackStatus changed to: ${changedProps.PlaybackStatus}`);
             }
 
             if (Object.keys(updates).length > 0) {
@@ -778,7 +803,7 @@ class MediaManager {
             }
         } catch (e) {
             if (!this._destroyed) {
-                log(`[DynamicIsland] Error in properties-changed callback: ${e.message}`);
+                // log(`[DynamicIsland] Error in properties-changed callback: ${e.message}`);
             }
         }
     }
@@ -887,7 +912,7 @@ class MediaManager {
                 }
             }
         } catch (e) {
-            log(`[DynamicIsland] Error extracting metadata: ${e.message}`);
+            // log(`[DynamicIsland] Error extracting metadata: ${e.message}`);
         }
         return null;
     }
@@ -901,7 +926,7 @@ class MediaManager {
     }
 
     _downloadImage(url, callback) {
-        log(`[DynamicIsland] Download image: ${url}`);
+        // log(`[DynamicIsland] Download image: ${url}`);
 
         const msg = Soup.Message.new('GET', url);
 
@@ -917,7 +942,7 @@ class MediaManager {
                         const data = bytes.get_data();   // Uint8Array
                         callback(data);
                     } catch (e) {
-                        log(`Image download failed (Soup3): ${e}`);
+                        // log(`Image download failed (Soup3): ${e}`);
                         callback(null);
                     }
                 }
@@ -931,11 +956,11 @@ class MediaManager {
                 if (message.status_code === 200 && message.response_body?.data) {
                     callback(message.response_body.data);
                 } else {
-                    log(`Image download failed (Soup2): ${message.status_code}`);
+                    // log(`Image download failed (Soup2): ${message.status_code}`);
                     callback(null);
                 }
             } catch (e) {
-                log(`Image download error (Soup2): ${e}`);
+                // log(`Image download error (Soup2): ${e}`);
                 callback(null);
             }
         });
@@ -958,7 +983,7 @@ class MediaManager {
             this._artCache.set(url, path);
             return path;
         } catch (e) {
-            log(`[DynamicIsland] Failed to save image: ${e.message}`);
+            // log(`[DynamicIsland] Failed to save image: ${e.message}`);
             return null;
         }
     }
@@ -1021,7 +1046,7 @@ class MediaManager {
     }
 
     _notifyCallbacks(info) {
-        log(`[DynamicIsland] MediaManager: Notifying callbacks - isPlaying: ${info.isPlaying}, playbackStatus: ${info.playbackStatus}`);
+        // log(`[DynamicIsland] MediaManager: Notifying callbacks - isPlaying: ${info.isPlaying}, playbackStatus: ${info.playbackStatus}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -1050,16 +1075,16 @@ class MediaManager {
             try {
                 this._playerProxy.disconnect(this._playerProxySignal);
             } catch (e) {
-                log(`[DynamicIsland] Error disconnecting player proxy: ${e.message}`);
+                // log(`[DynamicIsland] Error disconnecting player proxy: ${e.message}`);
             }
             this._playerProxySignal = null;
         }
 
         if (this._dbusSignalId && this._dbusProxy) {
             try {
-                this._dbusProxy.disconnectSignal(this._dbusSignalId);
+                this._dbusProxy.disconnect(this._dbusSignalId);
             } catch (e) {
-                log(`[DynamicIsland] Error disconnecting DBus signal: ${e.message}`);
+                // log(`[DynamicIsland] Error disconnecting DBus signal: ${e.message}`);
             }
             this._dbusSignalId = null;
         }
@@ -1104,7 +1129,7 @@ class VolumeManager {
             this._control = Volume.getMixerControl();
 
             if (!this._control) {
-                log('[DynamicIsland] Failed to get MixerControl');
+                // log('[DynamicIsland] Failed to get MixerControl');
                 return;
             }
 
@@ -1119,9 +1144,9 @@ class VolumeManager {
             // Đánh dấu đã khởi tạo xong
             this._isInitializing = false;
 
-            log('[DynamicIsland] VolumeManager initialized successfully');
+            // log('[DynamicIsland] VolumeManager initialized successfully');
         } catch (e) {
-            log(`[DynamicIsland] Error initializing VolumeManager: ${e.message}`);
+            // log(`[DynamicIsland] Error initializing VolumeManager: ${e.message}`);
         }
     }
 
@@ -1149,7 +1174,7 @@ class VolumeManager {
 
         // Cập nhật stream ID
         if (streamChanged) {
-            log(`[DynamicIsland] VolumeManager: Stream changed (ID: ${this._lastStreamId} -> ${newStreamId})`);
+            // log(`[DynamicIsland] VolumeManager: Stream changed (ID: ${this._lastStreamId} -> ${newStreamId})`);
             this._lastStreamId = newStreamId;
         }
 
@@ -1158,7 +1183,7 @@ class VolumeManager {
         // 2. Volume thực sự thay đổi
         // 3. Stream ID không đổi (không phải stream mới được tạo)
         if (!this._isInitializing && volumeChanged && !streamChanged) {
-            log(`[DynamicIsland] VolumeManager: Volume changed - volume: ${this._currentVolume}% (was ${oldVolume}%), muted: ${this._isMuted} (was ${oldMuted})`);
+            // log(`[DynamicIsland] VolumeManager: Volume changed - volume: ${this._currentVolume}% (was ${oldVolume}%), muted: ${this._isMuted} (was ${oldMuted})`);
             this._notifyCallbacks({
                 volume: this._currentVolume,
                 isMuted: this._isMuted
@@ -1171,7 +1196,7 @@ class VolumeManager {
     }
 
     _notifyCallbacks(info) {
-        log(`[DynamicIsland] VolumeManager: Notifying callbacks - volume: ${info.volume}%, isMuted: ${info.isMuted}`);
+        // log(`[DynamicIsland] VolumeManager: Notifying callbacks - volume: ${info.volume}%, isMuted: ${info.isMuted}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -1204,10 +1229,38 @@ class MediaView {
         this._lastArtPath = null;
         this._buildCompactView();
         this._buildExpandedView();
+        this._buildMinimalView();
+    }
+
+    _buildMinimalView() {
+        this._secondaryThumbnail = new St.Icon({
+            style_class: 'media-thumbnail-secondary',
+            icon_name: 'audio-x-generic-symbolic',
+            icon_size: 24,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this._secondaryThumbnailWrapper = new St.Bin({
+            child: this._secondaryThumbnail,
+            style_class: 'media-thumbnail-wrapper-secondary',
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            clip_to_allocation: true
+        });
+
+        this.secondaryContainer = new St.Bin({
+            child: this._secondaryThumbnailWrapper,
+            x_expand: true,
+            y_expand: true,
+            style_class: 'media-minimal-container'
+        });
     }
 
     _buildCompactView() {
-        log('[DynamicIsland] MediaView: Building compact view...');
+        // log('[DynamicIsland] MediaView: Building compact view...');
         // Thumbnail on the left (album art)
         this._thumbnail = new St.Icon({
             style_class: 'media-thumbnail',
@@ -1261,7 +1314,7 @@ class MediaView {
     }
 
     _buildExpandedView() {
-        log('[DynamicIsland] MediaView: Building expanded view...');
+        // log('[DynamicIsland] MediaView: Building expanded view...');
         // Expanded album art (left side)
         this._expandedArt = new St.Icon({
             style_class: 'media-expanded-art',
@@ -1432,6 +1485,8 @@ class MediaView {
         if (!currentMetadata && !currentArtPath) {
             // Reset to default
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+            if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
+
             if (this._expandedArtWrapper) {
                 this._expandedArtWrapper.style = null;
                 this._expandedArt.icon_name = 'audio-x-generic-symbolic';
@@ -1443,6 +1498,13 @@ class MediaView {
                 this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                 this._thumbnail.opacity = 255;
                 this._thumbnail.visible = true;
+            }
+            if (this._secondaryThumbnailWrapper) {
+                this._secondaryThumbnailWrapper.style = null;
+                if (this._secondaryThumbnail) {
+                    this._secondaryThumbnail.opacity = 255;
+                    this._secondaryThumbnail.visible = true;
+                }
             }
             return;
         }
@@ -1473,6 +1535,7 @@ class MediaView {
                 const file = Gio.File.new_for_path(path);
                 const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
+                if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
                 if (this._expandedArtWrapper) {
                     this._expandedArtWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 16px;`;
@@ -1484,11 +1547,19 @@ class MediaView {
                     this._thumbnail.opacity = 0;
                     this._thumbnail.visible = true;
                 }
+                if (this._secondaryThumbnailWrapper) {
+                    this._secondaryThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 99px;`;
+                    if (this._secondaryThumbnail) {
+                        this._secondaryThumbnail.opacity = 0;
+                        this._secondaryThumbnail.visible = true;
+                    }
+                }
             } else {
                 try {
                     // Other URI
                     const gicon = Gio.icon_new_for_string(artUrl);
                     this._thumbnail.set_gicon(gicon);
+                    if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
                     if (this._expandedArtWrapper) {
                         const cssUrl = artUrl.replace(/'/g, "\\'");
@@ -1501,10 +1572,19 @@ class MediaView {
                             this._thumbnail.opacity = 0;
                             this._thumbnail.visible = true;
                         }
+                        if (this._secondaryThumbnailWrapper) {
+                            this._secondaryThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 99px;`;
+                            if (this._secondaryThumbnail) {
+                                this._secondaryThumbnail.opacity = 0;
+                                this._secondaryThumbnail.visible = true;
+                            }
+                        }
                     }
                 } catch (e) {
                     // Fallback
                     this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+                    if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
+
                     if (this._expandedArtWrapper) {
                         this._expandedArtWrapper.style = null;
                         this._expandedArt.icon_name = 'audio-x-generic-symbolic';
@@ -1517,11 +1597,20 @@ class MediaView {
                         this._thumbnail.opacity = 255;
                         this._thumbnail.visible = true;
                     }
+                    if (this._secondaryThumbnailWrapper) {
+                        this._secondaryThumbnailWrapper.style = null;
+                        if (this._secondaryThumbnail) {
+                            this._secondaryThumbnail.opacity = 255;
+                            this._secondaryThumbnail.visible = true;
+                        }
+                    }
                 }
             }
         } else if (!isDownloading) {
-            // Only reset to default if not downloading
+            // Reset if no art
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
+            if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
+
             if (this._expandedArtWrapper) {
                 this._expandedArtWrapper.style = null;
                 this._expandedArt.icon_name = 'audio-x-generic-symbolic';
@@ -1533,6 +1622,13 @@ class MediaView {
                 this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                 this._thumbnail.opacity = 255;
                 this._thumbnail.visible = true;
+            }
+            if (this._secondaryThumbnailWrapper) {
+                this._secondaryThumbnailWrapper.style = null;
+                if (this._secondaryThumbnail) {
+                    this._secondaryThumbnail.opacity = 255;
+                    this._secondaryThumbnail.visible = true;
+                }
             }
         }
 
@@ -1592,7 +1688,7 @@ class VolumeView {
     }
 
     _buildExpandedView() {
-        log('[DynamicIsland] VolumeView: Building expanded view...');
+        // log('[DynamicIsland] VolumeView: Building expanded view...');
         // Icon lớn ở giữa
         this.expandedIcon = new St.Icon({
             icon_name: 'audio-volume-high-symbolic',
@@ -1694,7 +1790,7 @@ class VolumeView {
 // ============================================
 class NotchController {
     constructor() {
-        log('[DynamicIsland] NotchController: Initializing...');
+        // log('[DynamicIsland] NotchController: Initializing...');
         this.width = 220;
         this.height = 40;
         this.expandedWidth = 440;
@@ -1703,13 +1799,18 @@ class NotchController {
         this.isExpanded = false;
         this._isAnimating = false;
 
+        // Split mode state
+        this.hasMedia = false;
+        this.isSwapped = false;
+        this.secondaryNotch = null;
+
         this._collapseTimeoutId = null;
         this._autoExpandTimeoutId = null;
         this._wasCharging = false;
         this._bluetoothNotificationTimeoutId = null;
         this._currentPresenter = 'battery';
 
-        log('[DynamicIsland] NotchController: Creating managers and views...');
+        // log('[DynamicIsland] NotchController: Creating managers and views...');
         this.batteryManager = new BatteryManager();
         this.batteryView = new BatteryView();
         this.bluetoothManager = new BluetoothManager();
@@ -1738,11 +1839,11 @@ class NotchController {
         this._setupMouseEvents();
 
         this._updateUI();
-        log('[DynamicIsland] NotchController: Initialization complete');
+        // log('[DynamicIsland] NotchController: Initialization complete');
     }
 
     _createNotchActor() {
-        log('[DynamicIsland] NotchController: Creating notch actor...');
+        // log('[DynamicIsland] NotchController: Creating notch actor...');
         this.notch = new St.BoxLayout({
             style_class: 'notch compact-state',
             vertical: false,
@@ -1770,7 +1871,40 @@ class NotchController {
             affectsInputRegion: true,
             trackFullscreen: false
         });
-        log('[DynamicIsland] NotchController: Notch actor created and added to layout');
+
+        // Create Secondary Notch (Circular)
+        this.secondaryNotch = new St.BoxLayout({
+            style_class: 'notch-secondary',
+            vertical: false,
+            reactive: true,
+            track_hover: false,
+            x_expand: false,
+            can_focus: true,
+            clip_to_allocation: true,
+            visible: false,
+            opacity: 0
+        });
+
+        this.secondaryNotch.set_width(40);
+        this.secondaryNotch.set_height(40);
+        this.secondaryNotch.set_pivot_point(0.5, 0.5);
+
+        // Click to swap
+        this.secondaryNotch.connect('button-press-event', () => {
+            this.isSwapped = !this.isSwapped;
+            this._updateLayout();
+
+            if (!this.isExpanded) {
+                this.squeeze();
+            }
+            return Clutter.EVENT_STOP;
+        });
+
+        Main.layoutManager.addChrome(this.secondaryNotch, {
+            affectsInputRegion: true,
+            trackFullscreen: false
+        });
+        // log('[DynamicIsland] NotchController: Notch actor created and added to layout');
     }
 
     _setupMouseEvents() {
@@ -1820,7 +1954,7 @@ class NotchController {
     }
 
     _onVolumeChanged(info) {
-        log(`[DynamicIsland] NotchController: Volume changed - ${JSON.stringify(info)}`);
+        // log(`[DynamicIsland] NotchController: Volume changed - ${JSON.stringify(info)}`);
         this.volumeView.updateVolume(info);
 
         // Chuyển sang volume presenter
@@ -1855,7 +1989,7 @@ class NotchController {
     }
 
     _onBatteryChanged(info) {
-        log(`[DynamicIsland] NotchController: Battery changed - ${JSON.stringify(info)}`);
+        // log(`[DynamicIsland] NotchController: Battery changed - ${JSON.stringify(info)}`);
         this.batteryView.updateBattery(info);
 
         if (info.isCharging) {
@@ -1894,7 +2028,7 @@ class NotchController {
     }
 
     _onBluetoothChanged(info) {
-        log(`[DynamicIsland] Controller received Bluetooth change: ${JSON.stringify(info)}`);
+        // log(`[DynamicIsland] Controller received Bluetooth change: ${JSON.stringify(info)}`);
 
         // 1. Cập nhật View
         this.bluetoothView.updateBluetooth(info);
@@ -1926,17 +2060,11 @@ class NotchController {
     }
 
     _switchToBatteryPresenter() {
-        if (this._currentPresenter === 'battery') return;
+        if (this._currentPresenter === 'battery' && !this.hasMedia) return;
 
         this._currentPresenter = 'battery';
-        this.bluetoothView.hide();
-        this.mediaView.hide();
-        this.volumeView.hide();
-
-        // CHỈ show compact khi KHÔNG expanded
-        if (!this.isExpanded) {
-            this.batteryView.compactContainer.show();
-        }
+        this.hasMedia = false;
+        this._updateLayout();
     }
 
 
@@ -1949,9 +2077,9 @@ class NotchController {
             this._mediaSwitchTimeoutId = null;
         }
 
-        if (info.isPlaying && info.artPath) {
+        log(`[DynamicIsland] _onMediaChanged: ${JSON.stringify(info)}`);
+        if (info.isPlaying && (info.artPath || this._isGnomeMusic(this.mediaManager._currentPlayer))) {
             this.mediaView.updateMedia(info);
-            log(`[DynamicIsland] _onMediaChanged: ${JSON.stringify(info)}`);
 
             this._switchToMediaPresenter();
             if (!this.isExpanded) {
@@ -1970,6 +2098,13 @@ class NotchController {
         }
     }
 
+    _isGnomeMusic(_currentPlayer) {
+        if (!_currentPlayer) return false;
+
+        return _currentPlayer.toLowerCase().includes("gnomemusic") ||
+            _currentPlayer.toLowerCase().includes("gnome");
+    }
+
     _switchToBluetoothPresenter() {
         if (this._currentPresenter === 'bluetooth') return;
 
@@ -1981,18 +2116,11 @@ class NotchController {
     }
 
     _switchToMediaPresenter() {
-        if (this._currentPresenter === 'media') return;
+        if (this._currentPresenter === 'media' && this.hasMedia) return;
 
         this._currentPresenter = 'media';
-        this.batteryView.compactContainer.hide();
-        this.bluetoothView.hide();
-        this.volumeView.hide();
-
-        // CHỈ show compact khi KHÔNG expanded
-        if (!this.isExpanded) {
-            this.mediaView.compactContainer.show();
-        }
-        // Nếu đang expanded thì giữ nguyên expanded view
+        this.hasMedia = true;
+        this._updateLayout();
     }
 
     _switchToVolumePresenter() {
@@ -2018,10 +2146,109 @@ class NotchController {
 
     _updateUI() {
         const info = this.batteryManager.getBatteryInfo();
-        this.mediaView.hide();
-        this.bluetoothView.hide();
-        this.volumeView.hide();
         this.batteryView.updateBattery(info);
+        this._updateLayout();
+    }
+
+    _updateLayout() {
+        if (this.isExpanded) {
+            // Expanded State: Hide secondary, show expanded view in main
+            if (this.secondaryNotch) this.secondaryNotch.hide();
+            this.notch.set_width(this.expandedWidth);
+            // Content is handled by expandNotch/presenters
+            return;
+        }
+
+        // Compact State Logic
+        if (this.hasMedia) {
+            // Split Mode
+            if (this.secondaryNotch) {
+                this.secondaryNotch.show();
+                this.secondaryNotch.set_opacity(255);
+            }
+
+            // Widths & Positions
+            const mainWidth = 160;
+            const gap = 10;
+            const secWidth = 40;
+            const groupWidth = mainWidth + gap + secWidth;
+            const startX = Math.floor((this.monitorWidth - groupWidth) / 2);
+
+            this.notch.set_width(mainWidth);
+            this.notch.set_position(startX, 5);
+            if (this.secondaryNotch) this.secondaryNotch.set_position(startX + mainWidth + gap, 5);
+
+            // Content
+            this.notch.remove_all_children();
+            if (this.secondaryNotch) this.secondaryNotch.remove_all_children();
+
+            let mainContent, secContent;
+
+            // Check overrides
+            if (this._currentPresenter === 'volume') {
+                // Volume usually expands
+            } else if (this._currentPresenter === 'bluetooth') {
+                //mainContent = this.bluetoothView.compactContainer;
+                // Secondary shows Battery or Media?
+                //secContent = this.isSwapped ? this.mediaView.secondaryContainer : this.batteryView.secondaryContainer;
+            } else {
+                // Normal Media/Battery swap
+                if (this.isSwapped) {
+                    mainContent = this.batteryView.compactContainer;
+                    secContent = this.mediaView.secondaryContainer;
+                } else {
+                    mainContent = this.mediaView.compactContainer;
+                    secContent = this.batteryView.secondaryContainer;
+                }
+            }
+
+            // Apply Content
+            if (mainContent) {
+                this.notch.add_child(mainContent);
+                mainContent.show();
+                mainContent.remove_style_class_name('in-secondary');
+            }
+
+            if (secContent && this.secondaryNotch) {
+                this.secondaryNotch.add_child(secContent);
+                secContent.show();
+                secContent.add_style_class_name('in-secondary');
+            }
+
+        } else {
+            // Default Mode (No Media)
+            if (this.secondaryNotch) {
+                this.secondaryNotch.hide();
+                this.secondaryNotch.set_opacity(0);
+            }
+            this.notch.set_width(220);
+            const startX = Math.floor((this.monitorWidth - 220) / 2);
+            this.notch.set_position(startX, 5);
+
+            this.notch.remove_all_children();
+
+            let mainContent;
+            if (this._currentPresenter === 'volume') {
+                // ...
+            } else if (this._currentPresenter === 'bluetooth') {
+                //mainContent = this.bluetoothView.compactContainer;
+            } else if (this._currentPresenter === 'media') {
+                // Should not happen if hasMedia is false, but just in case
+                mainContent = this.mediaView.compactContainer;
+            } else {
+                mainContent = this.batteryView.compactContainer;
+            }
+
+            if (mainContent) {
+                this.notch.add_child(mainContent);
+                mainContent.show();
+                mainContent.remove_style_class_name('in-secondary');
+            }
+
+            // Ensure 'in-secondary' is removed from others
+            this.batteryView.compactContainer.remove_style_class_name('in-secondary');
+            this.mediaView.compactContainer.remove_style_class_name('in-secondary');
+        }
     }
 
     _cancelAutoCollapse() {
@@ -2036,6 +2263,9 @@ class NotchController {
     }
 
     expandNotch(isAuto = false) {
+        // Hide secondary notch immediately
+        if (this.secondaryNotch) this.secondaryNotch.hide();
+
         // Nếu đang expanded và là auto expand, chỉ cập nhật presenter/view
         if (this.isExpanded && isAuto) {
             // Ẩn TẤT CẢ expanded views
@@ -2135,32 +2365,49 @@ class NotchController {
         this.mediaView.expandedContainer.hide();
         this.volumeView.expandedContainer.hide();
 
-        // Hiện compact view tương ứng
-        if (this._currentPresenter === 'battery') {
-            this.batteryView.compactContainer.show();
-        } else if (this._currentPresenter === 'bluetooth') {
-            // Volume không có compact view, switch về presenter phù hợp
-            this._switchToAppropriatePresenter();
-        } else if (this._currentPresenter === 'media') {
-            this.mediaView.compactContainer.show();
+        // Hiện compact view tương ứng (Main Notch)
+        let mainContent;
+        if (this._currentPresenter === 'bluetooth') {
+            mainContent = this.bluetoothView.compactContainer;
+            this._switchToAppropriatePresenter(); // Logic check?
         } else if (this._currentPresenter === 'volume') {
-            // Volume không có compact view, switch về presenter phù hợp
             this._switchToAppropriatePresenter();
+        } else if (this.hasMedia) {
+            mainContent = this.isSwapped ? this.batteryView.compactContainer : this.mediaView.compactContainer;
+        } else {
+            mainContent = this.batteryView.compactContainer;
+        }
+
+        if (mainContent) {
+            if (!mainContent.get_parent()) this.notch.add_child(mainContent);
+            mainContent.show();
+            mainContent.remove_style_class_name('in-secondary');
         }
 
         // Animation...
         this.notch.add_style_class_name('compact-state');
         this.notch.remove_style_class_name('expanded-state');
 
-        const originalX = Math.floor((this.monitorWidth - this.width) / 2);
+        // Calculate Target Geometry
+        let targetWidth = this.width;
+        let targetX = Math.floor((this.monitorWidth - this.width) / 2);
+
+        if (this.hasMedia) {
+            targetWidth = 160;
+            const gap = 10;
+            const secWidth = 40;
+            const groupWidth = targetWidth + gap + secWidth;
+            targetX = Math.floor((this.monitorWidth - groupWidth) / 2);
+        }
 
         this.notch.ease({
-            width: this.width,
+            width: targetWidth,
             height: this.height,
-            x: originalX,
+            x: targetX,
             duration: 200,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
+                this._updateLayout(); // Finalize layout (show secondary notch)
                 this.squeeze();
             }
         });
@@ -2183,6 +2430,27 @@ class NotchController {
                     onComplete: () => {
                         this._isAnimating = false;
                     }
+                });
+            }
+        });
+
+        this.squeezeSec();
+    }
+
+    squeezeSec() {
+        this.secondaryNotch.remove_all_transitions();
+
+        this.secondaryNotch.ease({
+            scale_x: 1.3,
+            scale_y: 1.0,
+            duration: 150,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.secondaryNotch.ease({
+                    scale_x: this.originalScale,
+                    scale_y: this.originalScale,
+                    duration: 200,
+                    mode: Clutter.AnimationMode.EASE_OUT_BACK
                 });
             }
         });
@@ -2265,10 +2533,15 @@ class NotchController {
             if (this._leaveEventId) {
                 this.notch.disconnect(this._leaveEventId);
             }
-
             Main.layoutManager.removeChrome(this.notch);
             this.notch.destroy();
             this.notch = null;
+        }
+
+        if (this.secondaryNotch) {
+            Main.layoutManager.removeChrome(this.secondaryNotch);
+            this.secondaryNotch.destroy();
+            this.secondaryNotch = null;
         }
     }
 }
@@ -2279,17 +2552,17 @@ class NotchController {
 // ============================================
 
 function init() {
-    log('[DynamicIsland] Extension: init() called');
+    // log('[DynamicIsland] Extension: init() called');
     // Không làm gì nhiều ở đây theo quy ước
 }
 
 function enable() {
-    log('[DynamicIsland] Extension: enable() called');
+    // log('[DynamicIsland] Extension: enable() called');
     notchController = new NotchController();
 
     // Di chuyển date panel của GNOME sang góc phải
     _moveDatePanelToRight();
-    log('[DynamicIsland] Extension: enable() complete');
+    // log('[DynamicIsland] Extension: enable() complete');
 }
 
 function disable() {
@@ -2306,7 +2579,7 @@ function _moveDatePanelToRight() {
     try {
         const panel = Main.panel;
         if (!panel) {
-            log('[DynamicIsland] Panel not found');
+            // log('[DynamicIsland] Panel not found');
             return;
         }
 
@@ -2335,13 +2608,13 @@ function _moveDatePanelToRight() {
             // Lấy actor của date menu
             dateMenuActor = dateMenu.actor || dateMenu;
             if (!dateMenuActor) {
-                log('[DynamicIsland] Date menu actor not found');
+                // log('[DynamicIsland] Date menu actor not found');
                 return;
             }
         }
 
         if (!dateMenuActor) {
-            log('[DynamicIsland] Date menu not found');
+            // log('[DynamicIsland] Date menu not found');
             return;
         }
 
@@ -2358,16 +2631,16 @@ function _moveDatePanelToRight() {
         // Thêm vào right box của panel
         if (panel._rightBox) {
             panel._rightBox.add_child(dateMenuActor);
-            log('[DynamicIsland] Date panel moved to right side');
+            // log('[DynamicIsland] Date panel moved to right side');
         } else {
-            log('[DynamicIsland] Panel right box not found');
+            // log('[DynamicIsland] Panel right box not found');
             // Khôi phục nếu không tìm thấy right box
             if (dateMenuOriginalParent) {
                 dateMenuOriginalParent.add_child(dateMenuActor);
             }
         }
     } catch (e) {
-        log(`[DynamicIsland] Error moving date panel: ${e.message}`);
+        // log(`[DynamicIsland] Error moving date panel: ${e.message}`);
     }
 }
 
@@ -2386,12 +2659,12 @@ function _restoreDatePanel() {
         // Khôi phục về vị trí ban đầu
         if (dateMenuOriginalParent) {
             dateMenuOriginalParent.add_child(dateMenuActor);
-            log('[DynamicIsland] Date panel restored to original position');
+            // log('[DynamicIsland] Date panel restored to original position');
         }
 
         dateMenuActor = null;
         dateMenuOriginalParent = null;
     } catch (e) {
-        log(`[DynamicIsland] Error restoring date panel: ${e.message}`);
+        // log(`[DynamicIsland] Error restoring date panel: ${e.message}`);
     }
 }
