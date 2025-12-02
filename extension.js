@@ -1166,6 +1166,105 @@ class VolumeManager {
 }
 
 // ============================================
+// 1E. MODEL - Xử lý Brightness (BrightnessManager)
+// ============================================
+/**
+ * Quản lý thông tin độ sáng (Model).
+ * Tương tác với GNOME Shell's Brightness Control.
+ */
+class BrightnessManager {
+    constructor() {
+        this._callbacks = [];
+        this._currentBrightness = 0;
+        this._control = null;
+        this._changedId = null;
+        this._destroyed = false;
+        this._isInitializing = true;
+
+        this._initBrightnessControl();
+    }
+
+    _initBrightnessControl() {
+        // Định nghĩa interface D-Bus cho Brightness
+        // Lưu ý: Brightness là kiểu int (i), không phải unsigned (u)
+        const BrightnessProxyInterface = `
+            <node>
+                <interface name="org.gnome.SettingsDaemon.Power.Screen">
+                    <property name="Brightness" type="i" access="readwrite"/>
+                </interface>
+            </node>
+        `;
+
+        const BrightnessProxy = Gio.DBusProxy.makeProxyWrapper(BrightnessProxyInterface);
+
+        // Tạo Proxy tới Screen của gnome-settings-daemon qua Session Bus
+        this._control = new BrightnessProxy(
+            Gio.DBus.session,
+            'org.gnome.SettingsDaemon.Power',
+            '/org/gnome/SettingsDaemon/Power',
+            (proxy, error) => {
+                if (error) {
+                    return;
+                }
+
+                // Lấy giá trị ban đầu TRƯỚC khi setup listener
+                this._updateBrightness();
+
+                // Sau đó mới setup listener
+                this._changedId = this._control.connect('g-properties-changed', () => {
+                    this._onBrightnessChanged();
+                });
+
+                // Đánh dấu đã khởi tạo xong
+                this._isInitializing = false;
+            }
+        );
+    }
+
+    _onBrightnessChanged() {
+        if (this._destroyed) return;
+        this._updateBrightness();
+    }
+
+    _updateBrightness() {
+        if (!this._control) return;
+
+        const oldBrightness = this._currentBrightness;
+        // Brightness từ D-Bus là giá trị 0-100
+        this._currentBrightness = Math.round(this._control.Brightness || 0);
+
+        const brightnessChanged = (this._currentBrightness !== oldBrightness);
+
+        // Chỉ notify khi không phải đang khởi tạo và brightness thực sự thay đổi
+        if (!this._isInitializing && brightnessChanged) {
+            this._notifyCallbacks({
+                brightness: this._currentBrightness
+            });
+        }
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+    destroy() {
+        this._destroyed = true;
+
+        if (this._changedId && this._control) {
+            this._control.disconnect(this._changedId);
+            this._changedId = null;
+        }
+
+        this._control = null;
+        this._callbacks = [];
+    }
+}
+
+// ============================================
 // 2C. VIEW - Xử lý Giao diện Media (MediaView)
 // ============================================
 class MediaView {
@@ -1728,6 +1827,110 @@ class VolumeView {
 }
 
 // ============================================
+// 2E. VIEW - Xử lý Giao diện Brightness (BrightnessView)
+// ============================================
+class BrightnessView {
+    constructor() {
+        this._buildExpandedView();
+    }
+
+    _buildExpandedView() {
+        // Icon lớn ở giữa
+        this.expandedIcon = new St.Icon({
+            icon_name: 'display-brightness-symbolic',
+            icon_size: 64,
+            style: 'color: white;'
+        });
+
+        this.expandedIconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.expandedIconWrapper.set_child(this.expandedIcon);
+
+        // Brightness percentage label
+        this.brightnessLabel = new St.Label({
+            text: '0%',
+            style: 'color: white; font-size: 18px; font-weight: bold; margin-top: 10px;'
+        });
+
+        // Progress bar lớn hơn
+        this.expandedProgressBarBg = new St.Widget({
+            style_class: 'brightness-progress-bg-expanded',
+            style: 'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this.expandedProgressBarFill = new St.Widget({
+            style_class: 'brightness-progress-fill-expanded',
+            style: 'background-color: white; border-radius: 8px; height: 12px;',
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this.expandedProgressBarBg.add_child(this.expandedProgressBarFill);
+
+        this.expandedProgressWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'margin-top: 15px;'
+        });
+        this.expandedProgressWrapper.set_child(this.expandedProgressBarBg);
+
+        // Container expanded
+        this.expandedContainer = new St.BoxLayout({
+            style_class: 'brightness-expanded',
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            y_expand: true,
+            visible: false
+        });
+        this.expandedContainer.add_child(this.expandedIconWrapper);
+        this.expandedContainer.add_child(this.brightnessLabel);
+        this.expandedContainer.add_child(this.expandedProgressWrapper);
+    }
+
+    updateBrightness(brightnessInfo) {
+        const {brightness} = brightnessInfo;
+
+        // Cập nhật icon dựa trên brightness level
+        let iconName;
+        if (brightness === 0) {
+            iconName = 'display-brightness-off-symbolic';
+        } else if (brightness < 33) {
+            iconName = 'display-brightness-low-symbolic';
+        } else if (brightness < 66) {
+            iconName = 'display-brightness-medium-symbolic';
+        } else {
+            iconName = 'display-brightness-symbolic';
+        }
+        this.expandedIcon.icon_name = iconName;
+
+        // Cập nhật progress bar expanded (300px width)
+        const expandedBarWidth = Math.round(300 * brightness / 100);
+        this.expandedProgressBarFill.set_width(expandedBarWidth);
+
+        // Cập nhật label
+        this.brightnessLabel.set_text(`${brightness}%`);
+    }
+
+    show() {
+        this.expandedContainer.show();
+    }
+
+    hide() {
+        this.expandedContainer.hide();
+    }
+
+    destroy() {
+        if (this.expandedContainer) {
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+// ============================================
 // 3. CONTROLLER - Xử lý Logic (NotchController)
 // ============================================
 
@@ -1760,6 +1963,7 @@ const NotchConstants = {
     // Timeout delays (ms)
     TIMEOUT_COLLAPSE: 300,
     TIMEOUT_VOLUME: 2000,
+    TIMEOUT_BRIGHTNESS: 2000,
     TIMEOUT_BATTERY_AUTO_COLLAPSE: 3000,
     TIMEOUT_BLUETOOTH: 3000,
     TIMEOUT_MEDIA_SWITCH: 10000,
@@ -2208,6 +2412,7 @@ class NotchController {
         this.bluetoothManager = new BluetoothManager();
         this.mediaManager = new MediaManager();
         this.volumeManager = new VolumeManager();
+        this.brightnessManager = new BrightnessManager();
     }
 
     _initializeViews() {
@@ -2215,6 +2420,7 @@ class NotchController {
         this.bluetoothView = new BluetoothView();
         this.mediaView = new MediaView();
         this.volumeView = new VolumeView();
+        this.brightnessView = new BrightnessView();
 
         // Setup media view callbacks
         this.mediaView.setMediaManager(this.mediaManager);
@@ -2273,6 +2479,20 @@ class NotchController {
                 this.bluetoothView.hide();
                 this.mediaView.hide();
                 this.volumeView.show();
+            }
+        });
+
+        // Brightness Presenter
+        this.presenterRegistry.register('brightness', {
+            getCompactContainer: () => null,
+            getExpandedContainer: () => this.brightnessView.expandedContainer,
+            getSecondaryContainer: () => null,
+            onActivate: (oldPresenter) => {
+                this.batteryView.compactContainer.hide();
+                this.bluetoothView.hide();
+                this.mediaView.hide();
+                this.volumeView.hide();
+                this.brightnessView.show();
             }
         });
 
@@ -2348,6 +2568,7 @@ class NotchController {
         this.bluetoothManager.addCallback((info) => this._onBluetoothChanged(info));
         this.mediaManager.addCallback((info) => this._onMediaChanged(info));
         this.volumeManager.addCallback((info) => this._onVolumeChanged(info));
+        this.brightnessManager.addCallback((info) => this._onBrightnessChanged(info));
     }
 
     _setupMouseEvents() {
@@ -2375,6 +2596,15 @@ class NotchController {
 
         // Auto collapse with presenter switch
         this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME);
+    }
+
+    _onBrightnessChanged(info) {
+        this.brightnessView.updateBrightness(info);
+        this.presenterRegistry.switchTo('brightness');
+        this.expandNotch(true);
+
+        // Auto collapse with presenter switch
+        this._scheduleAutoCollapse('brightness', NotchConstants.TIMEOUT_BRIGHTNESS);
     }
 
     _onBatteryChanged(info) {
@@ -2506,6 +2736,7 @@ class NotchController {
         this.bluetoothView.expandedContainer.hide();
         this.mediaView.expandedContainer.hide();
         this.volumeView.expandedContainer.hide();
+        this.brightnessView.expandedContainer.hide();
     }
 
     _hideAllCompactViews() {
@@ -2538,7 +2769,7 @@ class NotchController {
 
         // Handle presenter switching for temporary presenters
         const currentPresenter = this.presenterRegistry.getCurrent();
-        if (currentPresenter === 'bluetooth' || currentPresenter === 'volume') {
+        if (currentPresenter === 'bluetooth' || currentPresenter === 'volume' || currentPresenter === 'brightness') {
             this._switchToAppropriatePresenter();
         }
 
@@ -2605,6 +2836,10 @@ class NotchController {
             this.volumeManager.destroy();
             this.volumeManager = null;
         }
+        if (this.brightnessManager) {
+            this.brightnessManager.destroy();
+            this.brightnessManager = null;
+        }
 
         // Destroy views
         if (this.batteryView) {
@@ -2622,6 +2857,10 @@ class NotchController {
         if (this.volumeView) {
             this.volumeView.destroy();
             this.volumeView = null;
+        }
+        if (this.brightnessView) {
+            this.brightnessView.destroy();
+            this.brightnessView = null;
         }
 
         // Destroy actors
