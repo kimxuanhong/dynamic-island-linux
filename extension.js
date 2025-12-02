@@ -1788,36 +1788,497 @@ class VolumeView {
 // ============================================
 // 3. CONTROLLER - Xử lý Logic (NotchController)
 // ============================================
+
+// ============================================
+// 3.0. CONSTANTS - Các hằng số
+// ============================================
+const NotchConstants = {
+    // Dimensions
+    COMPACT_WIDTH: 180,
+    COMPACT_HEIGHT: 40,
+    EXPANDED_WIDTH: 440,
+    EXPANDED_HEIGHT: 160,
+    SECONDARY_WIDTH: 40,
+    SECONDARY_HEIGHT: 40,
+    
+    // Split mode dimensions
+    SPLIT_MAIN_WIDTH: 160,
+    SPLIT_GAP: 10,
+    SPLIT_SECONDARY_WIDTH: 40,
+    
+    // Positions
+    NOTCH_Y_POSITION: 5,
+    
+    // Animation durations (ms)
+    ANIMATION_EXPAND_DURATION: 200,
+    ANIMATION_COMPACT_DURATION: 200,
+    ANIMATION_SQUEEZE_DURATION: 150,
+    ANIMATION_SQUEEZE_RETURN_DURATION: 200,
+    
+    // Timeout delays (ms)
+    TIMEOUT_COLLAPSE: 300,
+    TIMEOUT_VOLUME: 2000,
+    TIMEOUT_BATTERY_AUTO_COLLAPSE: 3000,
+    TIMEOUT_BLUETOOTH: 3000,
+    TIMEOUT_MEDIA_SWITCH: 10000,
+    TIMEOUT_PRESENTER_SWITCH: 300,
+    
+    // Animation scales
+    SQUEEZE_SCALE_X: 0.75,
+    SQUEEZE_SECONDARY_SCALE_X: 1.3,
+    ORIGINAL_SCALE: 1.0
+};
+
+// ============================================
+// 3.1. STATE MACHINE - Quản lý trạng thái
+// ============================================
+class NotchStateMachine {
+    constructor() {
+        this._state = 'compact'; // compact, expanded, animating
+        this._listeners = [];
+    }
+
+    getState() {
+        return this._state;
+    }
+
+    isCompact() {
+        return this._state === 'compact';
+    }
+
+    isExpanded() {
+        return this._state === 'expanded';
+    }
+
+    isAnimating() {
+        return this._state === 'animating';
+    }
+
+    transitionTo(newState) {
+        if (this._state === newState) return false;
+        const oldState = this._state;
+        this._state = newState;
+        this._notifyListeners(oldState, newState);
+        return true;
+    }
+
+    addListener(callback) {
+        this._listeners.push(callback);
+    }
+
+    _notifyListeners(oldState, newState) {
+        this._listeners.forEach(cb => cb(oldState, newState));
+    }
+}
+
+// ============================================
+// 3.2. TIMEOUT MANAGER - Quản lý timeouts tập trung
+// ============================================
+class TimeoutManager {
+    constructor() {
+        this._timeouts = new Map();
+    }
+
+    set(key, delay, callback) {
+        this.clear(key);
+        const id = imports.mainloop.timeout_add(delay, () => {
+            this._timeouts.delete(key);
+            callback();
+            return false;
+        });
+        this._timeouts.set(key, id);
+        return id;
+    }
+
+    clear(key) {
+        const id = this._timeouts.get(key);
+        if (id) {
+            imports.mainloop.source_remove(id);
+            this._timeouts.delete(key);
+        }
+    }
+
+    clearAll() {
+        this._timeouts.forEach((id, key) => {
+            imports.mainloop.source_remove(id);
+        });
+        this._timeouts.clear();
+    }
+
+    has(key) {
+        return this._timeouts.has(key);
+    }
+}
+
+// ============================================
+// 3.3. PRESENTER REGISTRY - Strategy Pattern cho Presenters
+// ============================================
+class PresenterRegistry {
+    constructor(controller) {
+        this.controller = controller;
+        this._currentPresenter = null;
+        this._presenters = new Map();
+    }
+
+    register(name, presenter) {
+        this._presenters.set(name, presenter);
+    }
+
+    getCurrent() {
+        return this._currentPresenter;
+    }
+
+    switchTo(name) {
+        if (this._currentPresenter === name) return false;
+
+        const oldPresenter = this._currentPresenter;
+        this._currentPresenter = name;
+        const presenter = this._presenters.get(name);
+        
+        if (presenter && presenter.onActivate) {
+            presenter.onActivate(oldPresenter);
+        }
+
+        return true;
+    }
+
+    getPresenter(name) {
+        return this._presenters.get(name);
+    }
+
+    hasPresenter(name) {
+        return this._presenters.has(name);
+    }
+}
+
+// ============================================
+// 3.4. LAYOUT MANAGER - Quản lý layout logic
+// ============================================
+class LayoutManager {
+    constructor(controller) {
+        this.controller = controller;
+    }
+
+    updateLayout() {
+        if (!this.controller.notch) return; // Notch chưa được tạo
+
+        const state = this.controller.stateMachine.getState();
+        const presenter = this.controller.presenterRegistry.getCurrent();
+        const hasMedia = this.controller.hasMedia;
+        const isSwapped = this.controller.isSwapped;
+
+        if (state === 'expanded') {
+            this._updateExpandedLayout(presenter);
+        } else {
+            this._updateCompactLayout(presenter, hasMedia, isSwapped);
+        }
+    }
+
+    _updateExpandedLayout(presenter) {
+        if (!this.controller.notch) return;
+        
+        if (this.controller.secondaryNotch) {
+            this.controller.secondaryNotch.hide();
+        }
+        this.controller.notch.set_width(this.controller.expandedWidth);
+    }
+
+    _updateCompactLayout(presenter, hasMedia, isSwapped) {
+        if (hasMedia) {
+            this._updateSplitModeLayout(isSwapped);
+        } else {
+            this._updateDefaultLayout(presenter);
+        }
+    }
+
+    _updateSplitModeLayout(isSwapped) {
+        if (!this.controller.notch) return;
+        
+        // Show secondary notch
+        if (this.controller.secondaryNotch) {
+            this.controller.secondaryNotch.show();
+            this.controller.secondaryNotch.set_opacity(255);
+        }
+
+        // Calculate positions using constants
+        const mainWidth = NotchConstants.SPLIT_MAIN_WIDTH;
+        const gap = NotchConstants.SPLIT_GAP;
+        const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
+        const groupWidth = mainWidth + gap + secWidth;
+        const startX = Math.floor((this.controller.monitorWidth - groupWidth) / 2);
+
+        this.controller.notch.set_width(mainWidth);
+        this.controller.notch.set_position(startX, NotchConstants.NOTCH_Y_POSITION);
+        if (this.controller.secondaryNotch) {
+            this.controller.secondaryNotch.set_position(startX + mainWidth + gap, NotchConstants.NOTCH_Y_POSITION);
+        }
+
+        // Update content
+        this._updateSplitModeContent(isSwapped);
+    }
+
+    _updateSplitModeContent(isSwapped) {
+        if (!this.controller.notch) return;
+        
+        this.controller.notch.remove_all_children();
+        if (this.controller.secondaryNotch) {
+            this.controller.secondaryNotch.remove_all_children();
+        }
+
+        const presenter = this.controller.presenterRegistry.getCurrent();
+        const batteryPresenter = this.controller.presenterRegistry.getPresenter('battery');
+        const mediaPresenter = this.controller.presenterRegistry.getPresenter('media');
+
+        let mainContent, secContent;
+
+        if (isSwapped) {
+            mainContent = batteryPresenter?.getCompactContainer();
+            secContent = mediaPresenter?.getSecondaryContainer();
+        } else {
+            mainContent = mediaPresenter?.getCompactContainer();
+            secContent = batteryPresenter?.getSecondaryContainer();
+        }
+
+        if (mainContent) {
+            this.controller.notch.add_child(mainContent);
+            mainContent.show();
+            mainContent.remove_style_class_name('in-secondary');
+        }
+
+        if (secContent && this.controller.secondaryNotch) {
+            this.controller.secondaryNotch.add_child(secContent);
+            secContent.show();
+            secContent.add_style_class_name('in-secondary');
+        }
+    }
+
+    _updateDefaultLayout(presenter) {
+        if (!this.controller.notch) return;
+        
+        // Hide secondary notch
+        if (this.controller.secondaryNotch) {
+            this.controller.secondaryNotch.hide();
+            this.controller.secondaryNotch.set_opacity(0);
+        }
+
+        // Set position
+        this.controller.notch.set_width(this.controller.width);
+        const startX = Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
+        this.controller.notch.set_position(startX, NotchConstants.NOTCH_Y_POSITION);
+
+        // Update content
+        this.controller.notch.remove_all_children();
+
+        const presenterObj = this.controller.presenterRegistry.getPresenter(presenter);
+        const mainContent = presenterObj?.getCompactContainer();
+
+        if (mainContent) {
+            this.controller.notch.add_child(mainContent);
+            mainContent.show();
+            mainContent.remove_style_class_name('in-secondary');
+        }
+
+        // Clean up style classes
+        this.controller.batteryView.compactContainer.remove_style_class_name('in-secondary');
+        this.controller.mediaView.compactContainer.remove_style_class_name('in-secondary');
+    }
+
+    calculateCompactGeometry(hasMedia) {
+        if (hasMedia) {
+            const mainWidth = NotchConstants.SPLIT_MAIN_WIDTH;
+            const gap = NotchConstants.SPLIT_GAP;
+            const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
+            const groupWidth = mainWidth + gap + secWidth;
+            return {
+                width: mainWidth,
+                x: Math.floor((this.controller.monitorWidth - groupWidth) / 2)
+            };
+        } else {
+            return {
+                width: this.controller.width,
+                x: Math.floor((this.controller.monitorWidth - this.controller.width) / 2)
+            };
+        }
+    }
+}
+
+// ============================================
+// 3.5. ANIMATION CONTROLLER - Quản lý animations
+// ============================================
+class AnimationController {
+    constructor(controller) {
+        this.controller = controller;
+    }
+
+    expand() {
+        if (!this.controller.notch) return;
+        
+        const notch = this.controller.notch;
+        const monitorWidth = this.controller.monitorWidth;
+        const expandedWidth = this.controller.expandedWidth;
+        const expandedHeight = this.controller.expandedHeight;
+
+        notch.remove_all_transitions();
+        notch.add_style_class_name('expanded-state');
+        notch.remove_style_class_name('compact-state');
+
+        const newX = Math.floor((monitorWidth - expandedWidth) / 2);
+
+        notch.ease({
+            width: expandedWidth,
+            height: expandedHeight,
+            x: newX,
+            duration: NotchConstants.ANIMATION_EXPAND_DURATION,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.controller.stateMachine.transitionTo('expanded');
+            }
+        });
+    }
+
+    compact() {
+        if (!this.controller.notch) return;
+        
+        const notch = this.controller.notch;
+        const layoutManager = this.controller.layoutManager;
+        const hasMedia = this.controller.hasMedia;
+
+        notch.remove_all_transitions();
+        notch.add_style_class_name('compact-state');
+        notch.remove_style_class_name('expanded-state');
+
+        const geometry = layoutManager.calculateCompactGeometry(hasMedia);
+
+        notch.ease({
+            width: geometry.width,
+            height: this.controller.height,
+            x: geometry.x,
+            duration: NotchConstants.ANIMATION_COMPACT_DURATION,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.controller.layoutManager.updateLayout();
+                this.squeeze();
+            }
+        });
+    }
+
+    squeeze() {
+        if (!this.controller.notch) return;
+        
+        const notch = this.controller.notch;
+        const originalScale = this.controller.originalScale;
+
+        // Transition to animating state for squeeze
+        this.controller.stateMachine.transitionTo('animating');
+        notch.remove_all_transitions();
+
+        notch.ease({
+            scale_x: NotchConstants.SQUEEZE_SCALE_X,
+            scale_y: NotchConstants.ORIGINAL_SCALE,
+            duration: NotchConstants.ANIMATION_SQUEEZE_DURATION,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                notch.ease({
+                    scale_x: originalScale,
+                    scale_y: originalScale,
+                    duration: NotchConstants.ANIMATION_SQUEEZE_RETURN_DURATION,
+                    mode: Clutter.AnimationMode.EASE_OUT_BACK,
+                    onComplete: () => {
+                        this.controller.stateMachine.transitionTo('compact');
+                    }
+                });
+            }
+        });
+
+        this.squeezeSecondary();
+    }
+
+    squeezeSecondary() {
+        const secondaryNotch = this.controller.secondaryNotch;
+        if (!secondaryNotch) return;
+
+        const originalScale = this.controller.originalScale;
+
+        secondaryNotch.remove_all_transitions();
+
+        secondaryNotch.ease({
+            scale_x: NotchConstants.SQUEEZE_SECONDARY_SCALE_X,
+            scale_y: NotchConstants.ORIGINAL_SCALE,
+            duration: NotchConstants.ANIMATION_SQUEEZE_DURATION,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                secondaryNotch.ease({
+                    scale_x: originalScale,
+                    scale_y: originalScale,
+                    duration: NotchConstants.ANIMATION_SQUEEZE_RETURN_DURATION,
+                    mode: Clutter.AnimationMode.EASE_OUT_BACK
+                });
+            }
+        });
+    }
+}
+
+// ============================================
+// 3.6. NOTCH CONTROLLER - Refactored với patterns rõ ràng
+// ============================================
 class NotchController {
     constructor() {
-        // log('[DynamicIsland] NotchController: Initializing...');
-        this.width = 180;
-        this.height = 40;
-        this.expandedWidth = 440;
-        this.expandedHeight = 160;
+        // Dimensions - sử dụng constants
+        this.width = NotchConstants.COMPACT_WIDTH;
+        this.height = NotchConstants.COMPACT_HEIGHT;
+        this.expandedWidth = NotchConstants.EXPANDED_WIDTH;
+        this.expandedHeight = NotchConstants.EXPANDED_HEIGHT;
+        this.originalScale = NotchConstants.ORIGINAL_SCALE;
 
-        this.isExpanded = false;
-        this._isAnimating = false;
+        // UI Actors
+        this.notch = null;
+        this.secondaryNotch = null;
 
         // Split mode state
         this.hasMedia = false;
         this.isSwapped = false;
-        this.secondaryNotch = null;
 
-        this._collapseTimeoutId = null;
-        this._autoExpandTimeoutId = null;
+        // Monitor info
+        const monitor = Main.layoutManager.primaryMonitor;
+        this.monitorWidth = monitor.width;
+
+        // Initialize core systems
+        this.stateMachine = new NotchStateMachine();
+        this.timeoutManager = new TimeoutManager();
+        this.presenterRegistry = new PresenterRegistry(this);
+        this.layoutManager = new LayoutManager(this);
+        this.animationController = new AnimationController(this);
+
+        // Initialize managers and views
+        this._initializeManagers();
+        this._initializeViews();
+        this._registerPresenters();
+
+        // Create UI
+        this._createNotchActor();
+
+        // Setup monitoring
+        this._setupMonitoring();
+
+        // Setup events
+        this._setupMouseEvents();
+
+        // Initial state
         this._wasCharging = false;
-        this._bluetoothNotificationTimeoutId = null;
-        this._currentPresenter = 'battery';
+        this._updateUI();
+    }
 
-        // log('[DynamicIsland] NotchController: Creating managers and views...');
+    _initializeManagers() {
         this.batteryManager = new BatteryManager();
-        this.batteryView = new BatteryView();
         this.bluetoothManager = new BluetoothManager();
-        this.bluetoothView = new BluetoothView();
         this.mediaManager = new MediaManager();
-        this.mediaView = new MediaView();
         this.volumeManager = new VolumeManager();
+    }
+
+    _initializeViews() {
+        this.batteryView = new BatteryView();
+        this.bluetoothView = new BluetoothView();
+        this.mediaView = new MediaView();
         this.volumeView = new VolumeView();
 
         // Setup media view callbacks
@@ -1827,23 +2288,63 @@ class NotchController {
             onPlayPause: () => this.mediaManager.sendPlayerCommand('PlayPause'),
             onNext: () => this.mediaManager.sendPlayerCommand('Next')
         });
+    }
 
-        const monitor = Main.layoutManager.primaryMonitor;
-        this.monitorWidth = monitor.width;
+    _registerPresenters() {
+        // Battery Presenter
+        this.presenterRegistry.register('battery', {
+            getCompactContainer: () => this.batteryView.compactContainer,
+            getExpandedContainer: () => this.batteryView.expandedContainer,
+            getSecondaryContainer: () => this.batteryView.secondaryContainer,
+            onActivate: (oldPresenter) => {
+                if (oldPresenter !== 'battery') {
+                    this.hasMedia = false;
+                    this.layoutManager.updateLayout();
+                }
+            }
+        });
 
-        this._createNotchActor();
-        this._setupBatteryMonitoring();
-        this._setupBluetoothMonitoring();
-        this._setupMediaMonitoring();
-        this._setupVolumeMonitoring();
-        this._setupMouseEvents();
+        // Media Presenter
+        this.presenterRegistry.register('media', {
+            getCompactContainer: () => this.mediaView.compactContainer,
+            getExpandedContainer: () => this.mediaView.expandedContainer,
+            getSecondaryContainer: () => this.mediaView.secondaryContainer,
+            onActivate: (oldPresenter) => {
+                this.hasMedia = true;
+                this.layoutManager.updateLayout();
+            }
+        });
 
-        this._updateUI();
-        // log('[DynamicIsland] NotchController: Initialization complete');
+        // Bluetooth Presenter
+        this.presenterRegistry.register('bluetooth', {
+            getCompactContainer: () => this.bluetoothView.compactContainer,
+            getExpandedContainer: () => this.bluetoothView.expandedContainer,
+            getSecondaryContainer: () => null,
+            onActivate: (oldPresenter) => {
+                this.batteryView.compactContainer.hide();
+                this.mediaView.hide();
+                this.volumeView.hide();
+                this.bluetoothView.show();
+            }
+        });
+
+        // Volume Presenter
+        this.presenterRegistry.register('volume', {
+            getCompactContainer: () => null,
+            getExpandedContainer: () => this.volumeView.expandedContainer,
+            getSecondaryContainer: () => null,
+            onActivate: (oldPresenter) => {
+                this.batteryView.compactContainer.hide();
+                this.bluetoothView.hide();
+                this.mediaView.hide();
+            }
+        });
+
+        // Set default presenter
+        this.presenterRegistry.switchTo('battery');
     }
 
     _createNotchActor() {
-        // log('[DynamicIsland] NotchController: Creating notch actor...');
         this.notch = new St.BoxLayout({
             style_class: 'notch compact-state',
             vertical: false,
@@ -1861,7 +2362,7 @@ class NotchController {
         this.notch.set_pivot_point(0.5, 0.5)
 
         const initialX = Math.floor((this.monitorWidth - this.width) / 2);
-        this.notch.set_position(initialX, 5);
+        this.notch.set_position(initialX, NotchConstants.NOTCH_Y_POSITION);
 
         this.notch.add_child(this.batteryView.compactContainer);
         this.notch.add_child(this.bluetoothView.compactContainer);
@@ -1885,16 +2386,16 @@ class NotchController {
             opacity: 0
         });
 
-        this.secondaryNotch.set_width(40);
-        this.secondaryNotch.set_height(40);
+        this.secondaryNotch.set_width(NotchConstants.SECONDARY_WIDTH);
+        this.secondaryNotch.set_height(NotchConstants.SECONDARY_HEIGHT);
         this.secondaryNotch.set_pivot_point(0.5, 0.5);
 
         // Click to swap
         this.secondaryNotch.connect('button-press-event', () => {
             this.isSwapped = !this.isSwapped;
-            this._updateLayout();
+            this.layoutManager.updateLayout();
 
-            if (!this.isExpanded) {
+            if (this.stateMachine.isCompact()) {
                 this.squeeze();
             }
             return Clutter.EVENT_STOP;
@@ -1904,92 +2405,46 @@ class NotchController {
             affectsInputRegion: true,
             trackFullscreen: false
         });
-        // log('[DynamicIsland] NotchController: Notch actor created and added to layout');
+    }
+
+    _setupMonitoring() {
+        this.batteryManager.addCallback((info) => this._onBatteryChanged(info));
+        this.bluetoothManager.addCallback((info) => this._onBluetoothChanged(info));
+        this.mediaManager.addCallback((info) => this._onMediaChanged(info));
+        this.volumeManager.addCallback((info) => this._onVolumeChanged(info));
     }
 
     _setupMouseEvents() {
         this._motionEventId = this.notch.connect('motion-event', () => {
             this._cancelAutoCollapse();
-            if (!this.isExpanded) {
+            if (this.stateMachine.isCompact()) {
                 this.expandNotch(false);
             }
             return Clutter.EVENT_PROPAGATE;
         });
 
         this._leaveEventId = this.notch.connect('leave-event', () => {
-            if (this.isExpanded && !this._collapseTimeoutId) {
-                this._collapseTimeoutId = imports.mainloop.timeout_add(300, () => {
+            if (this.stateMachine.isExpanded() && !this.timeoutManager.has('collapse')) {
+                this.timeoutManager.set('collapse', NotchConstants.TIMEOUT_COLLAPSE, () => {
                     this.compactNotch();
-                    this._collapseTimeoutId = null;
-                    return false;
                 });
             }
         });
     }
 
-    _setupBatteryMonitoring() {
-        this.batteryManager.addCallback((info) => {
-            this._onBatteryChanged(info);
-        });
-    }
-
-    _setupBluetoothMonitoring() {
-        this.bluetoothManager.addCallback((info) => {
-            this._onBluetoothChanged(info);
-        });
-    }
-
-    _setupMediaMonitoring() {
-        this.mediaManager.addCallback((info) => {
-            this._onMediaChanged(info);
-        });
-    }
-
-    _setupVolumeMonitoring() {
-        this._volumeTimeoutId = null;
-
-        this.volumeManager.addCallback((info) => {
-            this._onVolumeChanged(info);
-        });
-    }
-
     _onVolumeChanged(info) {
-        // log(`[DynamicIsland] NotchController: Volume changed - ${JSON.stringify(info)}`);
         this.volumeView.updateVolume(info);
+        this.presenterRegistry.switchTo('volume');
 
-        // Chuyển sang volume presenter
-        this._switchToVolumePresenter();
-
-        // Auto expand để hiển thị volume expanded view
-        if (!this.isExpanded) {
+        if (this.stateMachine.isCompact()) {
             this.expandNotch(true);
         }
 
-        // Tự động collapse và quay về presenter phù hợp sau 2 giây
-        if (this._volumeTimeoutId) {
-            imports.mainloop.source_remove(this._volumeTimeoutId);
-        }
-
-        this._volumeTimeoutId = imports.mainloop.timeout_add(2000, () => {
-            if (this.isExpanded) {
-                this.compactNotch();
-            }
-
-            imports.mainloop.timeout_add(300, () => {
-                this._switchToAppropriatePresenter();
-                if (!this.isExpanded) {
-                    this.squeeze();
-                }
-                return false;
-            });
-
-            this._volumeTimeoutId = null;
-            return false;
-        });
+        // Auto collapse with presenter switch
+        this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME, true);
     }
 
     _onBatteryChanged(info) {
-        // log(`[DynamicIsland] NotchController: Battery changed - ${JSON.stringify(info)}`);
         this.batteryView.updateBattery(info);
 
         if (info.isCharging) {
@@ -2001,548 +2456,266 @@ class NotchController {
         const shouldAutoExpand = info.isCharging && !this._wasCharging;
         this._wasCharging = info.isCharging;
 
-        if (shouldAutoExpand && !this.isExpanded) {
-            // Chuyển sang battery presenter để hiển thị charging notification
-            this._switchToBatteryPresenter();
-
+        if (shouldAutoExpand && this.stateMachine.isCompact()) {
+            this.presenterRegistry.switchTo('battery');
             this.expandNotch(true);
 
-            if (this._autoExpandTimeoutId) {
-                imports.mainloop.source_remove(this._autoExpandTimeoutId);
-            }
-            this._autoExpandTimeoutId = imports.mainloop.timeout_add(3000, () => {
-                if (this.isExpanded) {
-                    this.compactNotch();
-                }
-
-                // Sau khi collapse, quay về presenter phù hợp
-                imports.mainloop.timeout_add(300, () => {
-                    this._switchToAppropriatePresenter();
-                    return false;
-                });
-
-                this._autoExpandTimeoutId = null;
-                return false;
-            });
+            this._scheduleAutoCollapse('battery-auto-collapse', NotchConstants.TIMEOUT_BATTERY_AUTO_COLLAPSE, false);
         }
     }
 
     _onBluetoothChanged(info) {
-        // log(`[DynamicIsland] Controller received Bluetooth change: ${JSON.stringify(info)}`);
-
-        // 1. Cập nhật View
         this.bluetoothView.updateBluetooth(info);
-
-        // 2. Chuyển sang Bluetooth presenter
-        this._switchToBluetoothPresenter();
-
-        // 3. Expand notch để hiển thị thông báo (luôn gọi để cập nhật view)
+        this.presenterRegistry.switchTo('bluetooth');
         this.expandNotch(true);
 
-        // 4. Tự động collapse và quay lại presenter phù hợp sau 3 giây
-        if (this._bluetoothNotificationTimeoutId) {
-            imports.mainloop.source_remove(this._bluetoothNotificationTimeoutId);
-        }
-        this._bluetoothNotificationTimeoutId = imports.mainloop.timeout_add(3000, () => {
-            if (this.isExpanded) {
+        this._scheduleAutoCollapse('bluetooth', NotchConstants.TIMEOUT_BLUETOOTH, false);
+    }
+
+    /**
+     * Helper method để schedule auto collapse với presenter switch
+     * @param {string} timeoutKey - Key cho timeout
+     * @param {number} delay - Delay trong ms
+     * @param {boolean} shouldSqueeze - Có squeeze sau khi switch không
+     */
+    _scheduleAutoCollapse(timeoutKey, delay, shouldSqueeze = false) {
+        this.timeoutManager.set(timeoutKey, delay, () => {
+            if (this.stateMachine.isExpanded()) {
                 this.compactNotch();
             }
 
-            imports.mainloop.timeout_add(300, () => {
-                // Quay về presenter phù hợp (media hoặc battery)
+            this.timeoutManager.set(`${timeoutKey}-switch`, NotchConstants.TIMEOUT_PRESENTER_SWITCH, () => {
                 this._switchToAppropriatePresenter();
-                return false;
+                if (shouldSqueeze && this.stateMachine.isCompact()) {
+                    this.squeeze();
+                }
             });
-
-            this._bluetoothNotificationTimeoutId = null;
-            return false;
         });
     }
-
-    _switchToBatteryPresenter() {
-        if (this._currentPresenter === 'battery' && !this.hasMedia) return;
-
-        this._currentPresenter = 'battery';
-        this.hasMedia = false;
-        this._updateLayout();
-    }
-
 
     _onMediaChanged(info) {
         this.mediaView._updatePlayPauseIcon(info.isPlaying);
 
-        // Clear timeout cũ nếu có
-        if (this._mediaSwitchTimeoutId) {
-            imports.mainloop.source_remove(this._mediaSwitchTimeoutId);
-            this._mediaSwitchTimeoutId = null;
-        }
+        this.timeoutManager.clear('media-switch');
 
-        log(`[DynamicIsland] _onMediaChanged: ${JSON.stringify(info)}`);
         if (info.isPlaying && (info.artPath || this._isGnomeMusic(this.mediaManager._currentPlayer))) {
             this.mediaView.updateMedia(info);
+            this.presenterRegistry.switchTo('media');
 
-            this._switchToMediaPresenter();
-            if (!this.isExpanded) {
+            if (this.stateMachine.isCompact()) {
                 this.squeeze();
             }
         } else if (!info.isPlaying) {
-            // Chờ 500ms trước khi chuyển về battery (tránh flicker khi next/back)
-            this._mediaSwitchTimeoutId = imports.mainloop.timeout_add(10000, () => {
-                this._switchToBatteryPresenter();
-                if (!this.isExpanded) {
+            this.timeoutManager.set('media-switch', NotchConstants.TIMEOUT_MEDIA_SWITCH, () => {
+                this.presenterRegistry.switchTo('battery');
+                if (this.stateMachine.isCompact()) {
                     this.squeeze();
                 }
-                this._mediaSwitchTimeoutId = null;
-                return false;
             });
         }
     }
 
-    _isGnomeMusic(_currentPlayer) {
-        if (!_currentPlayer) return false;
-
-        return _currentPlayer.toLowerCase().includes("gnomemusic") ||
-            _currentPlayer.toLowerCase().includes("gnome");
+    _isGnomeMusic(currentPlayer) {
+        if (!currentPlayer) return false;
+        const lower = currentPlayer.toLowerCase();
+        return lower.includes("gnomemusic") || lower.includes("gnome");
     }
 
-    _switchToBluetoothPresenter() {
-        if (this._currentPresenter === 'bluetooth') return;
-
-        this._currentPresenter = 'bluetooth';
-        this.batteryView.compactContainer.hide();
-        this.mediaView.hide();
-        this.volumeView.hide();
-        this.bluetoothView.show();
-    }
-
-    _switchToMediaPresenter() {
-        if (this._currentPresenter === 'media' && this.hasMedia) return;
-
-        this._currentPresenter = 'media';
-        this.hasMedia = true;
-        this._updateLayout();
-    }
-
-    _switchToVolumePresenter() {
-        if (this._currentPresenter === 'volume') return;
-
-        this._currentPresenter = 'volume';
-        this.batteryView.compactContainer.hide();
-        this.bluetoothView.hide();
-        this.mediaView.hide();
-        // Volume chỉ có expanded view, không có compact
-    }
-
-    /**
-     * Tự động chuyển về presenter phù hợp (media nếu đang playing, không thì battery)
-     */
     _switchToAppropriatePresenter() {
         if (this.mediaManager.isMediaPlaying()) {
-            this._switchToMediaPresenter();
+            this.presenterRegistry.switchTo('media');
         } else {
-            this._switchToBatteryPresenter();
+            this.presenterRegistry.switchTo('battery');
         }
     }
 
     _updateUI() {
         const info = this.batteryManager.getBatteryInfo();
         this.batteryView.updateBattery(info);
-        this._updateLayout();
-    }
-
-    _updateLayout() {
-        if (this.isExpanded) {
-            // Expanded State: Hide secondary, show expanded view in main
-            if (this.secondaryNotch) this.secondaryNotch.hide();
-            this.notch.set_width(this.expandedWidth);
-            // Content is handled by expandNotch/presenters
-            return;
-        }
-
-        // Compact State Logic
-        if (this.hasMedia) {
-            // Split Mode
-            if (this.secondaryNotch) {
-                this.secondaryNotch.show();
-                this.secondaryNotch.set_opacity(255);
-            }
-
-            // Widths & Positions
-            const mainWidth = 160;
-            const gap = 10;
-            const secWidth = 40;
-            const groupWidth = mainWidth + gap + secWidth;
-            const startX = Math.floor((this.monitorWidth - groupWidth) / 2);
-
-            this.notch.set_width(mainWidth);
-            this.notch.set_position(startX, 5);
-            if (this.secondaryNotch) this.secondaryNotch.set_position(startX + mainWidth + gap, 5);
-
-            // Content
-            this.notch.remove_all_children();
-            if (this.secondaryNotch) this.secondaryNotch.remove_all_children();
-
-            let mainContent, secContent;
-
-            // Check overrides
-            if (this._currentPresenter === 'volume') {
-                // Volume usually expands
-            } else if (this._currentPresenter === 'bluetooth') {
-                //mainContent = this.bluetoothView.compactContainer;
-                // Secondary shows Battery or Media?
-                //secContent = this.isSwapped ? this.mediaView.secondaryContainer : this.batteryView.secondaryContainer;
-            } else {
-                // Normal Media/Battery swap
-                if (this.isSwapped) {
-                    mainContent = this.batteryView.compactContainer;
-                    secContent = this.mediaView.secondaryContainer;
-                } else {
-                    mainContent = this.mediaView.compactContainer;
-                    secContent = this.batteryView.secondaryContainer;
-                }
-            }
-
-            // Apply Content
-            if (mainContent) {
-                this.notch.add_child(mainContent);
-                mainContent.show();
-                mainContent.remove_style_class_name('in-secondary');
-            }
-
-            if (secContent && this.secondaryNotch) {
-                this.secondaryNotch.add_child(secContent);
-                secContent.show();
-                secContent.add_style_class_name('in-secondary');
-            }
-
-        } else {
-            // Default Mode (No Media)
-            if (this.secondaryNotch) {
-                this.secondaryNotch.hide();
-                this.secondaryNotch.set_opacity(0);
-            }
-            this.notch.set_width(this.width);
-            const startX = Math.floor((this.monitorWidth - this.width) / 2);
-            this.notch.set_position(startX, 5);
-
-            this.notch.remove_all_children();
-
-            let mainContent;
-            if (this._currentPresenter === 'volume') {
-                // ...
-            } else if (this._currentPresenter === 'bluetooth') {
-                //mainContent = this.bluetoothView.compactContainer;
-            } else if (this._currentPresenter === 'media') {
-                // Should not happen if hasMedia is false, but just in case
-                mainContent = this.mediaView.compactContainer;
-            } else {
-                mainContent = this.batteryView.compactContainer;
-            }
-
-            if (mainContent) {
-                this.notch.add_child(mainContent);
-                mainContent.show();
-                mainContent.remove_style_class_name('in-secondary');
-            }
-
-            // Ensure 'in-secondary' is removed from others
-            this.batteryView.compactContainer.remove_style_class_name('in-secondary');
-            this.mediaView.compactContainer.remove_style_class_name('in-secondary');
-        }
+        this.layoutManager.updateLayout();
     }
 
     _cancelAutoCollapse() {
-        if (this._collapseTimeoutId) {
-            imports.mainloop.source_remove(this._collapseTimeoutId);
-            this._collapseTimeoutId = null;
-        }
-        if (this._autoExpandTimeoutId) {
-            imports.mainloop.source_remove(this._autoExpandTimeoutId);
-            this._autoExpandTimeoutId = null;
-        }
+        this.timeoutManager.clear('collapse');
+        this.timeoutManager.clear('battery-auto-collapse');
     }
 
     expandNotch(isAuto = false) {
+        if (!this.notch) return; // Notch chưa được tạo
+        
         // Hide secondary notch immediately
-        if (this.secondaryNotch) this.secondaryNotch.hide();
+        if (this.secondaryNotch) {
+            this.secondaryNotch.hide();
+        }
 
-        // Nếu đang expanded và là auto expand, chỉ cập nhật presenter/view
-        if (this.isExpanded && isAuto) {
-            // Ẩn TẤT CẢ expanded views
-            this.batteryView.expandedContainer.hide();
-            this.bluetoothView.expandedContainer.hide();
-            this.mediaView.expandedContainer.hide();
-            this.volumeView.expandedContainer.hide();
+        const currentPresenter = this.presenterRegistry.getCurrent();
+        const presenter = this.presenterRegistry.getPresenter(currentPresenter);
 
-            // Hiện expanded view tương ứng với presenter hiện tại
-            if (this._currentPresenter === 'battery') {
-                if (!this.batteryView.expandedContainer.get_parent()) {
-                    this.notch.add_child(this.batteryView.expandedContainer);
-                }
-                this.batteryView.expandedContainer.show();
-            } else if (this._currentPresenter === 'bluetooth') {
-                if (!this.bluetoothView.expandedContainer.get_parent()) {
-                    this.notch.add_child(this.bluetoothView.expandedContainer);
-                }
-                this.bluetoothView.expandedContainer.show();
-            } else if (this._currentPresenter === 'media') {
-                if (!this.mediaView.expandedContainer.get_parent()) {
-                    this.notch.add_child(this.mediaView.expandedContainer);
-                }
-                this.mediaView.expandedContainer.show();
-            } else if (this._currentPresenter === 'volume') {
-                if (!this.volumeView.expandedContainer.get_parent()) {
-                    this.notch.add_child(this.volumeView.expandedContainer);
-                }
-                this.volumeView.expandedContainer.show();
-            }
+        // If already expanded and auto-expand, just update view
+        if (this.stateMachine.isExpanded() && isAuto) {
+            this._hideAllExpandedViews();
+            this._showExpandedView(presenter);
             return;
         }
 
-        if (this.isExpanded) return;
-        // Chỉ chặn nếu không phải auto expand và đang có animation chạy
-        if (!isAuto && this._isAnimating) return;
-        this.isExpanded = true;
-        this._isAnimating = true;
-        this.notch.remove_all_transitions();
+        // Prevent expansion if already expanded or animating
+        if (this.stateMachine.isExpanded()) return;
+        if (!isAuto && this.stateMachine.isAnimating()) return;
 
-        // Ẩn TẤT CẢ compact views
-        this.batteryView.compactContainer.hide();
-        this.bluetoothView.compactContainer.hide();
-        this.mediaView.compactContainer.hide();
+        // Transition to animating state
+        this.stateMachine.transitionTo('animating');
 
-        // Hiện expanded view tương ứng
-        if (this._currentPresenter === 'battery') {
-            if (!this.batteryView.expandedContainer.get_parent()) {
-                this.notch.add_child(this.batteryView.expandedContainer);
-            }
-            this.batteryView.expandedContainer.show();
-        } else if (this._currentPresenter === 'bluetooth') {
-            if (!this.bluetoothView.expandedContainer.get_parent()) {
-                this.notch.add_child(this.bluetoothView.expandedContainer);
-            }
-            this.bluetoothView.expandedContainer.show();
-        } else if (this._currentPresenter === 'media') {
-            if (!this.mediaView.expandedContainer.get_parent()) {
-                this.notch.add_child(this.mediaView.expandedContainer);
-            }
-            this.mediaView.expandedContainer.show();
-        } else if (this._currentPresenter === 'volume') {
-            if (!this.volumeView.expandedContainer.get_parent()) {
-                this.notch.add_child(this.volumeView.expandedContainer);
-            }
-            this.volumeView.expandedContainer.show();
-        }
+        // Hide all compact views
+        this._hideAllCompactViews();
 
-        // Animation...
-        this.notch.add_style_class_name('expanded-state');
-        this.notch.remove_style_class_name('compact-state');
+        // Show expanded view
+        this._showExpandedView(presenter);
 
-        const newX = Math.floor((this.monitorWidth - this.expandedWidth) / 2);
-
-        this.notch.ease({
-            width: this.expandedWidth,
-            height: this.expandedHeight,
-            x: newX,
-            duration: 200,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => {
-                this._isAnimating = false;
-            }
-        });
+        // Start animation
+        this.animationController.expand();
     }
 
-    compactNotch() {
-        if (!this.isExpanded) return;
-        if (this._isAnimating) return; // Chặn nếu đang có animation chạy
-        this.isExpanded = false;
-        this._isAnimating = true;
-        this.notch.remove_all_transitions();
-
-        // ✅ ĐƠN GIẢN: Ẩn expanded views
+    _hideAllExpandedViews() {
         this.batteryView.expandedContainer.hide();
         this.bluetoothView.expandedContainer.hide();
         this.mediaView.expandedContainer.hide();
         this.volumeView.expandedContainer.hide();
+    }
 
-        // Hiện compact view tương ứng (Main Notch)
-        let mainContent;
-        if (this._currentPresenter === 'bluetooth') {
-            mainContent = this.bluetoothView.compactContainer;
-            this._switchToAppropriatePresenter(); // Logic check?
-        } else if (this._currentPresenter === 'volume') {
+    _hideAllCompactViews() {
+        this.batteryView.compactContainer.hide();
+        this.bluetoothView.compactContainer.hide();
+        this.mediaView.compactContainer.hide();
+    }
+
+    _showExpandedView(presenter) {
+        if (!presenter) return;
+        const container = presenter.getExpandedContainer();
+        if (!container) return;
+
+        if (!container.get_parent()) {
+            this.notch.add_child(container);
+        }
+        container.show();
+    }
+
+    compactNotch() {
+        if (!this.notch) return; // Notch chưa được tạo
+        if (!this.stateMachine.isExpanded()) return;
+        if (this.stateMachine.isAnimating()) return;
+
+        // Transition to animating state
+        this.stateMachine.transitionTo('animating');
+
+        // Hide all expanded views
+        this._hideAllExpandedViews();
+
+        // Handle presenter switching for temporary presenters
+        const currentPresenter = this.presenterRegistry.getCurrent();
+        if (currentPresenter === 'bluetooth' || currentPresenter === 'volume') {
             this._switchToAppropriatePresenter();
-        } else if (this.hasMedia) {
-            mainContent = this.isSwapped ? this.batteryView.compactContainer : this.mediaView.compactContainer;
+        }
+
+        // Show compact view
+        const presenter = this.presenterRegistry.getPresenter(this.presenterRegistry.getCurrent());
+        let mainContent = null;
+
+        if (this.hasMedia) {
+            const batteryPresenter = this.presenterRegistry.getPresenter('battery');
+            const mediaPresenter = this.presenterRegistry.getPresenter('media');
+            mainContent = this.isSwapped 
+                ? batteryPresenter?.getCompactContainer()
+                : mediaPresenter?.getCompactContainer();
         } else {
-            mainContent = this.batteryView.compactContainer;
+            mainContent = presenter?.getCompactContainer();
         }
 
         if (mainContent) {
-            if (!mainContent.get_parent()) this.notch.add_child(mainContent);
+            if (!mainContent.get_parent()) {
+                this.notch.add_child(mainContent);
+            }
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');
         }
 
-        // Animation...
-        this.notch.add_style_class_name('compact-state');
-        this.notch.remove_style_class_name('expanded-state');
-
-        // Calculate Target Geometry
-        let targetWidth = this.width;
-        let targetX = Math.floor((this.monitorWidth - this.width) / 2);
-
-        if (this.hasMedia) {
-            targetWidth = 160;
-            const gap = 10;
-            const secWidth = 40;
-            const groupWidth = targetWidth + gap + secWidth;
-            targetX = Math.floor((this.monitorWidth - groupWidth) / 2);
-        }
-
-        this.notch.ease({
-            width: targetWidth,
-            height: this.height,
-            x: targetX,
-            duration: 200,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => {
-                this._updateLayout(); // Finalize layout (show secondary notch)
-                this.squeeze();
-            }
-        });
+        // Start animation
+        this.animationController.compact();
     }
 
     squeeze() {
-        this.notch.remove_all_transitions();
-
-        this.notch.ease({
-            scale_x: 0.75,
-            scale_y: 1.0,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => {
-                this.notch.ease({
-                    scale_x: this.originalScale,
-                    scale_y: this.originalScale,
-                    duration: 200,
-                    mode: Clutter.AnimationMode.EASE_OUT_BACK,
-                    onComplete: () => {
-                        this._isAnimating = false;
-                    }
-                });
-            }
-        });
-
-        this.squeezeSec();
-    }
-
-    squeezeSec() {
-        this.secondaryNotch.remove_all_transitions();
-
-        this.secondaryNotch.ease({
-            scale_x: 1.3,
-            scale_y: 1.0,
-            duration: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => {
-                this.secondaryNotch.ease({
-                    scale_x: this.originalScale,
-                    scale_y: this.originalScale,
-                    duration: 200,
-                    mode: Clutter.AnimationMode.EASE_OUT_BACK
-                });
-            }
-        });
+        this.animationController.squeeze();
     }
 
     destroy() {
-        this._cancelAutoCollapse();
+        // Clear all timeouts
+        this.timeoutManager.clearAll();
 
-        // Hủy media switch timeout
-        if (this._mediaSwitchTimeoutId) {
-            imports.mainloop.source_remove(this._mediaSwitchTimeoutId);
-            this._mediaSwitchTimeoutId = null;
+        // Disconnect events
+        if (this.notch) {
+            if (this._motionEventId) {
+                this.notch.disconnect(this._motionEventId);
+                this._motionEventId = null;
+            }
+            if (this._leaveEventId) {
+                this.notch.disconnect(this._leaveEventId);
+                this._leaveEventId = null;
+            }
         }
 
-        // Hủy Bluetooth notification timeout
-        if (this._bluetoothNotificationTimeoutId) {
-            imports.mainloop.source_remove(this._bluetoothNotificationTimeoutId);
-            this._bluetoothNotificationTimeoutId = null;
-        }
-
-        // Hủy volume timeout
-        if (this._volumeTimeoutId) {
-            imports.mainloop.source_remove(this._volumeTimeoutId);
-            this._volumeTimeoutId = null;
-        }
-
-        // Hủy Model
+        // Destroy managers
         if (this.batteryManager) {
             this.batteryManager.destroy();
             this.batteryManager = null;
         }
-
         if (this.bluetoothManager) {
             this.bluetoothManager.destroy();
             this.bluetoothManager = null;
         }
-
         if (this.mediaManager) {
             this.mediaManager.destroy();
             this.mediaManager = null;
         }
-
         if (this.volumeManager) {
             this.volumeManager.destroy();
             this.volumeManager = null;
         }
 
-        // Hủy View
+        // Destroy views
         if (this.batteryView) {
             this.batteryView.destroy();
             this.batteryView = null;
         }
-
         if (this.bluetoothView) {
             this.bluetoothView.destroy();
             this.bluetoothView = null;
         }
-
         if (this.mediaView) {
             this.mediaView.destroy();
             this.mediaView = null;
         }
-
         if (this.volumeView) {
             this.volumeView.destroy();
             this.volumeView = null;
         }
 
-        // Hủy Bluetooth expanded container
-        if (this._bluetoothExpandedContainer) {
-            this._bluetoothExpandedContainer.destroy();
-            this._bluetoothExpandedContainer = null;
-        }
-
-        // Hủy Actor chính và sự kiện
+        // Destroy actors
         if (this.notch) {
-            if (this._motionEventId) {
-                this.notch.disconnect(this._motionEventId);
-            }
-            if (this._leaveEventId) {
-                this.notch.disconnect(this._leaveEventId);
-            }
             Main.layoutManager.removeChrome(this.notch);
             this.notch.destroy();
             this.notch = null;
         }
-
         if (this.secondaryNotch) {
             Main.layoutManager.removeChrome(this.secondaryNotch);
             this.secondaryNotch.destroy();
             this.secondaryNotch = null;
         }
+
+        // Clear references
+        this.stateMachine = null;
+        this.timeoutManager = null;
+        this.presenterRegistry = null;
+        this.layoutManager = null;
+        this.animationController = null;
     }
 }
 
