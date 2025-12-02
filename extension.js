@@ -65,7 +65,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return { percentage: 0, isCharging: false, isPresent: false };
+            return {percentage: 0, isCharging: false, isPresent: false};
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -397,7 +397,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const { percentage, isCharging, isPresent } = batteryInfo;
+        const {percentage, isCharging, isPresent} = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -551,7 +551,7 @@ class BluetoothView {
      * @param {{deviceName: string, isConnected: boolean}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const { deviceName, isConnected } = bluetoothInfo;
+        const {deviceName, isConnected} = bluetoothInfo;
 
 
         // FIX: Hiển thị rõ ràng cả trạng thái connected và disconnected
@@ -1020,10 +1020,6 @@ class MediaManager {
         return this._playerProxy !== null && this._playbackStatus === 'Playing';
     }
 
-    hasPlayer() {
-        return this._playerProxy !== null;
-    }
-
     destroy() {
         this._destroyed = true;
 
@@ -1154,13 +1150,6 @@ class VolumeManager {
 
     _notifyCallbacks(info) {
         this._callbacks.forEach(cb => cb(info));
-    }
-
-    getVolumeInfo() {
-        return {
-            volume: this._currentVolume,
-            isMuted: this._isMuted
-        };
     }
 
     destroy() {
@@ -1302,9 +1291,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
-            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
-            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
+            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
+            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
+            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
         ];
 
         controlConfig.forEach(config => {
@@ -1405,7 +1394,7 @@ class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
         if (metadata) {
@@ -1487,7 +1476,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({ file: file });
+                const gicon = new Gio.FileIcon({file: file});
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
@@ -1699,7 +1688,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const { volume, isMuted } = volumeInfo;
+        const {volume, isMuted} = volumeInfo;
 
         // Cập nhật icon
         let iconName;
@@ -1753,21 +1742,21 @@ const NotchConstants = {
     EXPANDED_HEIGHT: 160,
     SECONDARY_WIDTH: 40,
     SECONDARY_HEIGHT: 40,
-    
+
     // Split mode dimensions
     SPLIT_MAIN_WIDTH: 160,
     SPLIT_GAP: 10,
     SPLIT_SECONDARY_WIDTH: 40,
-    
+
     // Positions
     NOTCH_Y_POSITION: 5,
-    
+
     // Animation durations (ms)
     ANIMATION_EXPAND_DURATION: 200,
     ANIMATION_COMPACT_DURATION: 200,
     ANIMATION_SQUEEZE_DURATION: 150,
     ANIMATION_SQUEEZE_RETURN_DURATION: 200,
-    
+
     // Timeout delays (ms)
     TIMEOUT_COLLAPSE: 300,
     TIMEOUT_VOLUME: 2000,
@@ -1775,7 +1764,7 @@ const NotchConstants = {
     TIMEOUT_BLUETOOTH: 3000,
     TIMEOUT_MEDIA_SWITCH: 10000,
     TIMEOUT_PRESENTER_SWITCH: 300,
-    
+
     // Animation scales
     SQUEEZE_SCALE_X: 0.75,
     SQUEEZE_SECONDARY_SCALE_X: 1.3,
@@ -1813,10 +1802,6 @@ class NotchStateMachine {
         this._state = newState;
         this._notifyListeners(oldState, newState);
         return true;
-    }
-
-    addListener(callback) {
-        this._listeners.push(callback);
     }
 
     _notifyListeners(oldState, newState) {
@@ -1887,7 +1872,7 @@ class PresenterRegistry {
         const oldPresenter = this._currentPresenter;
         this._currentPresenter = name;
         const presenter = this._presenters.get(name);
-        
+
         if (presenter && presenter.onActivate) {
             presenter.onActivate(oldPresenter);
         }
@@ -1899,9 +1884,6 @@ class PresenterRegistry {
         return this._presenters.get(name);
     }
 
-    hasPresenter(name) {
-        return this._presenters.has(name);
-    }
 }
 
 // ============================================
@@ -1929,7 +1911,7 @@ class LayoutManager {
 
     _updateExpandedLayout(presenter) {
         if (!this.controller.notch) return;
-        
+
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.hide();
         }
@@ -1946,7 +1928,7 @@ class LayoutManager {
 
     _updateSplitModeLayout(isSwapped) {
         if (!this.controller.notch) return;
-        
+
         // Show secondary notch
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.show();
@@ -1972,7 +1954,7 @@ class LayoutManager {
 
     _updateSplitModeContent(isSwapped) {
         if (!this.controller.notch) return;
-        
+
         this.controller.notch.remove_all_children();
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.remove_all_children();
@@ -2007,7 +1989,7 @@ class LayoutManager {
 
     _updateDefaultLayout(presenter) {
         if (!this.controller.notch) return;
-        
+
         // Hide secondary notch
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.hide();
@@ -2065,7 +2047,7 @@ class AnimationController {
 
     expand() {
         if (!this.controller.notch) return;
-        
+
         const notch = this.controller.notch;
         const monitorWidth = this.controller.monitorWidth;
         const expandedWidth = this.controller.expandedWidth;
@@ -2091,7 +2073,7 @@ class AnimationController {
 
     compact() {
         if (!this.controller.notch) return;
-        
+
         const notch = this.controller.notch;
         const layoutManager = this.controller.layoutManager;
         const hasMedia = this.controller.hasMedia;
@@ -2117,7 +2099,7 @@ class AnimationController {
 
     squeeze() {
         if (!this.controller.notch) return;
-        
+
         const notch = this.controller.notch;
         const originalScale = this.controller.originalScale;
 
@@ -2290,6 +2272,7 @@ class NotchController {
                 this.batteryView.compactContainer.hide();
                 this.bluetoothView.hide();
                 this.mediaView.hide();
+                this.volumeView.show();
             }
         });
 
@@ -2388,13 +2371,10 @@ class NotchController {
     _onVolumeChanged(info) {
         this.volumeView.updateVolume(info);
         this.presenterRegistry.switchTo('volume');
-
-        if (this.stateMachine.isCompact()) {
-            this.expandNotch(true);
-        }
+        this.expandNotch(true);
 
         // Auto collapse with presenter switch
-        this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME, true);
+        this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME);
     }
 
     _onBatteryChanged(info) {
@@ -2413,7 +2393,7 @@ class NotchController {
             this.presenterRegistry.switchTo('battery');
             this.expandNotch(true);
 
-            this._scheduleAutoCollapse('battery-auto-collapse', NotchConstants.TIMEOUT_BATTERY_AUTO_COLLAPSE, false);
+            this._scheduleAutoCollapse('battery-auto-collapse', NotchConstants.TIMEOUT_BATTERY_AUTO_COLLAPSE);
         }
     }
 
@@ -2422,27 +2402,20 @@ class NotchController {
         this.presenterRegistry.switchTo('bluetooth');
         this.expandNotch(true);
 
-        this._scheduleAutoCollapse('bluetooth', NotchConstants.TIMEOUT_BLUETOOTH, false);
+        this._scheduleAutoCollapse('bluetooth', NotchConstants.TIMEOUT_BLUETOOTH);
     }
 
     /**
      * Helper method để schedule auto collapse với presenter switch
      * @param {string} timeoutKey - Key cho timeout
      * @param {number} delay - Delay trong ms
-     * @param {boolean} shouldSqueeze - Có squeeze sau khi switch không
      */
-    _scheduleAutoCollapse(timeoutKey, delay, shouldSqueeze = false) {
+    _scheduleAutoCollapse(timeoutKey, delay) {
         this.timeoutManager.set(timeoutKey, delay, () => {
+            this._switchToAppropriatePresenter();
             if (this.stateMachine.isExpanded()) {
                 this.compactNotch();
             }
-
-            this.timeoutManager.set(`${timeoutKey}-switch`, NotchConstants.TIMEOUT_PRESENTER_SWITCH, () => {
-                this._switchToAppropriatePresenter();
-                if (shouldSqueeze && this.stateMachine.isCompact()) {
-                    this.squeeze();
-                }
-            });
         });
     }
 
@@ -2495,7 +2468,7 @@ class NotchController {
 
     expandNotch(isAuto = false) {
         if (!this.notch) return; // Notch chưa được tạo
-        
+
         // Hide secondary notch immediately
         if (this.secondaryNotch) {
             this.secondaryNotch.hide();
@@ -2576,7 +2549,7 @@ class NotchController {
         if (this.hasMedia) {
             const batteryPresenter = this.presenterRegistry.getPresenter('battery');
             const mediaPresenter = this.presenterRegistry.getPresenter('media');
-            mainContent = this.isSwapped 
+            mainContent = this.isSwapped
                 ? batteryPresenter?.getCompactContainer()
                 : mediaPresenter?.getCompactContainer();
         } else {
