@@ -1495,12 +1495,40 @@ class MediaView {
     updateMedia(mediaInfo) {
         const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
 
+        // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
+        let metadataChanged = false;
+        if (metadata && this._lastMetadata && this._mediaManager) {
+            const currentTitle = this._mediaManager.getTitle(metadata);
+            const lastTitle = this._mediaManager.getTitle(this._lastMetadata);
+            metadataChanged = currentTitle !== lastTitle;
+        } else if (metadata && !this._lastMetadata) {
+            metadataChanged = true; // Lần đầu có metadata
+        }
+        
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
         if (metadata) {
             this._lastMetadata = metadata;
         }
-        if (artPath) {
-            this._lastArtPath = artPath;
+        
+        // Cập nhật artPath cache:
+        // - Nếu có artPath: lưu vào cache
+        // - Nếu artPath là null (không có art): xóa cache để không dùng art cũ khi chuyển nguồn
+        // - Chỉ giữ cache khi metadata không thay đổi (cùng bài hát)
+        if (metadataChanged) {
+            // Chuyển nguồn mới: cập nhật cache theo artPath hiện tại
+            if (artPath) {
+                this._lastArtPath = artPath;
+            } else {
+                // Nguồn mới không có art, xóa cache art cũ
+                this._lastArtPath = null;
+            }
+        } else if (artPath !== undefined) {
+            // Cùng nguồn nhưng artPath thay đổi (ví dụ: download xong)
+            if (artPath) {
+                this._lastArtPath = artPath;
+            } else {
+                this._lastArtPath = null;
+            }
         }
 
         // Update visibility for compact view
@@ -1521,8 +1549,10 @@ class MediaView {
         }
 
         // Sử dụng metadata/artPath hiện tại hoặc đã lưu
+        // Chỉ dùng _lastArtPath nếu metadata không thay đổi (cùng nguồn)
         const currentMetadata = metadata || this._lastMetadata;
-        const currentArtPath = artPath || this._lastArtPath;
+        const currentArtPath = artPath !== undefined ? artPath : 
+                               (metadataChanged ? null : this._lastArtPath);
 
         if (!currentMetadata && !currentArtPath) {
             // Reset to default
