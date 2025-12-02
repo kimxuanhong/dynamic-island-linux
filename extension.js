@@ -2650,11 +2650,12 @@ class NotchController {
     }
 
     _onMediaChanged(info) {
+        log(`[DynamicIsland] _onMediaChanged - ${JSON.stringify(info)}`);
         this.mediaView._updatePlayPauseIcon(info.isPlaying);
 
         this.timeoutManager.clear('media-switch');
 
-        if (info.isPlaying && (info.artPath || this._isGnomeMusic(this.mediaManager._currentPlayer))) {
+        if (info.isPlaying) {
             this.mediaView.updateMedia(info);
             this.presenterRegistry.switchTo('media');
 
@@ -2669,12 +2670,6 @@ class NotchController {
                 }
             });
         }
-    }
-
-    _isGnomeMusic(currentPlayer) {
-        if (!currentPlayer) return false;
-        const lower = currentPlayer.toLowerCase();
-        return lower.includes("gnomemusic") || lower.includes("gnome");
     }
 
     _switchToAppropriatePresenter() {
