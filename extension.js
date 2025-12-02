@@ -28,7 +28,6 @@ class BatteryManager {
     }
 
     _initProxy() {
-        // log('[DynamicIsland] BatteryManager: Initializing proxy...');
         // Định nghĩa interface D-Bus cho UPower Device
         let BatteryProxyInterface = `
             <node>
@@ -53,7 +52,6 @@ class BatteryManager {
         this._signalId = this._proxy.connect('g-properties-changed', () => {
             this._notifyCallbacks();
         });
-        // log('[DynamicIsland] BatteryManager: Proxy initialized successfully');
     }
 
     addCallback(callback) {
@@ -62,7 +60,6 @@ class BatteryManager {
 
     _notifyCallbacks() {
         const info = this.getBatteryInfo();
-        // log(`[DynamicIsland] BatteryManager: Notifying callbacks - ${JSON.stringify(info)}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -166,7 +163,6 @@ class BluetoothManager {
         // 5. Lấy danh sách thiết bị hiện tại
         this._syncDevices();
 
-        // log('[DynamicIsland] BluetoothManager initialized successfully');
 
     }
 
@@ -176,7 +172,6 @@ class BluetoothManager {
         this._objectManager.GetManagedObjectsRemote((result, error) => {
             if (this._destroyed) return;
             if (error) {
-                // log(`[DynamicIsland] Error getting managed objects: ${error.message}`);
                 return;
             }
 
@@ -188,7 +183,6 @@ class BluetoothManager {
             // FIX: Sau khi sync xong tất cả devices, mới bật notifications
             imports.mainloop.timeout_add(1000, () => {
                 this._isInitializing = false;
-                // log('[DynamicIsland] BluetoothManager initialization complete, notifications enabled');
                 return false;
             });
         });
@@ -220,14 +214,12 @@ class BluetoothManager {
     _addDevice(path) {
         if (this._devices.has(path)) return;
 
-        // log(`[DynamicIsland] Adding Bluetooth device: ${path}`);
         const deviceProxy = new this.DeviceProxy(
             Gio.DBus.system,
             'org.bluez',
             path,
             (proxy, error) => {
                 if (error) {
-                    // log(`[DynamicIsland] Error creating proxy for ${path}: ${error.message}`);
                 }
             }
         );
@@ -244,7 +236,6 @@ class BluetoothManager {
     _removeDevice(path) {
         const deviceProxy = this._devices.get(path);
         if (deviceProxy) {
-            // log(`[DynamicIsland] Removing Bluetooth device: ${path}`);
             if (deviceProxy._signalId) {
                 deviceProxy.disconnect(deviceProxy._signalId);
             }
@@ -257,7 +248,6 @@ class BluetoothManager {
 
         // FIX: Bỏ qua notifications trong lúc khởi tạo
         if (this._isInitializing) {
-            // log(`[DynamicIsland] Skipping notification during initialization for ${proxy.g_object_path}`);
             return;
         }
 
@@ -346,7 +336,6 @@ class BatteryView {
     }
 
     _buildCompactView() {
-        // log('[DynamicIsland] BatteryView: Building compact view...');
         this.iconLeft = new St.Icon({
             icon_name: 'battery-good-symbolic',
             icon_size: 24,
@@ -384,7 +373,6 @@ class BatteryView {
     }
 
     _buildExpandedView() {
-        // log('[DynamicIsland] BatteryView: Building expanded view...');
         this.iconExpanded = new St.Icon({
             icon_name: 'battery-good-symbolic',
             icon_size: 64,
@@ -493,7 +481,6 @@ class BluetoothView {
     }
 
     _buildCompactView() {
-        // log('[DynamicIsland] BluetoothView: Building compact view...');
         this.icon = new St.Icon({
             icon_name: 'bluetooth-active-symbolic',
             icon_size: 20,
@@ -510,7 +497,6 @@ class BluetoothView {
     }
 
     _buildExpandedView() {
-        // log('[DynamicIsland] BluetoothView: Building expanded view...');
         // Icon lớn
         this.expandedIcon = new St.Icon({
             icon_name: 'bluetooth-active-symbolic',
@@ -567,7 +553,6 @@ class BluetoothView {
     updateBluetooth(bluetoothInfo) {
         const { deviceName, isConnected } = bluetoothInfo;
 
-        // log(`[DynamicIsland] View updating Bluetooth: ${deviceName}, Connected: ${isConnected}`);
 
         // FIX: Hiển thị rõ ràng cả trạng thái connected và disconnected
         if (isConnected) {
@@ -640,7 +625,6 @@ class MediaManager {
     }
 
     _defineInterfaces() {
-        // log('[DynamicIsland] MediaManager: Defining interfaces...');
         // MPRIS Player Interface
         const MPRIS_PLAYER_INTERFACE = `
         <node>
@@ -667,22 +651,18 @@ class MediaManager {
 
         this.MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(MPRIS_PLAYER_INTERFACE);
         this.DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBUS_INTERFACE);
-        // log('[DynamicIsland] MediaManager: Interfaces defined successfully');
     }
 
     _setupDBusNameOwnerChanged() {
-        // log('[DynamicIsland] MediaManager: Setting up DBus NameOwnerChanged...');
         this._dbusProxy = new this.DBusProxy(
             Gio.DBus.session,
             'org.freedesktop.DBus',
             '/org/freedesktop/DBus',
             (proxy, error) => {
                 if (error) {
-                    // log(`[DynamicIsland] Failed to connect to DBus: ${error.message}`);
                     return;
                 }
 
-                // log('[DynamicIsland] MediaManager: DBus proxy connected, listening for NameOwnerChanged');
                 this._dbusSignalId = proxy.connectSignal('NameOwnerChanged', (proxy, sender, [name, oldOwner, newOwner]) => {
                     if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
                         if (newOwner && !oldOwner) {
@@ -707,7 +687,6 @@ class MediaManager {
     }
 
     _watchForMediaPlayers() {
-        // log('[DynamicIsland] MediaManager: Watching for media players...');
         Gio.DBus.session.call(
             'org.freedesktop.DBus',
             '/org/freedesktop/DBus',
@@ -725,7 +704,6 @@ class MediaManager {
                     this._playerListeners = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
                     log(`[DynamicIsland] MediaManager: Found ${this._playerListeners.length} media player(s)`);
                     if (this._playerListeners.length > 0) {
-                        // log(`[DynamicIsland] MediaManager: Connecting to ${this._playerListeners[0]}`);
                         this._connectToPlayer(this._playerListeners[0]);
                     }
                 } catch (e) {
@@ -765,12 +743,10 @@ class MediaManager {
     _performInitialUpdate() {
         if (!this._playerProxy) return;
 
-        // log('[DynamicIsland] MediaManager: Performing initial update...');
         const metadata = this._playerProxy.Metadata;
         const playbackStatus = this._playerProxy.PlaybackStatus;
 
         if (metadata || playbackStatus) {
-            // log(`[DynamicIsland] MediaManager: Initial playback status: ${playbackStatus}`);
             this._batchUpdate({
                 metadata: metadata,
                 playbackStatus: playbackStatus
@@ -790,21 +766,17 @@ class MediaManager {
 
             if ('Metadata' in changedProps) {
                 updates.metadata = changedProps.Metadata;
-                // log('[DynamicIsland] MediaManager: Metadata changed');
             }
 
             if ('PlaybackStatus' in changedProps) {
                 updates.playbackStatus = changedProps.PlaybackStatus;
-                // log(`[DynamicIsland] MediaManager: PlaybackStatus changed to: ${changedProps.PlaybackStatus}`);
             }
 
             if (Object.keys(updates).length > 0) {
                 this._batchUpdate(updates);
             }
         } catch (e) {
-            if (!this._destroyed) {
-                // log(`[DynamicIsland] Error in properties-changed callback: ${e.message}`);
-            }
+            // Ignore errors if destroyed
         }
     }
 
@@ -912,7 +884,7 @@ class MediaManager {
                 }
             }
         } catch (e) {
-            // log(`[DynamicIsland] Error extracting metadata: ${e.message}`);
+            // Ignore extraction errors
         }
         return null;
     }
@@ -926,7 +898,6 @@ class MediaManager {
     }
 
     _downloadImage(url, callback) {
-        // log(`[DynamicIsland] Download image: ${url}`);
 
         const msg = Soup.Message.new('GET', url);
 
@@ -942,7 +913,6 @@ class MediaManager {
                         const data = bytes.get_data();   // Uint8Array
                         callback(data);
                     } catch (e) {
-                        // log(`Image download failed (Soup3): ${e}`);
                         callback(null);
                     }
                 }
@@ -956,11 +926,9 @@ class MediaManager {
                 if (message.status_code === 200 && message.response_body?.data) {
                     callback(message.response_body.data);
                 } else {
-                    // log(`Image download failed (Soup2): ${message.status_code}`);
                     callback(null);
                 }
             } catch (e) {
-                // log(`Image download error (Soup2): ${e}`);
                 callback(null);
             }
         });
@@ -983,7 +951,6 @@ class MediaManager {
             this._artCache.set(url, path);
             return path;
         } catch (e) {
-            // log(`[DynamicIsland] Failed to save image: ${e.message}`);
             return null;
         }
     }
@@ -1046,7 +1013,6 @@ class MediaManager {
     }
 
     _notifyCallbacks(info) {
-        // log(`[DynamicIsland] MediaManager: Notifying callbacks - isPlaying: ${info.isPlaying}, playbackStatus: ${info.playbackStatus}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -1075,7 +1041,7 @@ class MediaManager {
             try {
                 this._playerProxy.disconnect(this._playerProxySignal);
             } catch (e) {
-                // log(`[DynamicIsland] Error disconnecting player proxy: ${e.message}`);
+                // Ignore disconnect errors
             }
             this._playerProxySignal = null;
         }
@@ -1084,7 +1050,7 @@ class MediaManager {
             try {
                 this._dbusProxy.disconnect(this._dbusSignalId);
             } catch (e) {
-                // log(`[DynamicIsland] Error disconnecting DBus signal: ${e.message}`);
+                // Ignore disconnect errors
             }
             this._dbusSignalId = null;
         }
@@ -1121,33 +1087,26 @@ class VolumeManager {
     }
 
     _initVolumeControl() {
-        try {
-            // Sử dụng Volume Control của GNOME Shell
-            const Volume = imports.ui.status.volume;
+        // Sử dụng Volume Control của GNOME Shell
+        const Volume = imports.ui.status.volume;
 
-            // Lấy MixerControl từ Volume indicator
-            this._control = Volume.getMixerControl();
+        // Lấy MixerControl từ Volume indicator
+        this._control = Volume.getMixerControl();
 
-            if (!this._control) {
-                // log('[DynamicIsland] Failed to get MixerControl');
-                return;
-            }
-
-            // Lấy giá trị ban đầu TRƯỚC khi setup listener (để không trigger notification)
-            this._updateVolume();
-
-            // Sau đó mới setup listener
-            this._streamChangedId = this._control.connect('stream-changed', () => {
-                this._onVolumeChanged();
-            });
-
-            // Đánh dấu đã khởi tạo xong
-            this._isInitializing = false;
-
-            // log('[DynamicIsland] VolumeManager initialized successfully');
-        } catch (e) {
-            // log(`[DynamicIsland] Error initializing VolumeManager: ${e.message}`);
+        if (!this._control) {
+            return;
         }
+
+        // Lấy giá trị ban đầu TRƯỚC khi setup listener (để không trigger notification)
+        this._updateVolume();
+
+        // Sau đó mới setup listener
+        this._streamChangedId = this._control.connect('stream-changed', () => {
+            this._onVolumeChanged();
+        });
+
+        // Đánh dấu đã khởi tạo xong
+        this._isInitializing = false;
     }
 
     _onVolumeChanged() {
@@ -1174,7 +1133,6 @@ class VolumeManager {
 
         // Cập nhật stream ID
         if (streamChanged) {
-            // log(`[DynamicIsland] VolumeManager: Stream changed (ID: ${this._lastStreamId} -> ${newStreamId})`);
             this._lastStreamId = newStreamId;
         }
 
@@ -1183,7 +1141,6 @@ class VolumeManager {
         // 2. Volume thực sự thay đổi
         // 3. Stream ID không đổi (không phải stream mới được tạo)
         if (!this._isInitializing && volumeChanged && !streamChanged) {
-            // log(`[DynamicIsland] VolumeManager: Volume changed - volume: ${this._currentVolume}% (was ${oldVolume}%), muted: ${this._isMuted} (was ${oldMuted})`);
             this._notifyCallbacks({
                 volume: this._currentVolume,
                 isMuted: this._isMuted
@@ -1196,7 +1153,6 @@ class VolumeManager {
     }
 
     _notifyCallbacks(info) {
-        // log(`[DynamicIsland] VolumeManager: Notifying callbacks - volume: ${info.volume}%, isMuted: ${info.isMuted}`);
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -1260,7 +1216,6 @@ class MediaView {
     }
 
     _buildCompactView() {
-        // log('[DynamicIsland] MediaView: Building compact view...');
         // Thumbnail on the left (album art)
         this._thumbnail = new St.Icon({
             style_class: 'media-thumbnail',
@@ -1314,7 +1269,6 @@ class MediaView {
     }
 
     _buildExpandedView() {
-        // log('[DynamicIsland] MediaView: Building expanded view...');
         // Expanded album art (left side)
         this._expandedArt = new St.Icon({
             style_class: 'media-expanded-art',
@@ -1688,7 +1642,6 @@ class VolumeView {
     }
 
     _buildExpandedView() {
-        // log('[DynamicIsland] VolumeView: Building expanded view...');
         // Icon lớn ở giữa
         this.expandedIcon = new St.Icon({
             icon_name: 'audio-volume-high-symbolic',
@@ -2725,17 +2678,14 @@ class NotchController {
 // ============================================
 
 function init() {
-    // log('[DynamicIsland] Extension: init() called');
     // Không làm gì nhiều ở đây theo quy ước
 }
 
 function enable() {
-    // log('[DynamicIsland] Extension: enable() called');
     notchController = new NotchController();
 
     // Di chuyển date panel của GNOME sang góc phải
     _moveDatePanelToRight();
-    // log('[DynamicIsland] Extension: enable() complete');
 }
 
 function disable() {
@@ -2749,95 +2699,81 @@ function disable() {
 }
 
 function _moveDatePanelToRight() {
-    try {
-        const panel = Main.panel;
-        if (!panel) {
-            // log('[DynamicIsland] Panel not found');
-            return;
-        }
+    const panel = Main.panel;
+    if (!panel) {
+        return;
+    }
 
-        // Tìm date menu trong statusArea
-        let dateMenu = null;
-        if (panel.statusArea && panel.statusArea.dateMenu) {
-            dateMenu = panel.statusArea.dateMenu;
-        }
+    // Tìm date menu trong statusArea
+    let dateMenu = null;
+    if (panel.statusArea && panel.statusArea.dateMenu) {
+        dateMenu = panel.statusArea.dateMenu;
+    }
 
-        // Nếu không tìm thấy, thử tìm trong _centerBox
-        if (!dateMenu) {
-            if (panel._centerBox) {
-                const children = panel._centerBox.get_children();
-                for (let i = 0; i < children.length; i++) {
-                    const child = children[i];
-                    // Kiểm tra nếu có dateMenu trong child
-                    if (child._delegate && child._delegate.constructor &&
-                        child._delegate.constructor.name === 'DateMenuButton') {
-                        dateMenuActor = child;
-                        dateMenuOriginalParent = panel._centerBox;
-                        break;
-                    }
+    // Nếu không tìm thấy, thử tìm trong _centerBox
+    if (!dateMenu) {
+        if (panel._centerBox) {
+            const children = panel._centerBox.get_children();
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                // Kiểm tra nếu có dateMenu trong child
+                if (child._delegate && child._delegate.constructor &&
+                    child._delegate.constructor.name === 'DateMenuButton') {
+                    dateMenuActor = child;
+                    dateMenuOriginalParent = panel._centerBox;
+                    break;
                 }
             }
-        } else {
-            // Lấy actor của date menu
-            dateMenuActor = dateMenu.actor || dateMenu;
-            if (!dateMenuActor) {
-                // log('[DynamicIsland] Date menu actor not found');
-                return;
-            }
         }
-
+    } else {
+        // Lấy actor của date menu
+        dateMenuActor = dateMenu.actor || dateMenu;
         if (!dateMenuActor) {
-            // log('[DynamicIsland] Date menu not found');
             return;
         }
+    }
 
-        // Lưu parent ban đầu nếu chưa có
-        if (!dateMenuOriginalParent) {
-            dateMenuOriginalParent = dateMenuActor.get_parent();
-        }
+    if (!dateMenuActor) {
+        return;
+    }
 
-        // Xóa khỏi vị trí hiện tại
-        if (dateMenuOriginalParent && dateMenuActor.get_parent() === dateMenuOriginalParent) {
-            dateMenuOriginalParent.remove_child(dateMenuActor);
-        }
+    // Lưu parent ban đầu nếu chưa có
+    if (!dateMenuOriginalParent) {
+        dateMenuOriginalParent = dateMenuActor.get_parent();
+    }
 
-        // Thêm vào right box của panel
-        if (panel._rightBox) {
-            panel._rightBox.add_child(dateMenuActor);
-            // log('[DynamicIsland] Date panel moved to right side');
-        } else {
-            // log('[DynamicIsland] Panel right box not found');
-            // Khôi phục nếu không tìm thấy right box
-            if (dateMenuOriginalParent) {
-                dateMenuOriginalParent.add_child(dateMenuActor);
-            }
+    // Xóa khỏi vị trí hiện tại
+    if (dateMenuOriginalParent && dateMenuActor.get_parent() === dateMenuOriginalParent) {
+        dateMenuOriginalParent.remove_child(dateMenuActor);
+    }
+
+    // Thêm vào right box của panel
+    if (panel._rightBox) {
+        panel._rightBox.add_child(dateMenuActor);
+    } else {
+        // Khôi phục nếu không tìm thấy right box
+        if (dateMenuOriginalParent) {
+            dateMenuOriginalParent.add_child(dateMenuActor);
         }
-    } catch (e) {
-        // log(`[DynamicIsland] Error moving date panel: ${e.message}`);
     }
 }
 
 function _restoreDatePanel() {
-    try {
-        if (!dateMenuActor || !dateMenuOriginalParent) {
-            return;
-        }
-
-        // Xóa khỏi right box
-        const panel = Main.panel;
-        if (panel && panel._rightBox && dateMenuActor.get_parent() === panel._rightBox) {
-            panel._rightBox.remove_child(dateMenuActor);
-        }
-
-        // Khôi phục về vị trí ban đầu
-        if (dateMenuOriginalParent) {
-            dateMenuOriginalParent.add_child(dateMenuActor);
-            // log('[DynamicIsland] Date panel restored to original position');
-        }
-
-        dateMenuActor = null;
-        dateMenuOriginalParent = null;
-    } catch (e) {
-        // log(`[DynamicIsland] Error restoring date panel: ${e.message}`);
+    if (!dateMenuActor || !dateMenuOriginalParent) {
+        return;
     }
+
+    // Xóa khỏi right box
+    const panel = Main.panel;
+    if (panel && panel._rightBox && dateMenuActor.get_parent() === panel._rightBox) {
+        panel._rightBox.remove_child(dateMenuActor);
+    }
+
+    // Khôi phục về vị trí ban đầu
+    if (dateMenuOriginalParent) {
+        dateMenuOriginalParent.add_child(dateMenuActor);
+    }
+
+    dateMenuActor = null;
+    dateMenuOriginalParent = null;
 }
