@@ -2709,6 +2709,10 @@ class NotchController {
 
     _onVolumeChanged(info) {
         this.volumeView.updateVolume(info);
+
+        // Cancel all temporary presenter timeouts before switching
+        this._cancelTemporaryPresenterTimeouts();
+
         this.presenterRegistry.switchTo('volume');
         this.expandNotch(true);
 
@@ -2718,6 +2722,10 @@ class NotchController {
 
     _onBrightnessChanged(info) {
         this.brightnessView.updateBrightness(info);
+
+        // Cancel all temporary presenter timeouts before switching
+        this._cancelTemporaryPresenterTimeouts();
+
         this.presenterRegistry.switchTo('brightness');
         this.expandNotch(true);
 
@@ -2751,6 +2759,9 @@ class NotchController {
         // Cập nhật icon media nếu có tai nghe
         const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
         this.mediaView.updateIcon(hasHeadset);
+
+        // Cancel all temporary presenter timeouts before switching
+        this._cancelTemporaryPresenterTimeouts();
 
         this.presenterRegistry.switchTo('bluetooth');
         this.expandNotch(true);
@@ -2812,6 +2823,16 @@ class NotchController {
     _cancelAutoCollapse() {
         this.timeoutManager.clear('collapse');
         this.timeoutManager.clear('battery-auto-collapse');
+    }
+
+    /**
+     * Cancel all temporary presenter timeouts (volume, brightness, bluetooth)
+     * This prevents the old presenter from switching back when a new temporary presenter is shown
+     */
+    _cancelTemporaryPresenterTimeouts() {
+        this.timeoutManager.clear('volume');
+        this.timeoutManager.clear('brightness');
+        this.timeoutManager.clear('bluetooth');
     }
 
     expandNotch(isAuto = false) {
