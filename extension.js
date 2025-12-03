@@ -416,7 +416,7 @@ class BatteryView {
         });
 
         this.statusLabel = new St.Label({
-            text: 'Đang sạc...',
+            text: 'Charging...',
             style: 'color: white; font-size: 18px; font-weight: bold; margin-top: 10px;'
         });
 
@@ -438,12 +438,12 @@ class BatteryView {
         let iconName;
 
         if (!isPresent) {
-            this.percentageLabel.set_text('N/A');
+            this.percentageLabel.set_text('AC');
             this.iconLeft.icon_name = 'battery-missing-symbolic';
             this.iconExpanded.icon_name = 'battery-missing-symbolic';
             this.iconLeft.set_style(`color: #ffffff;`);
             this.iconExpanded.set_style(`color: #ffffff;`);
-            this.statusLabel.set_text('Không có pin');
+            this.statusLabel.set_text('AC Power');
             return;
         }
 
@@ -477,10 +477,10 @@ class BatteryView {
         this.percentageLabel.style_class = `text-shadow ${statusClass}`;
 
         if (isCharging) {
-            this.statusLabel.set_text(`⚡ Đang sạc - ${percentage}%`);
+            this.statusLabel.set_text(`⚡ Charging - ${percentage}%`);
             this.iconExpanded.style_class = 'icon-glow battery-charging';
         } else {
-            this.statusLabel.set_text(`Pin: ${percentage}%`);
+            this.statusLabel.set_text(`Battery: ${percentage}%`);
             this.iconExpanded.style_class = statusClass;
         }
     }
