@@ -65,7 +65,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return {percentage: 0, isCharging: false, isPresent: false};
+            return { percentage: 0, isCharging: false, isPresent: false };
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -274,10 +274,13 @@ class BluetoothManager {
             }
 
             const alias = proxy.Alias || 'Unknown Device';
+            const deviceIcon = proxy.Icon || ''; // Lấy loại thiết bị từ BlueZ
+
             // LUÔN gọi callback cho cả connect và disconnect
             this._notifyCallbacks({
                 deviceName: alias,
-                isConnected: isConnected
+                isConnected: isConnected,
+                deviceType: deviceIcon // Thêm thông tin loại thiết bị
             });
         }
     }
@@ -397,7 +400,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const {percentage, isCharging, isPresent} = batteryInfo;
+        const { percentage, isCharging, isPresent } = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -548,28 +551,64 @@ class BluetoothView {
 
     /**
      * Cập nhật UI với thông tin Bluetooth mới.
-     * @param {{deviceName: string, isConnected: boolean}} bluetoothInfo
+     * @param {{deviceName: string, isConnected: boolean, deviceType: string}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const {deviceName, isConnected} = bluetoothInfo;
+        const { deviceName, isConnected, deviceType } = bluetoothInfo;
 
+        // Xác định icon dựa trên loại thiết bị
+        let iconName = this._getDeviceIcon(deviceType, isConnected);
 
         // FIX: Hiển thị rõ ràng cả trạng thái connected và disconnected
         if (isConnected) {
             this.statusLabel.set_text('✓ Connected!');
-            this.expandedIcon.icon_name = 'bluetooth-active-symbolic';
+            this.expandedIcon.icon_name = iconName;
             this.expandedIcon.set_style('color: #00aaff;'); // Xanh dương
-            this.icon.icon_name = 'bluetooth-active-symbolic';
+            this.icon.icon_name = iconName;
             this.icon.set_style('color: #00aaff;');
         } else {
             this.statusLabel.set_text('✗ Disconnected!');
-            this.expandedIcon.icon_name = 'bluetooth-disabled-symbolic';
+            // Khi disconnect, vẫn giữ icon phù hợp nhưng chuyển sang disabled
+            if (deviceType && deviceType.includes('audio')) {
+                iconName = 'audio-headphones-symbolic';
+            } else if (deviceType && deviceType.includes('mouse')) {
+                iconName = 'input-mouse-symbolic';
+            } else {
+                iconName = 'bluetooth-disabled-symbolic';
+            }
+            this.expandedIcon.icon_name = iconName;
             this.expandedIcon.set_style('color: #ff6666;'); // Đỏ nhạt
-            this.icon.icon_name = 'bluetooth-disabled-symbolic';
+            this.icon.icon_name = iconName;
             this.icon.set_style('color: #ff6666;');
         }
 
         this.deviceLabel.set_text(deviceName);
+    }
+
+    /**
+     * Lấy icon phù hợp dựa trên loại thiết bị
+     * @param {string} deviceType - Loại thiết bị từ BlueZ (vd: "audio-headset", "input-mouse")
+     * @param {boolean} isConnected - Trạng thái kết nối
+     * @returns {string} Tên icon
+     */
+    _getDeviceIcon(deviceType, isConnected) {
+        if (!deviceType) {
+            return isConnected ? 'bluetooth-active-symbolic' : 'bluetooth-disabled-symbolic';
+        }
+
+        // Phân biệt theo loại thiết bị
+        if (deviceType.includes('mouse')) {
+            return 'input-mouse-symbolic'; // Icon chuột
+        } else if (deviceType.includes('audio-headset') ||
+            deviceType.includes('audio-headphones') ||
+            deviceType.includes('audio-earbuds')) {
+            return 'audio-headphones-symbolic'; // Icon tai nghe/earpod
+        } else if (deviceType.includes('audio')) {
+            return 'audio-speakers-symbolic'; // Icon loa cho các thiết bị audio khác
+        } else {
+            // Các thiết bị khác (bàn phím, điện thoại, v.v.)
+            return isConnected ? 'bluetooth-active-symbolic' : 'bluetooth-disabled-symbolic';
+        }
     }
 
     show() {
@@ -1390,9 +1429,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
-            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
-            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
+            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
+            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
+            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
         ];
 
         controlConfig.forEach(config => {
@@ -1493,7 +1532,7 @@ class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
+        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -1504,12 +1543,12 @@ class MediaView {
         } else if (metadata && !this._lastMetadata) {
             metadataChanged = true; // Lần đầu có metadata
         }
-        
+
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
         if (metadata) {
             this._lastMetadata = metadata;
         }
-        
+
         // Cập nhật artPath cache:
         // - Nếu có artPath: lưu vào cache
         // - Nếu artPath là null (không có art): xóa cache để không dùng art cũ khi chuyển nguồn
@@ -1551,8 +1590,8 @@ class MediaView {
         // Sử dụng metadata/artPath hiện tại hoặc đã lưu
         // Chỉ dùng _lastArtPath nếu metadata không thay đổi (cùng nguồn)
         const currentMetadata = metadata || this._lastMetadata;
-        const currentArtPath = artPath !== undefined ? artPath : 
-                               (metadataChanged ? null : this._lastArtPath);
+        const currentArtPath = artPath !== undefined ? artPath :
+            (metadataChanged ? null : this._lastArtPath);
 
         if (!currentMetadata && !currentArtPath) {
             // Reset to default
@@ -1605,7 +1644,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({file: file});
+                const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
@@ -1817,7 +1856,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const {volume, isMuted} = volumeInfo;
+        const { volume, isMuted } = volumeInfo;
 
         // Cập nhật icon
         let iconName;
@@ -1922,7 +1961,7 @@ class BrightnessView {
     }
 
     updateBrightness(brightnessInfo) {
-        const {brightness} = brightnessInfo;
+        const { brightness } = brightnessInfo;
 
         // Cập nhật icon dựa trên brightness level
         let iconName;
