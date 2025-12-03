@@ -293,6 +293,40 @@ class BluetoothManager {
         this._callbacks.forEach(cb => cb(info));
     }
 
+    /**
+     * Kiểm tra xem có tai nghe nào đang kết nối không
+     * @returns {boolean}
+     */
+    hasConnectedHeadset() {
+        let hasHeadset = false;
+        this._devices.forEach((proxy) => {
+            if (hasHeadset) return; // Đã tìm thấy
+
+            // Kiểm tra kết nối
+            let isConnected = false;
+            if (proxy.Connected) {
+                // Xử lý GVariant hoặc boolean
+                const rawConnected = proxy.Connected;
+                if (rawConnected && typeof rawConnected.deep_unpack === 'function') {
+                    isConnected = Boolean(rawConnected.deep_unpack());
+                } else {
+                    isConnected = Boolean(rawConnected);
+                }
+            }
+
+            if (isConnected) {
+                const icon = proxy.Icon || '';
+                if (icon.includes('headset') ||
+                    icon.includes('headphones') ||
+                    icon.includes('earbuds') ||
+                    icon.includes('audio-card')) { // Một số tai nghe hiện là audio-card
+                    hasHeadset = true;
+                }
+            }
+        });
+        return hasHeadset;
+    }
+
     destroy() {
         this._destroyed = true;
 
@@ -1372,7 +1406,7 @@ class MediaView {
         // Audio icon on the right
         this._audioIcon = new St.Icon({
             style_class: 'media-audio-icon',
-            icon_name: 'audio-volume-high-symbolic',
+            icon_name: 'sound-wave-symbolic', // Mặc định là thanh nhạc
             icon_size: 20,
             x_align: Clutter.ActorAlign.END
         });
@@ -1393,6 +1427,18 @@ class MediaView {
         });
         this.compactContainer.add_child(this._thumbnailWrapper);
         this.compactContainer.add_child(this._audioIconWrapper);
+    }
+
+    /**
+     * Cập nhật icon dựa trên trạng thái tai nghe
+     * @param {boolean} hasHeadset 
+     */
+    updateIcon(hasHeadset) {
+        if (hasHeadset) {
+            this._audioIcon.icon_name = 'audio-headphones-symbolic';
+        } else {
+            this._audioIcon.icon_name = 'sound-wave-symbolic';
+        }
     }
 
     _buildExpandedView() {
@@ -2638,6 +2684,10 @@ class NotchController {
         this.mediaManager.addCallback((info) => this._onMediaChanged(info));
         this.volumeManager.addCallback((info) => this._onVolumeChanged(info));
         this.brightnessManager.addCallback((info) => this._onBrightnessChanged(info));
+
+        // Cập nhật trạng thái ban đầu cho media icon
+        const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
+        this.mediaView.updateIcon(hasHeadset);
     }
 
     _setupMouseEvents() {
@@ -2698,6 +2748,11 @@ class NotchController {
 
     _onBluetoothChanged(info) {
         this.bluetoothView.updateBluetooth(info);
+
+        // Cập nhật icon media nếu có tai nghe
+        const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
+        this.mediaView.updateIcon(hasHeadset);
+
         this.presenterRegistry.switchTo('bluetooth');
         this.expandNotch(true);
 
