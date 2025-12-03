@@ -1303,18 +1303,17 @@ class BrightnessManager {
         if (!this._control) return;
 
         const oldBrightness = this._currentBrightness;
-        // Brightness từ D-Bus là giá trị 0-100
         this._currentBrightness = Math.round(this._control.Brightness || 0);
 
-        const brightnessChanged = (this._currentBrightness !== oldBrightness);
+        const diff = Math.abs(this._currentBrightness - oldBrightness);
 
-        // Chỉ notify khi không phải đang khởi tạo và brightness thực sự thay đổi
-        if (!this._isInitializing && brightnessChanged) {
+        if (!this._isInitializing && diff <= 5) {
             this._notifyCallbacks({
                 brightness: this._currentBrightness
             });
         }
     }
+
 
     addCallback(callback) {
         this._callbacks.push(callback);
