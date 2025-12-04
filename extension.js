@@ -5,6 +5,8 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const UPower = imports.gi.UPowerGlib;
 const Soup = imports.gi.Soup;
+const MessageTray = imports.ui.messageTray;
+const Shell = imports.gi.Shell;
 
 // --- BIẾN TOÀN CỤC ---
 let notchController;
@@ -65,7 +67,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return { percentage: 0, isCharging: false, isPresent: false };
+            return {percentage: 0, isCharging: false, isPresent: false};
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -434,7 +436,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const { percentage, isCharging, isPresent } = batteryInfo;
+        const {percentage, isCharging, isPresent} = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -588,7 +590,7 @@ class BluetoothView {
      * @param {{deviceName: string, isConnected: boolean, deviceType: string}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const { deviceName, isConnected, deviceType } = bluetoothInfo;
+        const {deviceName, isConnected, deviceType} = bluetoothInfo;
 
         // Xác định icon dựa trên loại thiết bị
         let iconName = this._getDeviceIcon(deviceType, isConnected);
@@ -1093,6 +1095,10 @@ class MediaManager {
         return this._playerProxy !== null && this._playbackStatus === 'Playing';
     }
 
+    getCurrentPlayer() {
+        return this._currentPlayer;
+    }
+
     destroy() {
         this._destroyed = true;
 
@@ -1337,6 +1343,95 @@ class BrightnessManager {
 }
 
 // ============================================
+// 1E. MODEL - Xử lý Notification (NotificationManager)
+// ============================================
+class NotificationManager {
+    constructor() {
+        this._callbacks = [];
+        this._sources = new Map(); // Map<Source, SignalId>
+        this._sourceAddedId = 0;
+        this._destroyed = false;
+
+        this._initNotificationListener();
+    }
+
+    _initNotificationListener() {
+        // Lắng nghe khi có nguồn thông báo mới (App vừa mở hoặc gửi thông báo lần đầu)
+        this._sourceAddedId = Main.messageTray.connect('source-added', (tray, source) => {
+            this._onSourceAdded(source);
+        });
+
+        // Đăng ký cho các nguồn hiện có
+        const sources = Main.messageTray.getSources();
+        sources.forEach(source => {
+            this._onSourceAdded(source);
+        });
+    }
+
+    _onSourceAdded(source) {
+        if (this._sources.has(source)) return;
+
+        // Lắng nghe khi nguồn này gửi thông báo
+        const signalId = source.connect('notification-added', (source, notification) => {
+            this._onNotificationAdded(source, notification);
+        });
+
+        // Lắng nghe khi nguồn bị xóa (để cleanup)
+        source.connect('destroy', () => {
+            this._onSourceRemoved(source);
+        });
+
+        this._sources.set(source, signalId);
+    }
+
+    _onSourceRemoved(source) {
+        this._sources.delete(source);
+    }
+
+    _onNotificationAdded(source, notification) {
+        if (this._destroyed) return;
+        const info = {
+            title: notification.title || '',
+            body: notification.body || notification.bannerBodyText || '',
+            appName: source.title,
+            gicon: source.icon, // GIcon object
+            isUrgent: notification.urgency === MessageTray.Urgency.CRITICAL
+        };
+
+        this._notifyCallbacks(info);
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+
+    destroy() {
+        this._destroyed = true;
+
+        if (this._sourceAddedId) {
+            Main.messageTray.disconnect(this._sourceAddedId);
+            this._sourceAddedId = 0;
+        }
+
+        // Disconnect tất cả sources
+        this._sources.forEach((signalId, source) => {
+            try {
+                source.disconnect(signalId);
+            } catch (e) {
+                // Ignore
+            }
+        });
+        this._sources.clear();
+        this._callbacks = [];
+    }
+}
+
+// ============================================
 // 2C. VIEW - Xử lý Giao diện Media (MediaView)
 // ============================================
 class MediaView {
@@ -1430,7 +1525,7 @@ class MediaView {
 
     /**
      * Cập nhật icon dựa trên trạng thái tai nghe
-     * @param {boolean} hasHeadset 
+     * @param {boolean} hasHeadset
      */
     updateIcon(hasHeadset) {
         if (hasHeadset) {
@@ -1460,6 +1555,10 @@ class MediaView {
         });
         this._expandedArtWrapper.set_child(this._expandedArt);
         this._expandedArtWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+        this._expandedArtWrapper.connect('button-press-event', () => {
+            this._onArtClick();
+            return Clutter.EVENT_STOP;
+        });
 
         // Expanded controls (right side - top)
         this._controlsBox = new St.BoxLayout({
@@ -1474,9 +1573,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
-            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
-            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
+            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
+            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
+            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
         ];
 
         controlConfig.forEach(config => {
@@ -1567,17 +1666,8 @@ class MediaView {
         this.expandedContainer.add_child(rightColumn);
     }
 
-    setCommandCallbacks(callbacks) {
-        this._onPrevious = callbacks.onPrevious || (() => {
-        });
-        this._onPlayPause = callbacks.onPlayPause || (() => {
-        });
-        this._onNext = callbacks.onNext || (() => {
-        });
-    }
-
     updateMedia(mediaInfo) {
-        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -1689,7 +1779,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({ file: file });
+                const gicon = new Gio.FileIcon({file: file});
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
@@ -1815,6 +1905,108 @@ class MediaView {
         this._mediaManager = manager;
     }
 
+    _onPrevious() {
+        if (this._mediaManager) {
+            this._mediaManager.sendPlayerCommand('Previous');
+        }
+    }
+
+    _onPlayPause() {
+        if (this._mediaManager) {
+            this._mediaManager.sendPlayerCommand('PlayPause');
+        }
+    }
+
+    _onNext() {
+        if (this._mediaManager) {
+            this._mediaManager.sendPlayerCommand('Next');
+        }
+    }
+
+    _onArtClick() {
+        if (!this._mediaManager) return;
+
+        const busName = this._mediaManager.getCurrentPlayer();
+        if (!busName) return;
+
+        this._focusMediaPlayerWindow(busName, this._mediaManager.getTitle(this._lastMetadata));
+    }
+
+    _focusMediaPlayerWindow(busName, mediaTitle = null) {
+        const appSystem = Shell.AppSystem.get_default();
+
+        // Rút gọn xử lý tên app từ MPRIS bus name
+        const appName = busName.replace('org.mpris.MediaPlayer2.', '')
+            .split('.')[0]
+            .toLowerCase();
+
+        // Set để check nhanh trình duyệt
+        const browserSet = new Set(['chrome', 'chromium', 'firefox', 'edge', 'brave', 'opera', 'vivaldi']);
+        const isBrowser = [...browserSet].some(b => appName.includes(b));
+
+        // Cache list windows
+        const windowActors = global.get_window_actors();
+        const runningApps = appSystem.get_running();
+
+        // Quick helpers
+        const focusWindow = (window) => {
+            const ws = window.get_workspace();
+            ws.activate_with_focus(window, global.get_current_time());
+        };
+
+        const findWindowByTitle = (actors, title, appFilter = null) => {
+            if (!title) return null;
+
+            for (let actor of actors) {
+                const w = actor.get_meta_window();
+                const wTitle = w.get_title();
+                const wmClass = w.get_wm_class() || '';
+
+                if (wTitle?.includes(title)) {
+                    if (!appFilter || wmClass.toLowerCase().includes(appFilter))
+                        return w;
+                }
+            }
+            return null;
+        };
+
+        for (let app of runningApps) {
+            const appId = app.get_id().toLowerCase();
+            const appNameLower = app.get_name().toLowerCase();
+
+            if (appId.includes(appName) || appNameLower.includes(appName)) {
+
+                // 🟦 SPECIAL CASE: Browser
+                if (isBrowser) {
+                    // 1. Try match correct tab/window
+                    const matchedWindow = findWindowByTitle(windowActors, mediaTitle, appName);
+                    if (matchedWindow) {
+                        focusWindow(matchedWindow);
+                        return;
+                    }
+
+                }
+
+                // 🟦 NORMAL APPS
+                const windows = app.get_windows();
+
+                const matched = mediaTitle
+                    ? windows.find(w => w.get_title()?.includes(mediaTitle))
+                    : null;
+
+                if (matched) {
+                    focusWindow(matched);
+                    return;
+                }
+
+                if (windows.length > 0) {
+                    focusWindow(windows[0]);
+                    return;
+                }
+            }
+        }
+    }
+
     show() {
         this.compactContainer.show();
         this.expandedContainer.show();
@@ -1901,7 +2093,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const { volume, isMuted } = volumeInfo;
+        const {volume, isMuted} = volumeInfo;
 
         // Cập nhật icon
         let iconName;
@@ -2006,7 +2198,7 @@ class BrightnessView {
     }
 
     updateBrightness(brightnessInfo) {
-        const { brightness } = brightnessInfo;
+        const {brightness} = brightnessInfo;
 
         // Cập nhật icon dựa trên brightness level
         let iconName;
@@ -2044,6 +2236,39 @@ class BrightnessView {
     }
 }
 
+
+// ============================================
+// 2E. VIEW - Xử lý Giao diện Notification (NotificationView)
+// ============================================
+class NotificationView {
+    constructor() {
+        this._buildExpandedView();
+    }
+
+    _buildExpandedView() {
+        this.compactContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            visible: false
+        });
+    }
+
+    show() {
+        this.compactContainer.show();
+    }
+
+    hide() {
+        this.compactContainer.hide();
+    }
+
+    destroy() {
+        if (this.compactContainer) {
+            this.compactContainer.destroy();
+        }
+    }
+}
+
 // ============================================
 // 3. CONTROLLER - Xử lý Logic (NotchController)
 // ============================================
@@ -2073,6 +2298,7 @@ const NotchConstants = {
     ANIMATION_COMPACT_DURATION: 200,
     ANIMATION_SQUEEZE_DURATION: 150,
     ANIMATION_SQUEEZE_RETURN_DURATION: 200,
+    ANIMATION_NOTIFICATION_MOVE: 800,
 
     // Timeout delays (ms)
     TIMEOUT_COLLAPSE: 300,
@@ -2086,7 +2312,11 @@ const NotchConstants = {
     // Animation scales
     SQUEEZE_SCALE_X: 0.75,
     SQUEEZE_SECONDARY_SCALE_X: 1.3,
-    ORIGINAL_SCALE: 1.0
+    ORIGINAL_SCALE: 1.0,
+
+    // Notification animation
+    NOTIFICATION_ICON_SIZE: 24,
+    NOTIFICATION_ICON_PADDING: 16
 };
 
 // ============================================
@@ -2281,15 +2511,25 @@ class LayoutManager {
         const presenter = this.controller.presenterRegistry.getCurrent();
         const batteryPresenter = this.controller.presenterRegistry.getPresenter('battery');
         const mediaPresenter = this.controller.presenterRegistry.getPresenter('media');
+        const notificationPresenter = this.controller.presenterRegistry.getPresenter('notification');
 
         let mainContent, secContent;
 
-        if (isSwapped) {
-            mainContent = batteryPresenter?.getCompactContainer();
-            secContent = mediaPresenter?.getSecondaryContainer();
+        if (presenter === 'notification') {
+            mainContent = notificationPresenter?.getCompactContainer();
+            if (isSwapped) {
+                secContent = mediaPresenter?.getSecondaryContainer();
+            } else {
+                secContent = batteryPresenter?.getSecondaryContainer();
+            }
         } else {
-            mainContent = mediaPresenter?.getCompactContainer();
-            secContent = batteryPresenter?.getSecondaryContainer();
+            if (isSwapped) {
+                mainContent = batteryPresenter?.getCompactContainer();
+                secContent = mediaPresenter?.getSecondaryContainer();
+            } else {
+                mainContent = mediaPresenter?.getCompactContainer();
+                secContent = batteryPresenter?.getSecondaryContainer();
+            }
         }
 
         if (mainContent) {
@@ -2491,6 +2731,9 @@ class NotchController {
         this.hasMedia = false;
         this.isSwapped = false;
 
+        // Animation tracking
+        this._animatedIcons = new Map();
+
         // Monitor info
         const monitor = Main.layoutManager.primaryMonitor;
         this.monitorWidth = monitor.width;
@@ -2527,6 +2770,7 @@ class NotchController {
         this.mediaManager = new MediaManager();
         this.volumeManager = new VolumeManager();
         this.brightnessManager = new BrightnessManager();
+        this.notificationManager = new NotificationManager();
     }
 
     _initializeViews() {
@@ -2535,14 +2779,10 @@ class NotchController {
         this.mediaView = new MediaView();
         this.volumeView = new VolumeView();
         this.brightnessView = new BrightnessView();
+        this.notificationView = new NotificationView();
 
-        // Setup media view callbacks
+        // Setup media view
         this.mediaView.setMediaManager(this.mediaManager);
-        this.mediaView.setCommandCallbacks({
-            onPrevious: () => this.mediaManager.sendPlayerCommand('Previous'),
-            onPlayPause: () => this.mediaManager.sendPlayerCommand('PlayPause'),
-            onNext: () => this.mediaManager.sendPlayerCommand('Next')
-        });
     }
 
     _registerPresenters() {
@@ -2607,6 +2847,20 @@ class NotchController {
                 this.mediaView.hide();
                 this.volumeView.hide();
                 this.brightnessView.show();
+            }
+        });
+
+        this.presenterRegistry.register('notification', {
+            getCompactContainer: () => this.notificationView.compactContainer,
+            getExpandedContainer: () => null,
+            getSecondaryContainer: () => null,
+            onActivate: (oldPresenter) => {
+                this.batteryView.compactContainer.hide();
+                this.bluetoothView.hide();
+                this.mediaView.hide();
+                this.volumeView.hide();
+                this.brightnessView.hide();
+                this.notificationView.show();
             }
         });
 
@@ -2683,6 +2937,7 @@ class NotchController {
         this.mediaManager.addCallback((info) => this._onMediaChanged(info));
         this.volumeManager.addCallback((info) => this._onVolumeChanged(info));
         this.brightnessManager.addCallback((info) => this._onBrightnessChanged(info));
+        this.notificationManager.addCallback((info) => this._onNotificationReceived(info));
 
         // Cập nhật trạng thái ban đầu cho media icon
         const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
@@ -2731,6 +2986,146 @@ class NotchController {
 
         // Auto collapse with presenter switch
         this._scheduleAutoCollapse('brightness', NotchConstants.TIMEOUT_BRIGHTNESS);
+    }
+
+    _onNotificationReceived(info) {
+        if (this.stateMachine.isCompact()) {
+            this._animateNotificationIcon(info);
+        }
+    }
+
+    /**
+     * Generic method để animate icon di chuyển từ vị trí này sang vị trí khác
+     * @param {string} animationId - Unique ID để track animation (để cleanup khi cần)
+     * @param {Object} config - Configuration object
+     * @param {number} config.startX - Vị trí X bắt đầu
+     * @param {number} config.startY - Vị trí Y bắt đầu
+     * @param {number} config.endX - Vị trí X kết thúc
+     * @param {number} config.endY - Vị trí Y kết thúc (optional, nếu không có thì giữ nguyên startY)
+     * @param {Object} config.iconConfig - Config cho St.Icon ({icon_name, icon_size, style, gicon})
+     * @param {number} config.moveDuration - Thời gian di chuyển (ms)
+     * @param {number} config.fadeDuration - Thời gian fade out (ms, optional)
+     * @param {Function} config.onComplete - Callback khi animation hoàn thành
+     * @param {boolean} config.fadeOut - Có fade out sau khi di chuyển không (default: true)
+     * @returns {St.Icon|null} - Icon được tạo hoặc null nếu fail
+     */
+    _animateIconMove(animationId, config) {
+        if (!this.notch || !config) return null;
+
+        this._cleanupAnimatedIcon(animationId);
+
+        const {
+            startX,
+            startY,
+            endX,
+            endY = startY,
+            iconConfig = {},
+            moveDuration = NotchConstants.ANIMATION_NOTIFICATION_MOVE,
+            fadeDuration = 200,
+            onComplete = null,
+            fadeOut = true
+        } = config;
+
+        const animatedIcon = new St.Icon({
+            icon_name: iconConfig.icon_name || 'mail-unread-symbolic',
+            icon_size: iconConfig.icon_size || NotchConstants.NOTIFICATION_ICON_SIZE,
+            style: iconConfig.style || 'color: white;'
+        });
+
+        if (iconConfig.gicon) {
+            animatedIcon.set_gicon(iconConfig.gicon);
+        }
+
+        animatedIcon.set_position(startX, startY);
+        animatedIcon.set_opacity(255);
+
+        Main.uiGroup.add_child(animatedIcon);
+        this._animatedIcons.set(animationId, animatedIcon);
+
+        const cleanupAndCallback = () => {
+            this._cleanupAnimatedIcon(animationId);
+            if (onComplete) {
+                onComplete();
+            }
+        };
+
+        animatedIcon.ease({
+            x: endX,
+            y: endY,
+            duration: moveDuration,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+            onComplete: () => {
+                if (fadeOut) {
+                    animatedIcon.ease({
+                        opacity: 0,
+                        duration: fadeDuration,
+                        mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                        onComplete: cleanupAndCallback
+                    });
+                } else {
+                    cleanupAndCallback();
+                }
+            }
+        });
+
+        return animatedIcon;
+    }
+
+    _cleanupAnimatedIcon(animationId) {
+        const icon = this._animatedIcons.get(animationId);
+        if (icon) {
+            try {
+                icon.remove_all_transitions();
+                if (icon.get_parent()) {
+                    Main.uiGroup.remove_child(icon);
+                }
+                icon.destroy();
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+            this._animatedIcons.delete(animationId);
+        }
+    }
+
+    _cleanupAllAnimatedIcons() {
+        for (const animationId of this._animatedIcons.keys()) {
+            this._cleanupAnimatedIcon(animationId);
+        }
+    }
+
+    _animateNotificationIcon(info) {
+        if (!this.notch) return;
+
+        this.presenterRegistry.switchTo('notification');
+        this.layoutManager.updateLayout();
+
+        const [notchX, notchY] = this.notch.get_transformed_position();
+        const notchWidth = this.notch.width;
+        const notchHeight = this.notch.height;
+        const iconSize = NotchConstants.NOTIFICATION_ICON_SIZE;
+        const padding = NotchConstants.NOTIFICATION_ICON_PADDING;
+
+        const startX = notchX + padding;
+        const endX = notchX + notchWidth - padding - iconSize;
+        const iconY = notchY + (notchHeight / 2) - (iconSize / 2);
+
+        this._animateIconMove('notification', {
+            startX,
+            startY: iconY,
+            endX,
+            iconConfig: {
+                icon_name: 'mail-unread-symbolic',
+                icon_size: iconSize,
+                style: 'color: white;',
+                gicon: info.gicon
+            },
+            moveDuration: NotchConstants.ANIMATION_NOTIFICATION_MOVE,
+            onComplete: () => {
+                this._switchToAppropriatePresenter();
+                this.layoutManager.updateLayout();
+                this.squeeze();
+            }
+        });
     }
 
     _onBatteryChanged(info) {
@@ -2882,6 +3277,7 @@ class NotchController {
         this.batteryView.compactContainer.hide();
         this.bluetoothView.compactContainer.hide();
         this.mediaView.compactContainer.hide();
+        this.notificationView.compactContainer.hide();
     }
 
     _showExpandedView(presenter) {
@@ -2979,6 +3375,12 @@ class NotchController {
             this.brightnessManager.destroy();
             this.brightnessManager = null;
         }
+        if (this.notificationManager) {
+            this.notificationManager.destroy();
+            this.notificationManager = null;
+        }
+
+        this._cleanupAllAnimatedIcons();
 
         // Destroy views
         if (this.batteryView) {
@@ -3000,6 +3402,10 @@ class NotchController {
         if (this.brightnessView) {
             this.brightnessView.destroy();
             this.brightnessView = null;
+        }
+        if (this.notificationView) {
+            this.notificationView.destroy();
+            this.notificationView = null;
         }
 
         // Destroy actors
