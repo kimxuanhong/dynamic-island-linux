@@ -67,7 +67,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return {percentage: 0, isCharging: false, isPresent: false};
+            return { percentage: 0, isCharging: false, isPresent: false };
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -436,7 +436,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const {percentage, isCharging, isPresent} = batteryInfo;
+        const { percentage, isCharging, isPresent } = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -590,7 +590,7 @@ class BluetoothView {
      * @param {{deviceName: string, isConnected: boolean, deviceType: string}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const {deviceName, isConnected, deviceType} = bluetoothInfo;
+        const { deviceName, isConnected, deviceType } = bluetoothInfo;
 
         // Xác định icon dựa trên loại thiết bị
         let iconName = this._getDeviceIcon(deviceType, isConnected);
@@ -1432,6 +1432,114 @@ class NotificationManager {
 }
 
 // ============================================
+// 1F. MODEL - Xử lý Window Tracking (WindowManager)
+// ============================================
+/**
+ * Quản lý theo dõi cửa sổ mới (Model).
+ * Tương tác với Shell.WindowTracker để phát hiện app launch.
+ */
+class WindowManager {
+    constructor() {
+        this._callbacks = [];
+        this._windowTracker = null;
+        this._windowCreatedId = null;
+        this._destroyed = false;
+        this._isInitializing = true;
+        this._trackedWindows = new Set(); // Theo dõi các window đã xử lý
+
+        this._initWindowTracker();
+    }
+
+    _initWindowTracker() {
+        // Lấy WindowTracker từ Shell
+        this._windowTracker = Shell.WindowTracker.get_default();
+
+        if (!this._windowTracker) {
+            log('[DynamicIsland] WindowTracker not available');
+            return;
+        }
+
+        // Lấy danh sách window hiện tại để không trigger notification cho chúng
+        const existingWindows = global.get_window_actors();
+        existingWindows.forEach(windowActor => {
+            const metaWindow = windowActor.get_meta_window();
+            if (metaWindow) {
+                this._trackedWindows.add(metaWindow);
+            }
+        });
+
+        // Lắng nghe sự kiện window-created từ display
+        const display = global.display;
+        this._windowCreatedId = display.connect('window-created', (display, metaWindow) => {
+            this._onWindowCreated(metaWindow);
+        });
+
+        // Đánh dấu đã khởi tạo xong sau 1 giây
+        imports.mainloop.timeout_add(1000, () => {
+            this._isInitializing = false;
+            return false;
+        });
+    }
+
+    _onWindowCreated(metaWindow) {
+        if (this._destroyed || this._isInitializing) return;
+
+        // Bỏ qua nếu đã track window này
+        if (this._trackedWindows.has(metaWindow)) return;
+        this._trackedWindows.add(metaWindow);
+
+        // Bỏ qua các loại window không cần thiết
+        const windowType = metaWindow.get_window_type();
+        if (windowType !== 0) { // 0 = META_WINDOW_NORMAL
+            return;
+        }
+
+        // Lấy thông tin app
+        const app = this._windowTracker.get_window_app(metaWindow);
+        if (!app) return;
+
+        const appName = app.get_name();
+        const appIcon = app.get_icon();
+        const windowTitle = metaWindow.get_title();
+
+        // Cleanup khi window bị destroy
+        metaWindow.connect('unmanaged', () => {
+            this._trackedWindows.delete(metaWindow);
+        });
+
+        // Notify callbacks
+        this._notifyCallbacks({
+            appName: appName || 'Unknown App',
+            windowTitle: windowTitle || '',
+            appIcon: appIcon,
+            metaWindow: metaWindow
+        });
+    }
+
+    addCallback(callback) {
+        this._callbacks.push(callback);
+    }
+
+    _notifyCallbacks(info) {
+        this._callbacks.forEach(cb => cb(info));
+    }
+
+    destroy() {
+        this._destroyed = true;
+
+        if (this._windowCreatedId) {
+            global.display.disconnect(this._windowCreatedId);
+            this._windowCreatedId = null;
+        }
+
+        this._windowTracker = null;
+        this._trackedWindows.clear();
+        this._callbacks = [];
+    }
+}
+
+
+// ============================================
 // 2C. VIEW - Xử lý Giao diện Media (MediaView)
 // ============================================
 class MediaView {
@@ -1573,9 +1681,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
-            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
-            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
+            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
+            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
+            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
         ];
 
         controlConfig.forEach(config => {
@@ -1667,7 +1775,7 @@ class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
+        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -1779,7 +1887,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({file: file});
+                const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
@@ -2093,7 +2201,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const {volume, isMuted} = volumeInfo;
+        const { volume, isMuted } = volumeInfo;
 
         // Cập nhật icon
         let iconName;
@@ -2198,7 +2306,7 @@ class BrightnessView {
     }
 
     updateBrightness(brightnessInfo) {
-        const {brightness} = brightnessInfo;
+        const { brightness } = brightnessInfo;
 
         // Cập nhật icon dựa trên brightness level
         let iconName;
@@ -2270,6 +2378,140 @@ class NotificationView {
 }
 
 // ============================================
+// 2F. VIEW - Xử lý Giao diện Window Launch (WindowView)
+// ============================================
+class WindowView {
+    constructor() {
+        this._buildCompactView();
+        this._buildExpandedView();
+    }
+
+    _buildCompactView() {
+        // Icon app bên trái
+        this.appIcon = new St.Icon({
+            icon_size: 24,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+
+        this.iconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+            style: 'padding-left: 16px;',
+        });
+        this.iconWrapper.set_child(this.appIcon);
+
+        // Label tên app bên phải
+        this.appLabel = new St.Label({
+            text: '',
+            style: 'color: white; font-size: 14px; font-weight: bold; padding-right: 16px;',
+            x_align: Clutter.ActorAlign.END
+        });
+
+        this.labelWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true
+        });
+        this.labelWrapper.set_child(this.appLabel);
+
+        this.compactContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            visible: false
+        });
+        this.compactContainer.add_child(this.iconWrapper);
+        this.compactContainer.add_child(this.labelWrapper);
+    }
+
+    _buildExpandedView() {
+        // Icon lớn
+        this.expandedIcon = new St.Icon({
+            icon_size: 64,
+        });
+
+        this.expandedIconWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.expandedIconWrapper.set_child(this.expandedIcon);
+
+        // Text
+        this.statusLabel = new St.Label({
+            text: 'App Launched',
+            style: 'color: white; font-size: 18px; font-weight: bold;'
+        });
+
+        this.appNameLabel = new St.Label({
+            text: '',
+            style: 'color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 5px;'
+        });
+
+        const textBox = new St.BoxLayout({
+            vertical: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
+        });
+        textBox.add_child(this.statusLabel);
+        textBox.add_child(this.appNameLabel);
+
+        this.textWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.textWrapper.set_child(textBox);
+
+        this.expandedContainer = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: true,
+            style: 'spacing: 20px; padding: 20px;',
+            visible: false
+        });
+        this.expandedContainer.add_child(this.expandedIconWrapper);
+        this.expandedContainer.add_child(this.textWrapper);
+    }
+
+    updateWindow(windowInfo) {
+        const { appName, appIcon } = windowInfo;
+
+        // Update compact view
+        this.appLabel.set_text(appName);
+        if (appIcon) {
+            this.appIcon.set_gicon(appIcon);
+        }
+
+        // Update expanded view
+        this.appNameLabel.set_text(appName);
+        if (appIcon) {
+            this.expandedIcon.set_gicon(appIcon);
+        }
+    }
+
+    show() {
+        this.compactContainer.show();
+        this.expandedContainer.show();
+    }
+
+    hide() {
+        this.compactContainer.hide();
+        this.expandedContainer.hide();
+    }
+
+    destroy() {
+        if (this.compactContainer) {
+            this.compactContainer.destroy();
+        }
+        if (this.expandedContainer) {
+            this.expandedContainer.destroy();
+        }
+    }
+}
+
+
+// ============================================
 // 3. CONTROLLER - Xử lý Logic (NotchController)
 // ============================================
 
@@ -2308,6 +2550,7 @@ const NotchConstants = {
     TIMEOUT_BLUETOOTH: 3000,
     TIMEOUT_MEDIA_SWITCH: 10000,
     TIMEOUT_PRESENTER_SWITCH: 300,
+    TIMEOUT_WINDOW: 3000,
 
     // Animation scales
     SQUEEZE_SCALE_X: 0.75,
@@ -2316,7 +2559,10 @@ const NotchConstants = {
 
     // Notification animation
     NOTIFICATION_ICON_SIZE: 24,
-    NOTIFICATION_ICON_PADDING: 16
+    NOTIFICATION_ICON_PADDING: 16,
+
+    // Window animation
+    ANIMATION_WINDOW_MOVE: 800
 };
 
 // ============================================
@@ -2515,7 +2761,7 @@ class LayoutManager {
 
         let mainContent, secContent;
 
-        if (presenter === 'notification') {
+        if (presenter === 'notification' || presenter === 'window') {
             mainContent = notificationPresenter?.getCompactContainer();
             if (isSwapped) {
                 secContent = mediaPresenter?.getSecondaryContainer();
@@ -2771,6 +3017,7 @@ class NotchController {
         this.volumeManager = new VolumeManager();
         this.brightnessManager = new BrightnessManager();
         this.notificationManager = new NotificationManager();
+        this.windowManager = new WindowManager();
     }
 
     _initializeViews() {
@@ -2780,6 +3027,7 @@ class NotchController {
         this.volumeView = new VolumeView();
         this.brightnessView = new BrightnessView();
         this.notificationView = new NotificationView();
+        this.windowView = new WindowView();
 
         // Setup media view
         this.mediaView.setMediaManager(this.mediaManager);
@@ -2851,7 +3099,7 @@ class NotchController {
         });
 
         this.presenterRegistry.register('notification', {
-            getCompactContainer: () => this.notificationView.compactContainer,
+            getCompactContainer: () => null,
             getExpandedContainer: () => null,
             getSecondaryContainer: () => null,
             onActivate: (oldPresenter) => {
@@ -2864,9 +3112,27 @@ class NotchController {
             }
         });
 
+        this.presenterRegistry.register('window', {
+            //TODO: getCompactContainer: () => this.windowView.compactContainer,
+            //TODO: getExpandedContainer: () => this.windowView.expandedContainer,
+            getCompactContainer: () => null,
+            getExpandedContainer: () => null,
+            getSecondaryContainer: () => null,
+            onActivate: (oldPresenter) => {
+                this.batteryView.compactContainer.hide();
+                this.bluetoothView.hide();
+                this.mediaView.hide();
+                this.volumeView.hide();
+                this.brightnessView.hide();
+                this.notificationView.hide();
+                this.windowView.show();
+            }
+        });
+
         // Set default presenter
         this.presenterRegistry.switchTo('battery');
     }
+
 
     _createNotchActor() {
         this.notch = new St.BoxLayout({
@@ -2938,6 +3204,7 @@ class NotchController {
         this.volumeManager.addCallback((info) => this._onVolumeChanged(info));
         this.brightnessManager.addCallback((info) => this._onBrightnessChanged(info));
         this.notificationManager.addCallback((info) => this._onNotificationReceived(info));
+        this.windowManager.addCallback((info) => this._onWindowLaunched(info));
 
         // Cập nhật trạng thái ban đầu cho media icon
         const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
@@ -2992,6 +3259,64 @@ class NotchController {
         if (this.stateMachine.isCompact()) {
             this._animateNotificationIcon(info);
         }
+    }
+
+    _onWindowLaunched(info) {
+        // Update window view với thông tin app
+        this.windowView.updateWindow(info);
+
+        // Nếu đang ở compact state, hiển thị animation
+        if (this.stateMachine.isCompact()) {
+            this._animateWindowIcon(info);
+        }
+        //TODO: else {
+        //     // Nếu đang expanded, chỉ cần switch presenter
+        //     this._cancelTemporaryPresenterTimeouts();
+        //     this.presenterRegistry.switchTo('window');
+        //     this._scheduleAutoCollapse('window', NotchConstants.TIMEOUT_WINDOW);
+        // }
+    }
+
+    _animateWindowIcon(info) {
+        if (!this.notch) return;
+
+        this.presenterRegistry.switchTo('window');
+        this.layoutManager.updateLayout();
+
+        const [notchX, notchY] = this.notch.get_transformed_position();
+        const notchWidth = this.notch.width;
+        const notchHeight = this.notch.height;
+        const iconSize = NotchConstants.NOTIFICATION_ICON_SIZE;
+        const padding = NotchConstants.NOTIFICATION_ICON_PADDING;
+
+        // Icon bay từ TRÁI sang PHẢI (ngược với notification)
+        const startX = notchX + padding;
+        const endX = notchX + notchWidth - padding - iconSize;
+        const iconY = notchY + (notchHeight / 2) - (iconSize / 2);
+
+        this._animateIconMove('window-launch', {
+            startX,
+            startY: iconY,
+            endX,
+            iconConfig: {
+                icon_name: 'application-x-executable-symbolic',
+                icon_size: iconSize,
+                style: 'color: #00aaff;',
+                gicon: info.appIcon
+            },
+            moveDuration: NotchConstants.ANIMATION_WINDOW_MOVE,
+            onComplete: () => {
+                this._switchToAppropriatePresenter();
+                this.layoutManager.updateLayout();
+                this.squeeze();
+
+                //TODO: Sau khi animation xong, expand notch để hiển thị thông tin
+                // this._cancelTemporaryPresenterTimeouts();
+                // this.presenterRegistry.switchTo('window');
+                // this.expandNotch(true);
+                // this._scheduleAutoCollapse('window', NotchConstants.TIMEOUT_WINDOW);
+            }
+        });
     }
 
     /**
@@ -3221,13 +3546,14 @@ class NotchController {
     }
 
     /**
-     * Cancel all temporary presenter timeouts (volume, brightness, bluetooth)
+     * Cancel all temporary presenter timeouts (volume, brightness, bluetooth, window)
      * This prevents the old presenter from switching back when a new temporary presenter is shown
      */
     _cancelTemporaryPresenterTimeouts() {
         this.timeoutManager.clear('volume');
         this.timeoutManager.clear('brightness');
         this.timeoutManager.clear('bluetooth');
+        this.timeoutManager.clear('window');
     }
 
     expandNotch(isAuto = false) {
@@ -3271,6 +3597,7 @@ class NotchController {
         this.mediaView.expandedContainer.hide();
         this.volumeView.expandedContainer.hide();
         this.brightnessView.expandedContainer.hide();
+        this.windowView.expandedContainer.hide();
     }
 
     _hideAllCompactViews() {
@@ -3278,6 +3605,7 @@ class NotchController {
         this.bluetoothView.compactContainer.hide();
         this.mediaView.compactContainer.hide();
         this.notificationView.compactContainer.hide();
+        this.windowView.compactContainer.hide();
     }
 
     _showExpandedView(presenter) {
@@ -3379,6 +3707,10 @@ class NotchController {
             this.notificationManager.destroy();
             this.notificationManager = null;
         }
+        if (this.windowManager) {
+            this.windowManager.destroy();
+            this.windowManager = null;
+        }
 
         this._cleanupAllAnimatedIcons();
 
@@ -3406,6 +3738,10 @@ class NotchController {
         if (this.notificationView) {
             this.notificationView.destroy();
             this.notificationView = null;
+        }
+        if (this.windowView) {
+            this.windowView.destroy();
+            this.windowView = null;
         }
 
         // Destroy actors
