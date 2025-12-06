@@ -988,6 +988,17 @@ class MediaManager {
         return this._extractMetadataValue(metadata, ['xesam:title', 'mpris:title']);
     }
 
+    getMediaUrl(metadata) {
+        const url = this._extractMetadataValue(metadata, [
+            'xesam:url',
+            'mpris:url'
+        ]);
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+            return url;
+        }
+        return null;
+    }
+
     _extractArtist(metadata) {
         try {
             if (!metadata) return null;
@@ -1696,37 +1707,93 @@ class MediaView {
     updateIcon(hasHeadset) {
         if (hasHeadset) {
             this._audioIcon.icon_name = 'audio-headphones-symbolic';
+            if (this._audioDeviceIcon) {
+                this._audioDeviceIcon.icon_name = 'audio-headphones-symbolic';
+            }
         } else {
             this._audioIcon.icon_name = 'sound-wave-symbolic';
+            if (this._audioDeviceIcon) {
+                this._audioDeviceIcon.icon_name = 'audio-speakers-symbolic';
+            }
         }
     }
 
     _buildExpandedView() {
-        // Expanded album art (left side)
-        this._expandedArt = new St.Icon({
+        // ============================================
+        // TOP TIER: Thumbnail, Title, Artist (horizontal)
+        // ============================================
+        
+        // Small thumbnail (left)
+        this._expandedThumbnail = new St.Icon({
             style_class: 'media-expanded-art',
             icon_name: 'audio-x-generic-symbolic',
-            icon_size: 96,
+            icon_size: 48,
         });
 
-        this._expandedArtWrapper = new St.Bin({
-            x_align: Clutter.ActorAlign.CENTER,
+        this._expandedThumbnailWrapper = new St.Bin({
+            x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
-            y_expand: true,
-            style_class: 'media-expanded-art-wrapper',
+            style_class: 'media-expanded-thumbnail-wrapper',
             visible: true,
             reactive: true,
             clip_to_allocation: true,
         });
-        this._expandedArtWrapper.set_child(this._expandedArt);
-        this._expandedArtWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
-        this._expandedArtWrapper.connect('button-press-event', () => {
+        this._expandedThumbnailWrapper.set_child(this._expandedThumbnail);
+        this._expandedThumbnailWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+        this._expandedThumbnailWrapper.connect('button-press-event', () => {
             this._onArtClick();
             return Clutter.EVENT_STOP;
         });
 
-        // Expanded controls (right side - top)
+        // Title and Artist (right of thumbnail)
+        this._titleLabel = new St.Label({
+            style_class: 'media-title-label',
+            text: '',
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        this._artistLabel = new St.Label({
+            style_class: 'media-artist-label',
+            text: '',
+            x_align: Clutter.ActorAlign.START,
+            style: 'color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px;',
+        });
+
+        this._titleWrapper = new St.BoxLayout({
+            style_class: 'media-title-wrapper',
+            vertical: true,
+            x_expand: true,
+            y_expand: false,
+            visible: true,
+            reactive: true,
+        });
+        this._titleWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+        this._titleWrapper.add_child(this._titleLabel);
+        this._titleWrapper.add_child(this._artistLabel);
+
+        // Top tier container (horizontal: thumbnail + title/artist)
+        const topTier = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: false,
+            style: 'spacing: 12px;',
+        });
+        topTier.add_child(this._expandedThumbnailWrapper);
+        topTier.add_child(this._titleWrapper);
+
+
+        // ============================================
+        // BOTTOM TIER: Control Buttons
+        // ============================================
+
+        var bottomBox = new St.BoxLayout({
+            x_expand: true,
+            y_expand: false,
+            visible: true,
+            reactive: true,
+        });
+        bottomBox.connect('scroll-event', () => Clutter.EVENT_STOP);
+
         this._controlsBox = new St.BoxLayout({
             style_class: 'media-controls-box',
             x_expand: true,
@@ -1738,6 +1805,24 @@ class MediaView {
         });
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
+        // Sharing button
+        this._shareButton = new St.Button({
+            style_class: 'share-audio-button',
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
+            can_focus: true,
+        });
+        const shareIcon = new St.Icon({
+            style_class: 'share-audio-icon',
+            icon_name: 'emblem-shared-symbolic',
+        });
+        this._shareButton.set_child(shareIcon);
+        this._shareButton.connect('clicked', () => this._onShare());
+        this._shareButton.connect('scroll-event', () => Clutter.EVENT_STOP);
+        bottomBox.add_child(this._shareButton);
+
+        // Main control buttons: Previous, Play/Pause, Next
         const controlConfig = [
             {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
             {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
@@ -1763,90 +1848,50 @@ class MediaView {
             }
             this._controlsBox.add_child(button);
         });
+        bottomBox.add_child(this._controlsBox);
 
-        // Expanded song title (right side - bottom)
-        this._titleLabel = new St.Label({
-            style_class: 'media-title-label',
-            text: '',
-            x_align: Clutter.ActorAlign.START,
-        });
-
-        // Expanded artist name (below title)
-        this._artistLabel = new St.Label({
-            style_class: 'media-artist-label',
-            text: '',
-            x_align: Clutter.ActorAlign.START,
-            style: 'color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px;',
-        });
-
-        this._titleWrapper = new St.BoxLayout({
-            style_class: 'media-title-wrapper',
-            vertical: true,
-            x_expand: true,
-            y_expand: false,
-            visible: true,
-            reactive: true,
-        });
-        this._titleWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
-        this._titleWrapper.add_child(this._titleLabel);
-        this._titleWrapper.add_child(this._artistLabel);
-
-        // Expanded container layout (2 columns: left = art, right = controls + title)
-        const leftColumn = new St.BoxLayout({
-            vertical: true,
-            x_expand: true,
-            y_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
+        // Audio device button (speaker/headphones)
+        this._audioDeviceButton = new St.Button({
+            style_class: 'share-audio-button',
+            x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
+            can_focus: true,
         });
-        leftColumn.add_child(this._expandedArtWrapper);
+        this._audioDeviceIcon = new St.Icon({
+            style_class: 'share-audio-icon',
+            icon_name: 'audio-speakers-symbolic',
+        });
+        this._audioDeviceButton.set_child(this._audioDeviceIcon);
+        this._audioDeviceButton.connect('clicked', () => this._onAudioDevice());
+        this._audioDeviceButton.connect('scroll-event', () => Clutter.EVENT_STOP);
+        bottomBox.add_child(this._audioDeviceButton);
 
-        // Right column: controls on top, title on bottom
-        const rightColumn = new St.BoxLayout({
+        // ============================================
+        // MAIN CONTAINER: Vertical layout
+        // ============================================
+        
+        this.expandedContainer = new St.BoxLayout({
             vertical: true,
             x_expand: true,
             y_expand: true,
-            style: 'spacing: 0px;', // Xóa spacing vì dùng Bin để căn chỉnh
-        });
-
-        // Top Zone: Chứa Controls, căn xuống đáy (gần Text)
-        const topZone = new St.Bin({
-            x_expand: true,
-            y_expand: true,
-            y_align: Clutter.ActorAlign.END, // Căn xuống đáy của vùng trên
-            x_align: Clutter.ActorAlign.CENTER,
-            style: 'padding-bottom: 5px;', // Khoảng cách với Text
-        });
-        topZone.set_child(this._controlsBox);
-
-        // Bottom Zone: Chứa Text, căn lên đỉnh (gần Controls)
-        const bottomZone = new St.Bin({
-            x_expand: true,
-            y_expand: true,
-            y_align: Clutter.ActorAlign.START, // Căn lên đỉnh của vùng dưới
-            x_align: Clutter.ActorAlign.START, // Text căn trái
-        });
-        bottomZone.set_child(this._titleWrapper);
-
-        rightColumn.add_child(topZone);
-        rightColumn.add_child(bottomZone);
-
-        // Controls box wrapper - KHÔNG CẦN NỮA VÌ ĐÃ DÙNG TOPZONE
-        // Title wrapper - KHÔNG CẦN NỮA VÌ ĐÃ DÙNG BOTTOMZONE
-
-        this.expandedContainer = new St.BoxLayout({
-            vertical: false,
-            x_expand: true,
-            y_expand: true,
-            style: 'spacing: 20px; padding: 20px;',
+            style: 'spacing: 0px; padding: 20px;',
             visible: false,
         });
-        this.expandedContainer.add_child(leftColumn);
-        this.expandedContainer.add_child(rightColumn);
+        // Separator between top and bottom sections
+        const separator = new St.Widget({
+            style: 'background-color: rgba(255,255,255,0.15); height: 2px; margin: 15px 0;',
+            x_expand: true,
+            y_expand: false,
+        });
+
+        this.expandedContainer.add_child(topTier);
+        this.expandedContainer.add_child(separator);
+        this.expandedContainer.add_child(bottomBox);
     }
 
     updateMedia(mediaInfo) {
-        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
+        const {isPlaying, metadata, playbackStatus, artPath, position, duration} = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -1896,7 +1941,7 @@ class MediaView {
 
         // Always show expanded components when expanded
         if (this.expandedContainer && this.expandedContainer.visible) {
-            this._expandedArtWrapper.show();
+            if (this._expandedThumbnailWrapper) this._expandedThumbnailWrapper.show();
             this._controlsBox.show();
             this._titleWrapper.show();
         }
@@ -1912,11 +1957,11 @@ class MediaView {
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
             if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
-            if (this._expandedArtWrapper) {
-                this._expandedArtWrapper.style = null;
-                this._expandedArt.icon_name = 'audio-x-generic-symbolic';
-                this._expandedArt.opacity = 255;
-                this._expandedArt.visible = true;
+            if (this._expandedThumbnailWrapper) {
+                this._expandedThumbnailWrapper.style = null;
+                this._expandedThumbnail.icon_name = 'audio-x-generic-symbolic';
+                this._expandedThumbnail.opacity = 255;
+                this._expandedThumbnail.visible = true;
             }
             if (this._thumbnailWrapper) {
                 this._thumbnailWrapper.style = null;
@@ -1962,10 +2007,10 @@ class MediaView {
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
-                if (this._expandedArtWrapper) {
-                    this._expandedArtWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 16px;`;
-                    this._expandedArt.opacity = 0;
-                    this._expandedArt.visible = true;
+                if (this._expandedThumbnailWrapper) {
+                    this._expandedThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 8px;`;
+                    this._expandedThumbnail.opacity = 0;
+                    this._expandedThumbnail.visible = true;
                 }
                 if (this._thumbnailWrapper) {
                     this._thumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 99px;`;
@@ -1986,11 +2031,11 @@ class MediaView {
                     this._thumbnail.set_gicon(gicon);
                     if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
-                    if (this._expandedArtWrapper) {
+                    if (this._expandedThumbnailWrapper) {
                         const cssUrl = artUrl.replace(/'/g, "\\'");
-                        this._expandedArtWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 16px;`;
-                        this._expandedArt.opacity = 0;
-                        this._expandedArt.visible = true;
+                        this._expandedThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 8px;`;
+                        this._expandedThumbnail.opacity = 0;
+                        this._expandedThumbnail.visible = true;
 
                         if (this._thumbnailWrapper) {
                             this._thumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 99px;`;
@@ -2036,11 +2081,11 @@ class MediaView {
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
             if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
-            if (this._expandedArtWrapper) {
-                this._expandedArtWrapper.style = null;
-                this._expandedArt.icon_name = 'audio-x-generic-symbolic';
-                this._expandedArt.opacity = 255;
-                this._expandedArt.visible = true;
+            if (this._expandedThumbnailWrapper) {
+                this._expandedThumbnailWrapper.style = null;
+                this._expandedThumbnail.icon_name = 'audio-x-generic-symbolic';
+                this._expandedThumbnail.opacity = 255;
+                this._expandedThumbnail.visible = true;
             }
             if (this._thumbnailWrapper) {
                 this._thumbnailWrapper.style = null;
@@ -2107,6 +2152,26 @@ class MediaView {
         if (this._mediaManager) {
             this._mediaManager.sendPlayerCommand('Next');
         }
+    }
+
+    _onShare() {
+        if (!this._mediaManager || !this._lastMetadata) {
+            return;
+        }
+        // Lấy URL từ metadata
+        const url = this._mediaManager.getMediaUrl(this._lastMetadata);
+        if (!url) {
+            return;
+        }
+        // Copy vào clipboard
+        const clipboard = St.Clipboard.get_default();
+        clipboard.set_text(St.ClipboardType.CLIPBOARD, url);
+    }
+
+    _onAudioDevice() {
+        // TODO: Implement audio device selection
+        // Could open audio device selection dialog
+        log('[DynamicIsland] Audio device button clicked');
     }
 
     _onArtClick() {
