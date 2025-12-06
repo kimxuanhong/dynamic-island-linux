@@ -67,7 +67,7 @@ class BatteryManager {
 
     getBatteryInfo() {
         if (!this._proxy) {
-            return { percentage: 0, isCharging: false, isPresent: false };
+            return {percentage: 0, isCharging: false, isPresent: false};
         }
 
         const percentage = Math.round(this._proxy.Percentage || 0);
@@ -436,7 +436,7 @@ class BatteryView {
     }
 
     updateBattery(batteryInfo) {
-        const { percentage, isCharging, isPresent } = batteryInfo;
+        const {percentage, isCharging, isPresent} = batteryInfo;
         let iconName;
 
         if (!isPresent) {
@@ -590,7 +590,7 @@ class BluetoothView {
      * @param {{deviceName: string, isConnected: boolean, deviceType: string}} bluetoothInfo
      */
     updateBluetooth(bluetoothInfo) {
-        const { deviceName, isConnected, deviceType } = bluetoothInfo;
+        const {deviceName, isConnected, deviceType} = bluetoothInfo;
 
         // Xác định icon dựa trên loại thiết bị
         let iconName = this._getDeviceIcon(deviceType, isConnected);
@@ -740,6 +740,16 @@ class MediaManager {
 
                 this._dbusSignalId = proxy.connectSignal('NameOwnerChanged', (proxy, sender, [name, oldOwner, newOwner]) => {
                     if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
+                        // Filter out invalid MPRIS services (like Bluetooth devices that register as MPRIS)
+                        const invalidPatterns = ['bluetooth', 'mouse', 'keyboard', 'input', 'device'];
+                        const nameLower = name.toLowerCase();
+                        const isInvalid = invalidPatterns.some(pattern => nameLower.includes(pattern));
+
+                        if (isInvalid) {
+                            // Skip invalid services silently
+                            return;
+                        }
+
                         if (newOwner && !oldOwner) {
                             log(`[DynamicIsland] New player appeared: ${name}`);
                             this._disconnectPlayer();
@@ -776,7 +786,13 @@ class MediaManager {
                 try {
                     const reply = conn.call_finish(res);
                     const names = reply.deep_unpack()[0];
-                    this._playerListeners = names.filter(n => n.includes('org.mpris.MediaPlayer2'));
+                    // Filter out invalid MPRIS services (like Bluetooth devices)
+                    const invalidPatterns = ['bluetooth', 'mouse', 'keyboard', 'input', 'device'];
+                    this._playerListeners = names.filter(n => {
+                        if (!n.includes('org.mpris.MediaPlayer2.')) return false;
+                        const nLower = n.toLowerCase();
+                        return !invalidPatterns.some(pattern => nLower.includes(pattern));
+                    });
                     log(`[DynamicIsland] MediaManager: Found ${this._playerListeners.length} media player(s)`);
                     if (this._playerListeners.length > 0) {
                         this._connectToPlayer(this._playerListeners[0]);
@@ -1723,9 +1739,9 @@ class MediaView {
         this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
 
         const controlConfig = [
-            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
-            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
-            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
+            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
+            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
+            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
         ];
 
         controlConfig.forEach(config => {
@@ -1830,7 +1846,7 @@ class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -1942,7 +1958,7 @@ class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({ file: file });
+                const gicon = new Gio.FileIcon({file: file});
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
@@ -2263,7 +2279,7 @@ class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const { volume, isMuted } = volumeInfo;
+        const {volume, isMuted} = volumeInfo;
 
         // Cập nhật icon
         let iconName;
@@ -2368,7 +2384,7 @@ class BrightnessView {
     }
 
     updateBrightness(brightnessInfo) {
-        const { brightness } = brightnessInfo;
+        const {brightness} = brightnessInfo;
 
         // Cập nhật icon dựa trên brightness level
         let iconName;
@@ -2537,7 +2553,7 @@ class WindowView {
     }
 
     updateWindow(windowInfo) {
-        const { appName, appIcon } = windowInfo;
+        const {appName, appIcon} = windowInfo;
 
         // Update compact view
         this.appLabel.set_text(appName);
@@ -3129,6 +3145,7 @@ class NotchController {
                 this.batteryView.compactContainer.hide();
                 this.mediaView.hide();
                 this.volumeView.hide();
+                this.brightnessView.hide();
                 this.bluetoothView.show();
             }
         });
@@ -3142,6 +3159,7 @@ class NotchController {
                 this.batteryView.compactContainer.hide();
                 this.bluetoothView.hide();
                 this.mediaView.hide();
+                this.brightnessView.hide();
                 this.volumeView.show();
             }
         });
@@ -3614,6 +3632,7 @@ class NotchController {
         this.timeoutManager.clear('volume');
         this.timeoutManager.clear('brightness');
         this.timeoutManager.clear('bluetooth');
+        this.timeoutManager.clear('bluetooth-defer');
         this.timeoutManager.clear('window');
     }
 
