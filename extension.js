@@ -798,7 +798,7 @@ class MediaManager {
                         this._connectToPlayer(this._playerListeners[0]);
                     }
                 } catch (e) {
-                    log(`[DynamicIsland] _watchForMediaPlayers error: ${e}`);
+                    log(`[DynamicIsland] MediaManager: Error watching for media players: ${e.message || e}`);
                 }
             }
         );
@@ -850,7 +850,6 @@ class MediaManager {
 
         try {
             const changedProps = changed.deep_unpack ? changed.deep_unpack() : changed;
-            log(`[DynamicIsland] MediaManager: Properties changed - ${JSON.stringify(Object.keys(changedProps))}`);
 
             // Batch all changes into a single update
             const updates = {};
@@ -867,7 +866,9 @@ class MediaManager {
                 this._batchUpdate(updates);
             }
         } catch (e) {
-            // Ignore errors if destroyed
+            if (!this._destroyed) {
+                log(`[DynamicIsland] MediaManager: Error handling property changes: ${e.message || e}`);
+            }
         }
     }
 
@@ -975,7 +976,7 @@ class MediaManager {
                 }
             }
         } catch (e) {
-            // Ignore extraction errors
+            log(`[DynamicIsland] MediaManager: Error extracting metadata value: ${e.message || e}`);
         }
         return null;
     }
@@ -1031,7 +1032,7 @@ class MediaManager {
                 }
             }
         } catch (e) {
-            // Silently fail
+            log(`[DynamicIsland] MediaManager: Error extracting artist: ${e.message || e}`);
         }
         return null;
     }
@@ -1052,6 +1053,7 @@ class MediaManager {
                         const data = bytes.get_data();   // Uint8Array
                         callback(data);
                     } catch (e) {
+                        log(`[DynamicIsland] MediaManager: Error reading album art bytes: ${e.message || e}`);
                         callback(null);
                     }
                 }
@@ -1068,6 +1070,7 @@ class MediaManager {
                     callback(null);
                 }
             } catch (e) {
+                log(`[DynamicIsland] MediaManager: Error downloading album art: ${e.message || e}`);
                 callback(null);
             }
         });
@@ -1090,6 +1093,7 @@ class MediaManager {
             this._artCache.set(url, path);
             return path;
         } catch (e) {
+            log(`[DynamicIsland] MediaManager: Error saving album art to cache: ${e.message || e}`);
             return null;
         }
     }
@@ -1148,7 +1152,7 @@ class MediaManager {
                 this._playerProxy.PreviousRemote();
             }
         } catch (e) {
-            log(`[DynamicIsland] Failed to send ${method}: ${e.message}`);
+            log(`[DynamicIsland] MediaManager: Error sending ${method} command: ${e.message || e}`);
         }
     }
 
@@ -1185,7 +1189,7 @@ class MediaManager {
             try {
                 this._playerProxy.disconnect(this._playerProxySignal);
             } catch (e) {
-                // Ignore disconnect errors
+                log(`[DynamicIsland] MediaManager: Error disconnecting player proxy signal: ${e.message || e}`);
             }
             this._playerProxySignal = null;
         }
@@ -1194,7 +1198,7 @@ class MediaManager {
             try {
                 this._dbusProxy.disconnect(this._dbusSignalId);
             } catch (e) {
-                // Ignore disconnect errors
+                log(`[DynamicIsland] MediaManager: Error disconnecting DBus signal: ${e.message || e}`);
             }
             this._dbusSignalId = null;
         }
@@ -1492,7 +1496,7 @@ class NotificationManager {
             try {
                 source.disconnect(signalId);
             } catch (e) {
-                // Ignore
+                log(`[DynamicIsland] BluetoothManager: Error disconnecting signal: ${e.message || e}`);
             }
         });
         this._sources.clear();
@@ -1524,7 +1528,6 @@ class WindowManager {
         this._windowTracker = Shell.WindowTracker.get_default();
 
         if (!this._windowTracker) {
-            log('[DynamicIsland] WindowTracker not available');
             return;
         }
 
@@ -2051,6 +2054,7 @@ class MediaView {
                         }
                     }
                 } catch (e) {
+                    log(`[DynamicIsland] MediaView: Error setting album art icon: ${e.message || e}`);
                     // Fallback
                     this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                     if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
@@ -2171,7 +2175,6 @@ class MediaView {
     _onAudioDevice() {
         // TODO: Implement audio device selection
         // Could open audio device selection dialog
-        log('[DynamicIsland] Audio device button clicked');
     }
 
     _onArtClick() {
@@ -2283,7 +2286,13 @@ class MediaView {
 // ============================================
 class VolumeView {
     constructor() {
+        this._volumeManager = null;
+        this._signals = [];
         this._buildExpandedView();
+    }
+
+    setVolumeManager(manager) {
+        this._volumeManager = manager;
     }
 
     _buildExpandedView() {
@@ -2306,11 +2315,13 @@ class VolumeView {
             style: 'color: white; font-size: 18px; font-weight: bold; margin-top: 10px;'
         });
 
-        // Progress bar lớn hơn
+        // Progress bar lớn hơn - THÊM reactive và track_hover
         this.expandedProgressBarBg = new St.Widget({
             style_class: 'volume-progress-bg-expanded',
             style: 'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;',
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
+            track_hover: true
         });
 
         this.expandedProgressBarFill = new St.Widget({
@@ -2320,6 +2331,9 @@ class VolumeView {
         });
 
         this.expandedProgressBarBg.add_child(this.expandedProgressBarFill);
+
+        // Thêm sự kiện tương tác
+        this._connectProgressBarEvents();
 
         this.expandedProgressWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.CENTER,
@@ -2343,9 +2357,96 @@ class VolumeView {
         this.expandedContainer.add_child(this.expandedProgressWrapper);
     }
 
+    _connectProgressBarEvents() {
+        // Lưu các signal IDs để disconnect sau này
+        this._signals = [];
+
+        // Sự kiện click
+        this._signals.push(
+            this.expandedProgressBarBg.connect('button-press-event', (actor, event) => {
+                this._handleProgressBarClick(actor, event, true);
+                return Clutter.EVENT_STOP;
+            })
+        );
+
+        // Sự kiện kéo (drag)
+        this._signals.push(
+            this.expandedProgressBarBg.connect('motion-event', (actor, event) => {
+                if (event.get_state() & Clutter.ModifierType.BUTTON1_MASK) {
+                    // Không log khi drag để giảm spam
+                    this._handleProgressBarClick(actor, event, false);
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            })
+        );
+
+        // Thêm hiệu ứng hover (tuỳ chọn)
+        this._signals.push(
+            this.expandedProgressBarBg.connect('enter-event', () => {
+                this.expandedProgressBarBg.style = 
+                    'background-color: rgba(255,255,255,0.3); border-radius: 8px; height: 12px; width: 300px; cursor: pointer;';
+                return Clutter.EVENT_PROPAGATE;
+            })
+        );
+
+        this._signals.push(
+            this.expandedProgressBarBg.connect('leave-event', () => {
+                this.expandedProgressBarBg.style = 
+                    'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;';
+                return Clutter.EVENT_PROPAGATE;
+            })
+        );
+    }
+
+    _handleProgressBarClick(actor, event, shouldLog = true) {
+        if (!this._volumeManager || !this._volumeManager._control) {
+            return;
+        }
+    
+        // Lấy vị trí click
+        const [x, y] = event.get_coords();
+        const [actorX, actorY] = actor.get_transformed_position();
+        const actorWidth = actor.get_width();
+    
+        // Tính toán volume dựa trên vị trí click
+        const relativeX = x - actorX;
+        const percentage = Math.max(0, Math.min(100, (relativeX / actorWidth) * 100));
+    
+        // Set volume
+        const stream = this._volumeManager._control.get_default_sink();
+        if (stream) {
+            const volMax = this._volumeManager._control.get_vol_max_norm();
+            const targetVolume = Math.round((percentage / 100) * volMax);
+            
+            // Set volume và push change
+            try {
+                stream.volume = targetVolume;
+                if (stream.push_volume) {
+                    stream.push_volume(); // QUAN TRỌNG: Phải push để apply thay đổi
+                }
+                
+                // Unmute nếu đang mute và volume > 0
+                if (stream.is_muted && percentage > 0) {
+                    if (stream.change_is_muted) {
+                        stream.change_is_muted(false);
+                    }
+                }
+                
+                // Cập nhật UI ngay lập tức
+                this.updateVolume({
+                    volume: Math.round(percentage),
+                    isMuted: stream.is_muted
+                });
+            } catch (e) {
+                log(`[DynamicIsland] VolumeView: Error setting volume: ${e.message || e}`);
+            }
+        }
+    }
+    
     updateVolume(volumeInfo) {
         const {volume, isMuted} = volumeInfo;
-
+    
         // Cập nhật icon
         let iconName;
         if (isMuted || volume === 0) {
@@ -2358,12 +2459,12 @@ class VolumeView {
             iconName = 'audio-volume-high-symbolic';
         }
         this.expandedIcon.icon_name = iconName;
-
+    
         // Cập nhật progress bar expanded (300px width)
         const percentage = isMuted ? 0 : volume;
         const expandedBarWidth = Math.round(300 * percentage / 100);
         this.expandedProgressBarFill.set_width(expandedBarWidth);
-
+    
         // Cập nhật label
         this.volumeLabel.set_text(`${percentage}%`);
     }
@@ -2377,6 +2478,14 @@ class VolumeView {
     }
 
     destroy() {
+        // Disconnect tất cả signals
+        if (this._signals) {
+            this._signals.forEach(signalId => {
+                this.expandedProgressBarBg.disconnect(signalId);
+            });
+            this._signals = [];
+        }
+
         if (this.expandedContainer) {
             this.expandedContainer.destroy();
         }
@@ -2388,7 +2497,13 @@ class VolumeView {
 // ============================================
 class BrightnessView {
     constructor() {
+        this._brightnessManager = null;
+        this._signals = [];
         this._buildExpandedView();
+    }
+
+    setBrightnessManager(manager) {
+        this._brightnessManager = manager;
     }
 
     _buildExpandedView() {
@@ -2411,11 +2526,13 @@ class BrightnessView {
             style: 'color: white; font-size: 18px; font-weight: bold; margin-top: 10px;'
         });
 
-        // Progress bar lớn hơn
+        // Progress bar lớn hơn - THÊM reactive và track_hover
         this.expandedProgressBarBg = new St.Widget({
             style_class: 'brightness-progress-bg-expanded',
             style: 'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;',
-            y_align: Clutter.ActorAlign.CENTER
+            y_align: Clutter.ActorAlign.CENTER,
+            reactive: true,
+            track_hover: true
         });
 
         this.expandedProgressBarFill = new St.Widget({
@@ -2425,6 +2542,9 @@ class BrightnessView {
         });
 
         this.expandedProgressBarBg.add_child(this.expandedProgressBarFill);
+
+        // Thêm sự kiện tương tác
+        this._connectProgressBarEvents();
 
         this.expandedProgressWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.CENTER,
@@ -2446,6 +2566,77 @@ class BrightnessView {
         this.expandedContainer.add_child(this.expandedIconWrapper);
         this.expandedContainer.add_child(this.brightnessLabel);
         this.expandedContainer.add_child(this.expandedProgressWrapper);
+    }
+
+    _connectProgressBarEvents() {
+        // Lưu các signal IDs để disconnect sau này
+        this._signals = [];
+
+        // Sự kiện click
+        this._signals.push(
+            this.expandedProgressBarBg.connect('button-press-event', (actor, event) => {
+                this._handleProgressBarClick(actor, event, true);
+                return Clutter.EVENT_STOP;
+            })
+        );
+
+        // Sự kiện kéo (drag)
+        this._signals.push(
+            this.expandedProgressBarBg.connect('motion-event', (actor, event) => {
+                if (event.get_state() & Clutter.ModifierType.BUTTON1_MASK) {
+                    // Không log khi drag để giảm spam
+                    this._handleProgressBarClick(actor, event, false);
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            })
+        );
+
+        // Thêm hiệu ứng hover (tuỳ chọn)
+        this._signals.push(
+            this.expandedProgressBarBg.connect('enter-event', () => {
+                this.expandedProgressBarBg.style = 
+                    'background-color: rgba(255,255,255,0.3); border-radius: 8px; height: 12px; width: 300px; cursor: pointer;';
+                return Clutter.EVENT_PROPAGATE;
+            })
+        );
+
+        this._signals.push(
+            this.expandedProgressBarBg.connect('leave-event', () => {
+                this.expandedProgressBarBg.style = 
+                    'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;';
+                return Clutter.EVENT_PROPAGATE;
+            })
+        );
+    }
+
+    _handleProgressBarClick(actor, event, shouldLog = true) {
+        if (!this._brightnessManager || !this._brightnessManager._control) {
+            return;
+        }
+
+        // Lấy vị trí click
+        const [x, y] = event.get_coords();
+        const [actorX, actorY] = actor.get_transformed_position();
+        const actorWidth = actor.get_width();
+
+        // Tính toán brightness dựa trên vị trí click
+        const relativeX = x - actorX;
+        const percentage = Math.max(0, Math.min(100, (relativeX / actorWidth) * 100));
+
+        // Set brightness
+        try {
+            const targetBrightness = Math.round(percentage);
+            
+            this._brightnessManager._control.Brightness = targetBrightness;
+            
+            // Cập nhật UI ngay lập tức
+            this.updateBrightness({
+                brightness: targetBrightness
+            });
+        } catch (e) {
+            log(`[DynamicIsland] BrightnessView: Error setting brightness: ${e.message || e}`);
+        }
     }
 
     updateBrightness(brightnessInfo) {
@@ -2481,6 +2672,14 @@ class BrightnessView {
     }
 
     destroy() {
+        // Disconnect tất cả signals
+        if (this._signals) {
+            this._signals.forEach(signalId => {
+                this.expandedProgressBarBg.disconnect(signalId);
+            });
+            this._signals = [];
+        }
+
         if (this.expandedContainer) {
             this.expandedContainer.destroy();
         }
@@ -3174,6 +3373,10 @@ class NotchController {
 
         // Setup media view
         this.mediaView.setMediaManager(this.mediaManager);
+        
+        // Setup volume and brightness views
+        this.volumeView.setVolumeManager(this.volumeManager);
+        this.brightnessView.setBrightnessManager(this.brightnessManager);
     }
 
     _registerPresenters() {
@@ -3357,8 +3560,14 @@ class NotchController {
     }
 
     _setupMouseEvents() {
+        // Cancel auto collapse khi hover vào notch
+        this._enterEventId = this.notch.connect('enter-event', () => {
+            this._cancelTemporaryPresenterTimeouts();
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         this._motionEventId = this.notch.connect('motion-event', () => {
-            this._cancelAutoCollapse();
+            this._cancelTemporaryPresenterTimeouts();
             if (this.stateMachine.isCompact()) {
                 this.expandNotch(false);
             }
@@ -3551,7 +3760,7 @@ class NotchController {
                 }
                 icon.destroy();
             } catch (e) {
-                // Ignore cleanup errors
+                log(`[DynamicIsland] NotchController: Error cleaning up animated icon: ${e.message || e}`);
             }
             this._animatedIcons.delete(animationId);
         }
@@ -3684,16 +3893,17 @@ class NotchController {
         this.layoutManager.updateLayout();
     }
 
-    _cancelAutoCollapse() {
-        this.timeoutManager.clear('collapse');
-        this.timeoutManager.clear('battery-auto-collapse');
-    }
-
     /**
-     * Cancel all temporary presenter timeouts (volume, brightness, bluetooth, window)
+     * Cancel all timeouts (auto collapse + temporary presenter timeouts)
      * This prevents the old presenter from switching back when a new temporary presenter is shown
+     * Also cancels auto collapse when user interacts with the notch
      */
     _cancelTemporaryPresenterTimeouts() {
+        // Cancel auto collapse timeouts
+        this.timeoutManager.clear('collapse');
+        this.timeoutManager.clear('battery-auto-collapse');
+        
+        // Cancel temporary presenter timeouts
         this.timeoutManager.clear('volume');
         this.timeoutManager.clear('brightness');
         this.timeoutManager.clear('bluetooth');
@@ -3817,6 +4027,10 @@ class NotchController {
 
         // Disconnect events
         if (this.notch) {
+            if (this._enterEventId) {
+                this.notch.disconnect(this._enterEventId);
+                this._enterEventId = null;
+            }
             if (this._motionEventId) {
                 this.notch.disconnect(this._motionEventId);
                 this._motionEventId = null;
