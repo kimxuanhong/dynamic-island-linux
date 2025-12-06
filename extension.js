@@ -25,6 +25,7 @@ class BatteryManager {
         this._proxy = null;
         this._signalId = null;
         this._callbacks = [];
+        this._wasCharging = false;
 
         this._initProxy();
     }
@@ -62,6 +63,12 @@ class BatteryManager {
 
     _notifyCallbacks() {
         const info = this.getBatteryInfo();
+        
+        // Detect charging state change for auto-expand
+        const wasCharging = this._wasCharging;
+        this._wasCharging = info.isCharging;
+        info.shouldAutoExpand = info.isCharging && !wasCharging;
+        
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -1304,6 +1311,84 @@ class VolumeManager {
         this._callbacks.forEach(cb => cb(info));
     }
 
+    /**
+     * Kiểm tra xem audio có đang bị mute không
+     * @returns {boolean}
+     */
+    isMuted() {
+        return this._isMuted;
+    }
+
+    /**
+     * Lấy default sink stream
+     * @returns {object|null}
+     */
+    getDefaultSink() {
+        if (!this._control) return null;
+        return this._control.get_default_sink();
+    }
+
+    /**
+     * Lấy giá trị volume max normalized
+     * @returns {number}
+     */
+    getVolMaxNorm() {
+        if (!this._control) return 0;
+        return this._control.get_vol_max_norm();
+    }
+
+    /**
+     * Toggle mute/unmute
+     * @returns {boolean} Trạng thái mute mới
+     */
+    toggleMute() {
+        const stream = this.getDefaultSink();
+        if (!stream) return this._isMuted;
+
+        try {
+            const newMutedState = !stream.is_muted;
+            if (stream.change_is_muted) {
+                stream.change_is_muted(newMutedState);
+            }
+            return newMutedState;
+        } catch (e) {
+            log(`[DynamicIsland] VolumeManager: Error toggling mute: ${e.message || e}`);
+            return this._isMuted;
+        }
+    }
+
+    /**
+     * Set volume theo percentage (0-100)
+     * @param {number} percentage - Volume percentage (0-100)
+     * @returns {boolean} True nếu thành công
+     */
+    setVolume(percentage) {
+        const stream = this.getDefaultSink();
+        if (!stream) return false;
+
+        try {
+            const volMax = this.getVolMaxNorm();
+            const targetVolume = Math.round((percentage / 100) * volMax);
+
+            stream.volume = targetVolume;
+            if (stream.push_volume) {
+                stream.push_volume(); // QUAN TRỌNG: Phải push để apply thay đổi
+            }
+
+            // Unmute nếu đang mute và volume > 0
+            if (this._isMuted && percentage > 0) {
+                if (stream.change_is_muted) {
+                    stream.change_is_muted(false);
+                }
+            }
+
+            return true;
+        } catch (e) {
+            log(`[DynamicIsland] VolumeManager: Error setting volume: ${e.message || e}`);
+            return false;
+        }
+    }
+
     destroy() {
         this._destroyed = true;
 
@@ -1400,6 +1485,24 @@ class BrightnessManager {
 
     _notifyCallbacks(info) {
         this._callbacks.forEach(cb => cb(info));
+    }
+
+    /**
+     * Set brightness theo percentage (0-100)
+     * @param {number} percentage - Brightness percentage (0-100)
+     * @returns {boolean} True nếu thành công
+     */
+    setBrightness(percentage) {
+        if (!this._control) return false;
+
+        try {
+            const targetBrightness = Math.round(percentage);
+            this._control.Brightness = targetBrightness;
+            return true;
+        } catch (e) {
+            log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${e.message || e}`);
+            return false;
+        }
     }
 
     destroy() {
@@ -1615,12 +1718,16 @@ class WindowManager {
 // 2C. VIEW - Xử lý Giao diện Media (MediaView)
 // ============================================
 class MediaView {
-    constructor() {
+    constructor(mediaManager, volumeManager, bluetoothManager) {
         this._lastMetadata = null;
         this._lastArtPath = null;
+        this._mediaManager = mediaManager;
+        this._volumeManager = volumeManager;
+        this._bluetoothManager = bluetoothManager;
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
+        this._updateAllIcons();
     }
 
     _buildMinimalView() {
@@ -1704,20 +1811,40 @@ class MediaView {
     }
 
     /**
-     * Cập nhật icon dựa trên trạng thái tai nghe
+     * Tính icon name dựa trên trạng thái mute và headset
+     * @param {boolean} isMuted
      * @param {boolean} hasHeadset
+     * @param {boolean} isCompact - true cho compact icon, false cho expanded icon
+     * @returns {string} Icon name
      */
-    updateIcon(hasHeadset) {
+    _getIconName(isMuted, hasHeadset, isCompact = false) {
+        if (isMuted) {
+            return 'audio-volume-muted-symbolic';
+        }
+
         if (hasHeadset) {
-            this._audioIcon.icon_name = 'audio-headphones-symbolic';
-            if (this._audioDeviceIcon) {
-                this._audioDeviceIcon.icon_name = 'audio-headphones-symbolic';
-            }
-        } else {
-            this._audioIcon.icon_name = 'sound-wave-symbolic';
-            if (this._audioDeviceIcon) {
-                this._audioDeviceIcon.icon_name = 'audio-speakers-symbolic';
-            }
+            return 'audio-headphones-symbolic';
+        }
+
+        // Speakers icon khác nhau giữa compact và expanded
+        return isCompact ? 'sound-wave-symbolic' : 'audio-speakers-symbolic';
+    }
+
+    /**
+     * Cập nhật tất cả icons dựa trên trạng thái hiện tại
+     */
+    _updateAllIcons() {
+        const isMuted = this._volumeManager.isMuted();
+        const hasHeadset = this._bluetoothManager.hasConnectedHeadset();
+
+        // Update compact icon
+        if (this._audioIcon) {
+            this._audioIcon.icon_name = this._getIconName(isMuted, hasHeadset, true);
+        }
+
+        // Update expanded audio device icon
+        if (this._audioDeviceIcon) {
+            this._audioDeviceIcon.icon_name = this._getIconName(isMuted, hasHeadset, false);
         }
     }
 
@@ -1725,7 +1852,7 @@ class MediaView {
         // ============================================
         // TOP TIER: Thumbnail, Title, Artist (horizontal)
         // ============================================
-        
+
         // Small thumbnail (left)
         this._expandedThumbnail = new St.Icon({
             style_class: 'media-expanded-art',
@@ -1873,7 +2000,7 @@ class MediaView {
         // ============================================
         // MAIN CONTAINER: Vertical layout
         // ============================================
-        
+
         this.expandedContainer = new St.BoxLayout({
             vertical: true,
             x_expand: true,
@@ -1894,11 +2021,11 @@ class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const {isPlaying, metadata, playbackStatus, artPath, position, duration} = mediaInfo;
+        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
-        if (metadata && this._lastMetadata && this._mediaManager) {
+        if (metadata && this._lastMetadata) {
             const currentTitle = this._mediaManager.getTitle(metadata);
             const lastTitle = this._mediaManager.getTitle(this._lastMetadata);
             metadataChanged = currentTitle !== lastTitle;
@@ -1985,7 +2112,7 @@ class MediaView {
         // Update art - sử dụng metadata/artPath hiện tại hoặc đã lưu
         let artUrl = currentArtPath;
         let isDownloading = false;
-        if (!artUrl && currentMetadata && this._mediaManager) {
+        if (!artUrl && currentMetadata) {
             // Try to get art URL from metadata using public method
             const artUrlFromMeta = this._mediaManager.getArtUrl(currentMetadata);
             if (artUrlFromMeta) {
@@ -2108,19 +2235,16 @@ class MediaView {
 
         // Update title and artist - sử dụng metadata hiện tại hoặc đã lưu
         if (currentMetadata) {
-            const manager = this._mediaManager;
-            if (manager) {
-                const title = manager.getTitle(currentMetadata);
-                const artist = manager.getArtist(currentMetadata);
+            const title = this._mediaManager.getTitle(currentMetadata);
+            const artist = this._mediaManager.getArtist(currentMetadata);
 
-                if (this._titleLabel) {
-                    this._titleLabel.text = title || 'Unknown Title';
-                }
-                if (this._artistLabel) {
-                    this._artistLabel.text = artist || '';
-                    // Ẩn artist label nếu không có artist
-                    this._artistLabel.visible = !!artist;
-                }
+            if (this._titleLabel) {
+                this._titleLabel.text = title || 'Unknown Title';
+            }
+            if (this._artistLabel) {
+                this._artistLabel.text = artist || '';
+                // Ẩn artist label nếu không có artist
+                this._artistLabel.visible = !!artist;
             }
         }
 
@@ -2136,30 +2260,20 @@ class MediaView {
         this._playPauseIcon.icon_name = iconName;
     }
 
-    setMediaManager(manager) {
-        this._mediaManager = manager;
-    }
-
     _onPrevious() {
-        if (this._mediaManager) {
-            this._mediaManager.sendPlayerCommand('Previous');
-        }
+        this._mediaManager.sendPlayerCommand('Previous');
     }
 
     _onPlayPause() {
-        if (this._mediaManager) {
-            this._mediaManager.sendPlayerCommand('PlayPause');
-        }
+        this._mediaManager.sendPlayerCommand('PlayPause');
     }
 
     _onNext() {
-        if (this._mediaManager) {
-            this._mediaManager.sendPlayerCommand('Next');
-        }
+        this._mediaManager.sendPlayerCommand('Next');
     }
 
     _onShare() {
-        if (!this._mediaManager || !this._lastMetadata) {
+        if (!this._lastMetadata) {
             return;
         }
         // Lấy URL từ metadata
@@ -2173,13 +2287,11 @@ class MediaView {
     }
 
     _onAudioDevice() {
-        // TODO: Implement audio device selection
-        // Could open audio device selection dialog
+        this._volumeManager.toggleMute();
+        this._updateAllIcons();
     }
 
     _onArtClick() {
-        if (!this._mediaManager) return;
-
         const busName = this._mediaManager.getCurrentPlayer();
         if (!busName) return;
 
@@ -2285,14 +2397,10 @@ class MediaView {
 // 2D. VIEW - Xử lý Giao diện Volume (VolumeView)
 // ============================================
 class VolumeView {
-    constructor() {
-        this._volumeManager = null;
+    constructor(volumeManager) {
+        this._volumeManager = volumeManager;
         this._signals = [];
         this._buildExpandedView();
-    }
-
-    setVolumeManager(manager) {
-        this._volumeManager = manager;
     }
 
     _buildExpandedView() {
@@ -2384,7 +2492,7 @@ class VolumeView {
         // Thêm hiệu ứng hover (tuỳ chọn)
         this._signals.push(
             this.expandedProgressBarBg.connect('enter-event', () => {
-                this.expandedProgressBarBg.style = 
+                this.expandedProgressBarBg.style =
                     'background-color: rgba(255,255,255,0.3); border-radius: 8px; height: 12px; width: 300px; cursor: pointer;';
                 return Clutter.EVENT_PROPAGATE;
             })
@@ -2392,7 +2500,7 @@ class VolumeView {
 
         this._signals.push(
             this.expandedProgressBarBg.connect('leave-event', () => {
-                this.expandedProgressBarBg.style = 
+                this.expandedProgressBarBg.style =
                     'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;';
                 return Clutter.EVENT_PROPAGATE;
             })
@@ -2400,53 +2508,28 @@ class VolumeView {
     }
 
     _handleProgressBarClick(actor, event, shouldLog = true) {
-        if (!this._volumeManager || !this._volumeManager._control) {
-            return;
-        }
-    
         // Lấy vị trí click
         const [x, y] = event.get_coords();
         const [actorX, actorY] = actor.get_transformed_position();
         const actorWidth = actor.get_width();
-    
+
         // Tính toán volume dựa trên vị trí click
         const relativeX = x - actorX;
         const percentage = Math.max(0, Math.min(100, (relativeX / actorWidth) * 100));
-    
-        // Set volume
-        const stream = this._volumeManager._control.get_default_sink();
-        if (stream) {
-            const volMax = this._volumeManager._control.get_vol_max_norm();
-            const targetVolume = Math.round((percentage / 100) * volMax);
-            
-            // Set volume và push change
-            try {
-                stream.volume = targetVolume;
-                if (stream.push_volume) {
-                    stream.push_volume(); // QUAN TRỌNG: Phải push để apply thay đổi
-                }
-                
-                // Unmute nếu đang mute và volume > 0
-                if (stream.is_muted && percentage > 0) {
-                    if (stream.change_is_muted) {
-                        stream.change_is_muted(false);
-                    }
-                }
-                
-                // Cập nhật UI ngay lập tức
-                this.updateVolume({
-                    volume: Math.round(percentage),
-                    isMuted: stream.is_muted
-                });
-            } catch (e) {
-                log(`[DynamicIsland] VolumeView: Error setting volume: ${e.message || e}`);
-            }
+
+        // Set volume qua manager
+        if (this._volumeManager.setVolume(percentage)) {
+            // Cập nhật UI ngay lập tức
+            this.updateVolume({
+                volume: Math.round(percentage),
+                isMuted: this._volumeManager.isMuted()
+            });
         }
     }
-    
+
     updateVolume(volumeInfo) {
         const {volume, isMuted} = volumeInfo;
-    
+
         // Cập nhật icon
         let iconName;
         if (isMuted || volume === 0) {
@@ -2459,12 +2542,12 @@ class VolumeView {
             iconName = 'audio-volume-high-symbolic';
         }
         this.expandedIcon.icon_name = iconName;
-    
+
         // Cập nhật progress bar expanded (300px width)
         const percentage = isMuted ? 0 : volume;
         const expandedBarWidth = Math.round(300 * percentage / 100);
         this.expandedProgressBarFill.set_width(expandedBarWidth);
-    
+
         // Cập nhật label
         this.volumeLabel.set_text(`${percentage}%`);
     }
@@ -2496,14 +2579,10 @@ class VolumeView {
 // 2E. VIEW - Xử lý Giao diện Brightness (BrightnessView)
 // ============================================
 class BrightnessView {
-    constructor() {
-        this._brightnessManager = null;
+    constructor(brightnessManager) {
+        this._brightnessManager = brightnessManager;
         this._signals = [];
         this._buildExpandedView();
-    }
-
-    setBrightnessManager(manager) {
-        this._brightnessManager = manager;
     }
 
     _buildExpandedView() {
@@ -2595,7 +2674,7 @@ class BrightnessView {
         // Thêm hiệu ứng hover (tuỳ chọn)
         this._signals.push(
             this.expandedProgressBarBg.connect('enter-event', () => {
-                this.expandedProgressBarBg.style = 
+                this.expandedProgressBarBg.style =
                     'background-color: rgba(255,255,255,0.3); border-radius: 8px; height: 12px; width: 300px; cursor: pointer;';
                 return Clutter.EVENT_PROPAGATE;
             })
@@ -2603,7 +2682,7 @@ class BrightnessView {
 
         this._signals.push(
             this.expandedProgressBarBg.connect('leave-event', () => {
-                this.expandedProgressBarBg.style = 
+                this.expandedProgressBarBg.style =
                     'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;';
                 return Clutter.EVENT_PROPAGATE;
             })
@@ -2611,10 +2690,6 @@ class BrightnessView {
     }
 
     _handleProgressBarClick(actor, event, shouldLog = true) {
-        if (!this._brightnessManager || !this._brightnessManager._control) {
-            return;
-        }
-
         // Lấy vị trí click
         const [x, y] = event.get_coords();
         const [actorX, actorY] = actor.get_transformed_position();
@@ -2624,18 +2699,12 @@ class BrightnessView {
         const relativeX = x - actorX;
         const percentage = Math.max(0, Math.min(100, (relativeX / actorWidth) * 100));
 
-        // Set brightness
-        try {
-            const targetBrightness = Math.round(percentage);
-            
-            this._brightnessManager._control.Brightness = targetBrightness;
-            
+        // Set brightness qua manager
+        if (this._brightnessManager.setBrightness(percentage)) {
             // Cập nhật UI ngay lập tức
             this.updateBrightness({
-                brightness: targetBrightness
+                brightness: Math.round(percentage)
             });
-        } catch (e) {
-            log(`[DynamicIsland] BrightnessView: Error setting brightness: ${e.message || e}`);
         }
     }
 
@@ -3348,7 +3417,6 @@ class NotchController {
         this._setupMouseEvents();
 
         // Initial state
-        this._wasCharging = false;
         this._updateUI();
     }
 
@@ -3365,18 +3433,13 @@ class NotchController {
     _initializeViews() {
         this.batteryView = new BatteryView();
         this.bluetoothView = new BluetoothView();
-        this.mediaView = new MediaView();
-        this.volumeView = new VolumeView();
-        this.brightnessView = new BrightnessView();
+        this.mediaView = new MediaView(this.mediaManager, this.volumeManager, this.bluetoothManager);
+        this.volumeView = new VolumeView(this.volumeManager);
+        this.brightnessView = new BrightnessView(this.brightnessManager);
         this.notificationView = new NotificationView();
         this.windowView = new WindowView();
 
-        // Setup media view
-        this.mediaView.setMediaManager(this.mediaManager);
-        
-        // Setup volume and brightness views
-        this.volumeView.setVolumeManager(this.volumeManager);
-        this.brightnessView.setBrightnessManager(this.brightnessManager);
+        this.mediaView._updateAllIcons();
     }
 
     _registerPresenters() {
@@ -3553,10 +3616,6 @@ class NotchController {
         this.brightnessManager.addCallback((info) => this._onBrightnessChanged(info));
         this.notificationManager.addCallback((info) => this._onNotificationReceived(info));
         this.windowManager.addCallback((info) => this._onWindowLaunched(info));
-
-        // Cập nhật trạng thái ban đầu cho media icon
-        const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
-        this.mediaView.updateIcon(hasHeadset);
     }
 
     _setupMouseEvents() {
@@ -3588,6 +3647,8 @@ class NotchController {
 
     _onVolumeChanged(info) {
         this.volumeView.updateVolume(info);
+        // Cập nhật icon mute/unmute trong media view (expanded và compact)
+        this.mediaView._updateAllIcons();
 
         // Cancel all temporary presenter timeouts before switching
         this._cancelTemporaryPresenterTimeouts();
@@ -3819,10 +3880,8 @@ class NotchController {
             this.notch.remove_style_class_name('charging');
         }
 
-        const shouldAutoExpand = info.isCharging && !this._wasCharging;
-        this._wasCharging = info.isCharging;
-
-        if (shouldAutoExpand && this.stateMachine.isCompact()) {
+        // Auto expand khi bắt đầu charge
+        if (info.shouldAutoExpand && this.stateMachine.isCompact()) {
             this.presenterRegistry.switchTo('battery');
             this.expandNotch(true);
 
@@ -3833,9 +3892,8 @@ class NotchController {
     _onBluetoothChanged(info) {
         this.bluetoothView.updateBluetooth(info);
 
-        // Cập nhật icon media nếu có tai nghe
-        const hasHeadset = this.bluetoothManager.hasConnectedHeadset();
-        this.mediaView.updateIcon(hasHeadset);
+        // Cập nhật icon dựa trên trạng thái bluetooth và mute
+        this.mediaView._updateAllIcons();
 
         // Cancel all temporary presenter timeouts before switching
         this._cancelTemporaryPresenterTimeouts();
@@ -3867,6 +3925,7 @@ class NotchController {
 
         if (info.isPlaying) {
             this.mediaView.updateMedia(info);
+            this.mediaView._updateAllIcons();
             this.presenterRegistry.switchTo('media');
 
             if (this.stateMachine.isCompact()) {
@@ -3905,7 +3964,7 @@ class NotchController {
         // Cancel auto collapse timeouts
         this.timeoutManager.clear('collapse');
         this.timeoutManager.clear('battery-auto-collapse');
-        
+
         // Cancel temporary presenter timeouts
         this.timeoutManager.clear('volume');
         this.timeoutManager.clear('brightness');
