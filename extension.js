@@ -972,6 +972,43 @@ class MediaManager {
         return this._extractMetadataValue(metadata, ['xesam:title', 'mpris:title']);
     }
 
+    _extractArtist(metadata) {
+        try {
+            if (!metadata) return null;
+
+            // Try xesam:artist first (most common)
+            const keys = ['xesam:artist', 'xesam:albumArtist'];
+            for (const key of keys) {
+                const value = metadata[key];
+
+                if (value !== undefined && value !== null) {
+                    // Unpack the GVariant
+                    const unpacked = value.unpack ? value.unpack() : value;
+
+                    // xesam:artist is usually an array of strings
+                    if (Array.isArray(unpacked)) {
+                        // Each item might still be a GVariant, need to unpack
+                        const artists = unpacked.map(item => {
+                            if (item && typeof item === 'object' && (item.unpack || item.deep_unpack)) {
+                                return item.unpack ? item.unpack() : item.deep_unpack();
+                            }
+                            return item;
+                        }).filter(a => typeof a === 'string' && a.length > 0);
+
+                        if (artists.length > 0) {
+                            return artists.join(', ');
+                        }
+                    } else if (typeof unpacked === 'string') {
+                        return unpacked;
+                    }
+                }
+            }
+        } catch (e) {
+            // Silently fail
+        }
+        return null;
+    }
+
     _downloadImage(url, callback) {
 
         const msg = Soup.Message.new('GET', url);
@@ -1059,6 +1096,11 @@ class MediaManager {
     getTitle(metadata) {
         if (!metadata) return null;
         return this._extractTitle(metadata);
+    }
+
+    getArtist(metadata) {
+        if (!metadata) return null;
+        return this._extractArtist(metadata);
     }
 
     hasArtUrl(metadata) {
@@ -1713,8 +1755,17 @@ class MediaView {
             x_align: Clutter.ActorAlign.START,
         });
 
+        // Expanded artist name (below title)
+        this._artistLabel = new St.Label({
+            style_class: 'media-artist-label',
+            text: '',
+            x_align: Clutter.ActorAlign.START,
+            style: 'color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px;',
+        });
+
         this._titleWrapper = new St.BoxLayout({
             style_class: 'media-title-wrapper',
+            vertical: true,
             x_expand: true,
             y_expand: false,
             visible: true,
@@ -1722,6 +1773,7 @@ class MediaView {
         });
         this._titleWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
         this._titleWrapper.add_child(this._titleLabel);
+        this._titleWrapper.add_child(this._artistLabel);
 
         // Expanded container layout (2 columns: left = art, right = controls + title)
         const leftColumn = new St.BoxLayout({
@@ -1738,30 +1790,33 @@ class MediaView {
             vertical: true,
             x_expand: true,
             y_expand: true,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 15px;',
+            style: 'spacing: 0px;', // Xóa spacing vì dùng Bin để căn chỉnh
         });
 
-        // Controls box wrapper
-        const controlsWrapper = new St.Bin({
+        // Top Zone: Chứa Controls, căn xuống đáy (gần Text)
+        const topZone = new St.Bin({
+            x_expand: true,
+            y_expand: true,
+            y_align: Clutter.ActorAlign.END, // Căn xuống đáy của vùng trên
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
-            y_expand: false,
+            style: 'padding-bottom: 5px;', // Khoảng cách với Text
         });
-        controlsWrapper.set_child(this._controlsBox);
-        rightColumn.add_child(controlsWrapper);
+        topZone.set_child(this._controlsBox);
 
-        // Title wrapper
-        const titleWrapperBin = new St.Bin({
-            x_align: Clutter.ActorAlign.START,
-            y_align: Clutter.ActorAlign.CENTER,
+        // Bottom Zone: Chứa Text, căn lên đỉnh (gần Controls)
+        const bottomZone = new St.Bin({
             x_expand: true,
-            y_expand: false,
+            y_expand: true,
+            y_align: Clutter.ActorAlign.START, // Căn lên đỉnh của vùng dưới
+            x_align: Clutter.ActorAlign.START, // Text căn trái
         });
-        titleWrapperBin.set_child(this._titleWrapper);
-        rightColumn.add_child(titleWrapperBin);
+        bottomZone.set_child(this._titleWrapper);
+
+        rightColumn.add_child(topZone);
+        rightColumn.add_child(bottomZone);
+
+        // Controls box wrapper - KHÔNG CẦN NỮA VÌ ĐÃ DÙNG TOPZONE
+        // Title wrapper - KHÔNG CẦN NỮA VÌ ĐÃ DÙNG BOTTOMZONE
 
         this.expandedContainer = new St.BoxLayout({
             vertical: false,
@@ -1986,13 +2041,20 @@ class MediaView {
             }
         }
 
-        // Update title - sử dụng metadata hiện tại hoặc đã lưu
+        // Update title and artist - sử dụng metadata hiện tại hoặc đã lưu
         if (currentMetadata) {
             const manager = this._mediaManager;
             if (manager) {
                 const title = manager.getTitle(currentMetadata);
+                const artist = manager.getArtist(currentMetadata);
+
                 if (this._titleLabel) {
                     this._titleLabel.text = title || 'Unknown Title';
+                }
+                if (this._artistLabel) {
+                    this._artistLabel.text = artist || '';
+                    // Ẩn artist label nếu không có artist
+                    this._artistLabel.visible = !!artist;
                 }
             }
         }
@@ -3504,7 +3566,6 @@ class NotchController {
     }
 
     _onMediaChanged(info) {
-        log(`[DynamicIsland] _onMediaChanged - ${JSON.stringify(info)}`);
         this.mediaView._updatePlayPauseIcon(info.isPlaying);
 
         this.timeoutManager.clear('media-switch');
