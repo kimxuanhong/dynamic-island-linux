@@ -1730,7 +1730,7 @@ class MediaView {
         this._expandedThumbnail = new St.Icon({
             style_class: 'media-expanded-art',
             icon_name: 'audio-x-generic-symbolic',
-            icon_size: 48,
+            icon_size: 56,
         });
 
         this._expandedThumbnailWrapper = new St.Bin({
@@ -1759,7 +1759,7 @@ class MediaView {
             style_class: 'media-artist-label',
             text: '',
             x_align: Clutter.ActorAlign.START,
-            style: 'color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px;',
+            style: 'color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 3px;',
         });
 
         this._titleWrapper = new St.BoxLayout({
@@ -1878,12 +1878,12 @@ class MediaView {
             vertical: true,
             x_expand: true,
             y_expand: true,
-            style: 'spacing: 0px; padding: 20px;',
+            style: 'spacing: 0px; padding: 24px;',
             visible: false,
         });
         // Separator between top and bottom sections
         const separator = new St.Widget({
-            style: 'background-color: rgba(255,255,255,0.15); height: 2px; margin: 15px 0;',
+            style: 'background-color: rgba(255,255,255,0.15); height: 2px; margin: 18px 0;',
             x_expand: true,
             y_expand: false,
         });
@@ -2865,7 +2865,7 @@ const NotchConstants = {
     COMPACT_WIDTH: 180,
     COMPACT_HEIGHT: 40,
     EXPANDED_WIDTH: 440,
-    EXPANDED_HEIGHT: 160,
+    EXPANDED_HEIGHT: 180,
     SECONDARY_WIDTH: 40,
     SECONDARY_HEIGHT: 40,
 
