@@ -3560,7 +3560,7 @@ class NotchController {
     }
 
     _setupMouseEvents() {
-        // Cancel auto collapse khi hover vào notch
+        // Cancel tất cả timeouts ngay khi hover vào notch
         this._enterEventId = this.notch.connect('enter-event', () => {
             this._cancelTemporaryPresenterTimeouts();
             return Clutter.EVENT_PROPAGATE;
@@ -3577,7 +3577,10 @@ class NotchController {
         this._leaveEventId = this.notch.connect('leave-event', () => {
             if (this.stateMachine.isExpanded() && !this.timeoutManager.has('collapse')) {
                 this.timeoutManager.set('collapse', NotchConstants.TIMEOUT_COLLAPSE, () => {
-                    this.compactNotch();
+                    this._switchToAppropriatePresenter();
+                    if (this.stateMachine.isExpanded()) {
+                        this.compactNotch();
+                    }
                 });
             }
         });
