@@ -3,188 +3,113 @@ const Gio = imports.gi.Gio;
 var BluetoothManager = class BluetoothManager {
     constructor() {
         this._callbacks = [];
-        this._devices = new Map();
-        this._objectManager = null;
+        // Map để track các thiết bị đã kết nối: deviceName -> {isConnected, deviceType, address}
+        this._connectedDevices = new Map();
+        this._serverProxy = null;
         this._destroyed = false;
-        this._isInitializing = true; // FIX: Cờ để bỏ qua notifications khi khởi tạo
+        this._isInitializing = true;
 
-        this._initProxies();
+        this._initServerConnection();
     }
 
-    _initProxies() {
-        // 1. Định nghĩa Interface cho Device
-        const DeviceInterface = `
+    _initServerConnection() {
+        // Định nghĩa Interface cho Server DBus Signal
+        const ServerInterface = `
             <node>
-                <interface name="org.bluez.Device1">
-                    <property name="Connected" type="b" access="read"/>
-                    <property name="Alias" type="s" access="read"/>
-                    <property name="Icon" type="s" access="read"/>
-                    <property name="Paired" type="b" access="read"/>
-                    <property name="Trusted" type="b" access="read"/>
-                </interface>
-            </node>
-        `;
-        this.DeviceProxy = Gio.DBusProxy.makeProxyWrapper(DeviceInterface);
-
-        // 2. Định nghĩa Interface cho ObjectManager
-        const ObjectManagerInterface = `
-            <node>
-                <interface name="org.freedesktop.DBus.ObjectManager">
-                    <method name="GetManagedObjects">
-                        <arg type="a{oa{sa{sv}}}" name="objects" direction="out"/>
-                    </method>
-                    <signal name="InterfacesAdded">
-                        <arg type="o" name="object_path"/>
-                        <arg type="a{sa{sv}}" name="interfaces_and_properties"/>
-                    </signal>
-                    <signal name="InterfacesRemoved">
-                        <arg type="o" name="object_path"/>
-                        <arg type="as" name="interfaces"/>
+                <interface name="com.github.dynamic_island.Server">
+                    <signal name="EventOccurred">
+                        <arg name="event_type" type="s" direction="out"/>
+                        <arg name="app_name" type="s" direction="out"/>
+                        <arg name="pid" type="i" direction="out"/>
+                        <arg name="timestamp" type="s" direction="out"/>
+                        <arg name="metadata" type="s" direction="out"/>
                     </signal>
                 </interface>
             </node>
         `;
-        const ObjectManagerProxy = Gio.DBusProxy.makeProxyWrapper(ObjectManagerInterface);
+        const ServerProxy = Gio.DBusProxy.makeProxyWrapper(ServerInterface);
 
-        // 3. Kết nối tới ObjectManager của BlueZ
-        this._objectManager = new ObjectManagerProxy(
-            Gio.DBus.system,
-            'org.bluez',
-            '/'
-        );
-
-        // 4. Lắng nghe tín hiệu thêm/xóa thiết bị
-        this._objectManager.connectSignal('InterfacesAdded', (proxy, senderName, [objectPath, interfaces]) => {
-            this._onInterfacesAdded(objectPath, interfaces);
-        });
-
-        this._objectManager.connectSignal('InterfacesRemoved', (proxy, senderName, [objectPath, interfaces]) => {
-            this._onInterfacesRemoved(objectPath, interfaces);
-        });
-
-        // 5. Lấy danh sách thiết bị hiện tại
-        this._syncDevices();
-
-
-    }
-
-    _syncDevices() {
-        if (!this._objectManager) return;
-
-        this._objectManager.GetManagedObjectsRemote((result, error) => {
-            if (this._destroyed) return;
-            if (error) {
-                return;
-            }
-
-            const objects = result[0];
-            for (const path in objects) {
-                this._onInterfacesAdded(path, objects[path]);
-            }
-
-            // FIX: Sau khi sync xong tất cả devices, mới bật notifications
-            imports.mainloop.timeout_add(1000, () => {
-                this._isInitializing = false;
-                return false;
-            });
-        });
-    }
-
-    _onInterfacesAdded(objectPath, interfaces) {
-        if (this._destroyed) return;
-        const deviceProps = interfaces['org.bluez.Device1'];
-        if (deviceProps) {
-            // FIX: Chỉ add device nếu đã Paired hoặc Trusted
-            const getValue = (prop) => (prop && prop.deep_unpack) ? prop.deep_unpack() : prop;
-
-            const isPaired = deviceProps['Paired'] ? Boolean(getValue(deviceProps['Paired'])) : false;
-            const isTrusted = deviceProps['Trusted'] ? Boolean(getValue(deviceProps['Trusted'])) : false;
-
-            if (isPaired || isTrusted) {
-                this._addDevice(objectPath);
-            }
-        }
-    }
-
-    _onInterfacesRemoved(objectPath, interfaces) {
-        if (this._destroyed) return;
-        if (interfaces.includes('org.bluez.Device1')) {
-            this._removeDevice(objectPath);
-        }
-    }
-
-    _addDevice(path) {
-        if (this._devices.has(path)) return;
-
-        const deviceProxy = new this.DeviceProxy(
-            Gio.DBus.system,
-            'org.bluez',
-            path,
+        // Kết nối tới Server qua Session Bus
+        this._serverProxy = new ServerProxy(
+            Gio.DBus.session,
+            'com.github.dynamic_island.Server',
+            '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
+                    log(`[DynamicIsland] BluetoothManager: Failed to connect to server: ${error.message || error}`);
+                    return;
                 }
+
+                // Lắng nghe signal EventOccurred
+                this._serverProxy.connectSignal('EventOccurred', (proxy, senderName, [eventType, appName, pid, timestamp, metadata]) => {
+                    this._onServerEvent(eventType, appName, pid, timestamp, metadata);
+                });
+
+                // Đánh dấu đã khởi tạo xong sau một khoảng thời gian ngắn
+                imports.mainloop.timeout_add(500, () => {
+                    this._isInitializing = false;
+                    return false;
+                });
             }
         );
-
-        // Lắng nghe thay đổi thuộc tính
-        const signalId = deviceProxy.connect('g-properties-changed', (proxy, changed, invalidated) => {
-            this._onDevicePropertiesChanged(proxy, changed);
-        });
-
-        deviceProxy._signalId = signalId;
-        this._devices.set(path, deviceProxy);
     }
 
-    _removeDevice(path) {
-        const deviceProxy = this._devices.get(path);
-        if (deviceProxy) {
-            if (deviceProxy._signalId) {
-                deviceProxy.disconnect(deviceProxy._signalId);
-            }
-            this._devices.delete(path);
-        }
-    }
-
-    _onDevicePropertiesChanged(proxy, changedProperties) {
+    _onServerEvent(eventType, appName, pid, timestamp, metadata) {
         if (this._destroyed) return;
 
-        // FIX: Bỏ qua notifications trong lúc khởi tạo
+        // Chỉ xử lý các events bluetooth
+        if (eventType !== 'bluetooth_connected' && eventType !== 'bluetooth_disconnected') {
+            return;
+        }
+
+        // Bỏ qua notifications trong lúc khởi tạo
         if (this._isInitializing) {
             return;
         }
 
-        // changedProperties là GLib.Variant (a{sv})
-        const changed = changedProperties.deep_unpack();
-        if ('Connected' in changed) {
-
-            // FIX: Chỉ notify cho device đã paired hoặc trusted
-            const isPaired = proxy.Paired || false;
-            const isTrusted = proxy.Trusted || false;
-
-            if (!isPaired && !isTrusted) {
-                return;
+        // Parse metadata JSON
+        let metadataObj = {};
+        try {
+            if (metadata && typeof metadata === 'string') {
+                metadataObj = JSON.parse(metadata);
             }
-
-            let rawConnected = changed['Connected'];
-
-            // FIX: Xử lý đúng cả GVariant và boolean thô
-            let isConnected;
-            if (rawConnected && typeof rawConnected.deep_unpack === 'function') {
-                isConnected = Boolean(rawConnected.deep_unpack());
-            } else {
-                isConnected = Boolean(rawConnected);
-            }
-
-            const alias = proxy.Alias || 'Unknown Device';
-            const deviceIcon = proxy.Icon || ''; // Lấy loại thiết bị từ BlueZ
-
-            // LUÔN gọi callback cho cả connect và disconnect
-            this._notifyCallbacks({
-                deviceName: alias,
-                isConnected: isConnected,
-                deviceType: deviceIcon // Thêm thông tin loại thiết bị
-            });
+        } catch (e) {
+            log(`[DynamicIsland] BluetoothManager: Failed to parse metadata: ${e.message || e}`);
         }
+
+        const isConnected = eventType === 'bluetooth_connected';
+        const deviceName = appName || 'Unknown Device';
+        const deviceType = metadataObj.device_type || metadataObj.icon || '';
+        const address = metadataObj.address || '';
+
+        // Cập nhật trạng thái thiết bị
+        if (isConnected) {
+            this._connectedDevices.set(deviceName, {
+                isConnected: true,
+                deviceType: deviceType,
+                address: address
+            });
+        } else {
+            // Khi disconnect, vẫn giữ thông tin thiết bị nhưng đánh dấu disconnected
+            if (this._connectedDevices.has(deviceName)) {
+                const device = this._connectedDevices.get(deviceName);
+                device.isConnected = false;
+            } else {
+                // Nếu chưa có trong map, thêm vào với trạng thái disconnected
+                this._connectedDevices.set(deviceName, {
+                    isConnected: false,
+                    deviceType: deviceType,
+                    address: address
+                });
+            }
+        }
+
+        // Gọi callback với format tương tự như trước
+        this._notifyCallbacks({
+            deviceName: deviceName,
+            isConnected: isConnected,
+            deviceType: deviceType
+        });
     }
 
     addCallback(callback) {
@@ -201,27 +126,17 @@ var BluetoothManager = class BluetoothManager {
      */
     hasConnectedHeadset() {
         let hasHeadset = false;
-        this._devices.forEach((proxy) => {
+        this._connectedDevices.forEach((device) => {
             if (hasHeadset) return; // Đã tìm thấy
 
-            // Kiểm tra kết nối
-            let isConnected = false;
-            if (proxy.Connected) {
-                // Xử lý GVariant hoặc boolean
-                const rawConnected = proxy.Connected;
-                if (rawConnected && typeof rawConnected.deep_unpack === 'function') {
-                    isConnected = Boolean(rawConnected.deep_unpack());
-                } else {
-                    isConnected = Boolean(rawConnected);
-                }
-            }
-
-            if (isConnected) {
-                const icon = proxy.Icon || '';
-                if (icon.includes('headset') ||
-                    icon.includes('headphones') ||
-                    icon.includes('earbuds') ||
-                    icon.includes('audio-card')) { // Một số tai nghe hiện là audio-card
+            if (device.isConnected) {
+                const deviceType = device.deviceType || '';
+                // Kiểm tra các loại thiết bị audio
+                if (deviceType.includes('headset') ||
+                    deviceType.includes('headphone') ||
+                    deviceType.includes('earbud') ||
+                    deviceType.includes('audio-card') ||
+                    deviceType.includes('speaker')) {
                     hasHeadset = true;
                 }
             }
@@ -232,15 +147,11 @@ var BluetoothManager = class BluetoothManager {
     destroy() {
         this._destroyed = true;
 
-        this._devices.forEach((proxy) => {
-            if (proxy._signalId) proxy.disconnect(proxy._signalId);
-        });
-        this._devices.clear();
-
-        if (this._objectManager) {
-            this._objectManager = null;
+        if (this._serverProxy) {
+            this._serverProxy = null;
         }
 
+        this._connectedDevices.clear();
         this._callbacks = [];
     }
 }

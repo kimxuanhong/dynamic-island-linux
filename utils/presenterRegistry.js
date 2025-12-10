@@ -1,38 +1,30 @@
-// ============================================
-// PRESENTER REGISTRY - Strategy Pattern cho Presenters
-// ============================================
 var PresenterRegistry = class PresenterRegistry {
-    constructor(controller) {
-        this.controller = controller;
+    constructor() {
         this._currentPresenter = null;
-        this._presenters = new Map();
+        this._items = new Map();
     }
 
     register(name, presenter) {
-        this._presenters.set(name, presenter);
+        if (this._items.has(name)) return;
+
+        this._items.set(name, presenter);
     }
 
     getCurrent() {
         return this._currentPresenter;
     }
 
-    switchTo(name) {
-        if (this._currentPresenter === name) return false;
+    getPresenter(name) {
+        return this._items.get(name);
+    }
 
-        const oldPresenter = this._currentPresenter;
+    switchTo(name, force = false) {
+        if (!force && this._currentPresenter === name) return false;
         this._currentPresenter = name;
-        const presenter = this._presenters.get(name);
-
-        if (presenter && presenter.onActivate) {
-            presenter.onActivate(oldPresenter);
+        const presenter = this._items.get(name);
+        if (presenter?.onActivate) {
+            presenter.onActivate();
         }
-
         return true;
     }
-
-    getPresenter(name) {
-        return this._presenters.get(name);
-    }
-
 }
-

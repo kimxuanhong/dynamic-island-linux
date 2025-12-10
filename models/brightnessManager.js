@@ -4,67 +4,105 @@ var BrightnessManager = class BrightnessManager {
     constructor() {
         this._callbacks = [];
         this._currentBrightness = 0;
-        this._control = null;
-        this._changedId = null;
+        this._serverProxy = null;
+        this._methodsProxy = null;
         this._destroyed = false;
         this._isInitializing = true;
 
-        this._initBrightnessControl();
+        this._initServerConnection();
     }
 
-    _initBrightnessControl() {
-        // Định nghĩa interface D-Bus cho Brightness
-        // Lưu ý: Brightness là kiểu int (i), không phải unsigned (u)
-        const BrightnessProxyInterface = `
+    _initServerConnection() {
+        // Định nghĩa Interface cho Server DBus Signal
+        const ServerInterface = `
             <node>
-                <interface name="org.gnome.SettingsDaemon.Power.Screen">
-                    <property name="Brightness" type="i" access="readwrite"/>
+                <interface name="com.github.dynamic_island.Server">
+                    <signal name="EventOccurred">
+                        <arg name="event_type" type="s" direction="out"/>
+                        <arg name="app_name" type="s" direction="out"/>
+                        <arg name="pid" type="i" direction="out"/>
+                        <arg name="timestamp" type="s" direction="out"/>
+                        <arg name="metadata" type="s" direction="out"/>
+                    </signal>
+                    <method name="SetBrightness">
+                        <arg name="level" type="i" direction="in"/>
+                    </method>
                 </interface>
             </node>
         `;
+        const ServerProxy = Gio.DBusProxy.makeProxyWrapper(ServerInterface);
 
-        const BrightnessProxy = Gio.DBusProxy.makeProxyWrapper(BrightnessProxyInterface);
-
-        // Tạo Proxy tới Screen của gnome-settings-daemon qua Session Bus
-        this._control = new BrightnessProxy(
+        // Kết nối tới Server qua Session Bus để lắng nghe signals
+        this._serverProxy = new ServerProxy(
             Gio.DBus.session,
-            'org.gnome.SettingsDaemon.Power',
-            '/org/gnome/SettingsDaemon/Power',
+            'com.github.dynamic_island.Server',
+            '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
+                    log(`[DynamicIsland] BrightnessManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
-                // Lấy giá trị ban đầu TRƯỚC khi setup listener
-                this._updateBrightness();
-
-                // Sau đó mới setup listener
-                this._changedId = this._control.connect('g-properties-changed', () => {
-                    this._onBrightnessChanged();
+                // Lắng nghe signal EventOccurred
+                this._serverProxy.connectSignal('EventOccurred', (proxy, senderName, [eventType, appName, pid, timestamp, metadata]) => {
+                    this._onServerEvent(eventType, appName, pid, timestamp, metadata);
                 });
 
-                // Đánh dấu đã khởi tạo xong
-                this._isInitializing = false;
+                // Đánh dấu đã khởi tạo xong sau một khoảng thời gian ngắn
+                imports.mainloop.timeout_add(500, () => {
+                    this._isInitializing = false;
+                    return false;
+                });
+            }
+        );
+
+        // Tạo proxy riêng để gọi methods (có thể dùng chung với _serverProxy nhưng tách ra cho rõ ràng)
+        this._methodsProxy = new ServerProxy(
+            Gio.DBus.session,
+            'com.github.dynamic_island.Server',
+            '/com/github/dynamic_island/Server',
+            (proxy, error) => {
+                if (error) {
+                    log(`[DynamicIsland] BrightnessManager: Failed to connect methods proxy: ${error.message || error}`);
+                }
             }
         );
     }
 
-    _onBrightnessChanged() {
+    _onServerEvent(eventType, appName, pid, timestamp, metadata) {
         if (this._destroyed) return;
-        this._updateBrightness();
-    }
 
-    _updateBrightness() {
-        if (!this._control) return;
+        // Chỉ xử lý các events brightness
+        if (eventType !== 'brightness_changed') {
+            return;
+        }
 
-        const oldBrightness = this._currentBrightness;
-        this._currentBrightness = Math.round(this._control.Brightness || 0);
+        // Bỏ qua notifications trong lúc khởi tạo (trừ lần đầu để có giá trị ban đầu)
+        if (this._isInitializing && this._currentBrightness > 0) {
+            return;
+        }
 
-        const diff = Math.abs(this._currentBrightness - oldBrightness);
+        // Parse metadata JSON
+        let metadataObj = {};
+        try {
+            if (metadata && typeof metadata === 'string') {
+                metadataObj = JSON.parse(metadata);
+            }
+        } catch (e) {
+            log(`[DynamicIsland] BrightnessManager: Failed to parse metadata: ${e.message || e}`);
+            return;
+        }
 
-        if (!this._isInitializing && diff <= 5) {
+        // Cập nhật brightness
+        const level = metadataObj.level !== undefined ? Math.round(metadataObj.level) : this._currentBrightness;
+        const oldLevel = metadataObj.old_level !== undefined ? Math.round(metadataObj.old_level) : this._currentBrightness;
+
+        // Chỉ notify nếu có thay đổi và diff <= 5 (giống logic cũ)
+        const diff = Math.abs(level - oldLevel);
+        if ((this._currentBrightness !== level || this._isInitializing) && diff <= 5) {
+            this._currentBrightness = level;
             this._notifyCallbacks({
-                brightness: this._currentBrightness
+                brightness: level
             });
         }
     }
@@ -84,11 +122,18 @@ var BrightnessManager = class BrightnessManager {
      * @returns {boolean} True nếu thành công
      */
     setBrightness(percentage) {
-        if (!this._control) return false;
+        if (!this._methodsProxy) return false;
 
         try {
-            const targetBrightness = Math.round(percentage);
-            this._control.Brightness = targetBrightness;
+            const targetBrightness = Math.round(Math.max(0, Math.min(100, percentage)));
+            
+            // Gọi method SetBrightness qua server
+            this._methodsProxy.SetBrightnessRemote(targetBrightness, (result, error) => {
+                if (error) {
+                    log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${error.message || error}`);
+                }
+            });
+            
             return true;
         } catch (e) {
             log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${e.message || e}`);
@@ -99,12 +144,13 @@ var BrightnessManager = class BrightnessManager {
     destroy() {
         this._destroyed = true;
 
-        if (this._changedId && this._control) {
-            this._control.disconnect(this._changedId);
-            this._changedId = null;
+        if (this._serverProxy) {
+            this._serverProxy = null;
+        }
+        if (this._methodsProxy) {
+            this._methodsProxy = null;
         }
 
-        this._control = null;
         this._callbacks = [];
     }
 }

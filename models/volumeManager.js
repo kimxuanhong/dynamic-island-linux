@@ -1,74 +1,113 @@
-const Volume = imports.ui.status.volume;
+const Gio = imports.gi.Gio;
 
 var VolumeManager = class VolumeManager {
     constructor() {
         this._callbacks = [];
         this._currentVolume = 0;
         this._isMuted = false;
-        this._control = null;
-        this._streamChangedId = null;
+        this._serverProxy = null;
+        this._methodsProxy = null;
         this._destroyed = false;
-        this._isInitializing = true; // Flag để skip notification khi khởi tạo
-        this._lastStreamId = null; // Lưu stream ID để phân biệt stream mới vs volume change
+        this._isInitializing = true;
 
-        this._initVolumeControl();
+        this._initServerConnection();
     }
 
-    _initVolumeControl() {
-        // Lấy MixerControl từ Volume indicator
-        this._control = Volume.getMixerControl();
+    _initServerConnection() {
+        // Định nghĩa Interface cho Server DBus Signal và Methods
+        const ServerInterface = `
+            <node>
+                <interface name="com.github.dynamic_island.Server">
+                    <signal name="EventOccurred">
+                        <arg name="event_type" type="s" direction="out"/>
+                        <arg name="app_name" type="s" direction="out"/>
+                        <arg name="pid" type="i" direction="out"/>
+                        <arg name="timestamp" type="s" direction="out"/>
+                        <arg name="metadata" type="s" direction="out"/>
+                    </signal>
+                    <method name="SetVolume">
+                        <arg name="level" type="i" direction="in"/>
+                    </method>
+                    <method name="ToggleMute">
+                    </method>
+                </interface>
+            </node>
+        `;
+        const ServerProxy = Gio.DBusProxy.makeProxyWrapper(ServerInterface);
 
-        if (!this._control) {
+        // Kết nối tới Server qua Session Bus để lắng nghe signals
+        this._serverProxy = new ServerProxy(
+            Gio.DBus.session,
+            'com.github.dynamic_island.Server',
+            '/com/github/dynamic_island/Server',
+            (proxy, error) => {
+                if (error) {
+                    log(`[DynamicIsland] VolumeManager: Failed to connect to server: ${error.message || error}`);
+                    return;
+                }
+
+                // Lắng nghe signal EventOccurred
+                this._serverProxy.connectSignal('EventOccurred', (proxy, senderName, [eventType, appName, pid, timestamp, metadata]) => {
+                    this._onServerEvent(eventType, appName, pid, timestamp, metadata);
+                });
+
+                // Đánh dấu đã khởi tạo xong sau một khoảng thời gian ngắn
+                imports.mainloop.timeout_add(500, () => {
+                    this._isInitializing = false;
+                    return false;
+                });
+            }
+        );
+
+        // Tạo proxy riêng để gọi methods
+        this._methodsProxy = new ServerProxy(
+            Gio.DBus.session,
+            'com.github.dynamic_island.Server',
+            '/com/github/dynamic_island/Server',
+            (proxy, error) => {
+                if (error) {
+                    log(`[DynamicIsland] VolumeManager: Failed to connect methods proxy: ${error.message || error}`);
+                }
+            }
+        );
+    }
+
+    _onServerEvent(eventType, appName, pid, timestamp, metadata) {
+        if (this._destroyed) return;
+
+        // Chỉ xử lý các events volume
+        if (eventType !== 'volume_changed' && eventType !== 'volume_muted' && eventType !== 'volume_unmuted') {
             return;
         }
 
-        // Lấy giá trị ban đầu TRƯỚC khi setup listener (để không trigger notification)
-        this._updateVolume();
-
-        // Sau đó mới setup listener
-        this._streamChangedId = this._control.connect('stream-changed', () => {
-            this._onVolumeChanged();
-        });
-
-        // Đánh dấu đã khởi tạo xong
-        this._isInitializing = false;
-    }
-
-    _onVolumeChanged() {
-        if (this._destroyed) return;
-        this._updateVolume();
-    }
-
-    _updateVolume() {
-        if (!this._control) return;
-
-        const stream = this._control.get_default_sink();
-        if (!stream) return;
-
-        const oldVolume = this._currentVolume;
-        const oldMuted = this._isMuted;
-        const newStreamId = stream.id;
-
-        this._currentVolume = Math.round(stream.volume / this._control.get_vol_max_norm() * 100);
-        // Đảm bảo isMuted là boolean
-        this._isMuted = Boolean(stream.is_muted);
-
-        const volumeChanged = (this._currentVolume !== oldVolume || this._isMuted !== oldMuted);
-        const streamChanged = (newStreamId !== this._lastStreamId);
-
-        // Cập nhật stream ID
-        if (streamChanged) {
-            this._lastStreamId = newStreamId;
+        // Bỏ qua notifications trong lúc khởi tạo (trừ lần đầu để có giá trị ban đầu)
+        if (this._isInitializing && this._currentVolume > 0) {
+            return;
         }
 
-        // Chỉ notify khi:
-        // 1. Không phải đang khởi tạo
-        // 2. Volume thực sự thay đổi
-        // 3. Stream ID không đổi (không phải stream mới được tạo)
-        if (!this._isInitializing && volumeChanged && !streamChanged) {
+        // Parse metadata JSON
+        let metadataObj = {};
+        try {
+            if (metadata && typeof metadata === 'string') {
+                metadataObj = JSON.parse(metadata);
+            }
+        } catch (e) {
+            log(`[DynamicIsland] VolumeManager: Failed to parse metadata: ${e.message || e}`);
+            return;
+        }
+
+        // Cập nhật volume và mute state
+        const level = metadataObj.level !== undefined ? Math.round(metadataObj.level) : this._currentVolume;
+        const muted = metadataObj.muted !== undefined ? Boolean(metadataObj.muted) : this._isMuted;
+
+        // Chỉ notify nếu có thay đổi hoặc đang khởi tạo
+        if (this._currentVolume !== level || this._isMuted !== muted || this._isInitializing) {
+            this._currentVolume = level;
+            this._isMuted = muted;
+
             this._notifyCallbacks({
-                volume: this._currentVolume,
-                isMuted: this._isMuted
+                volume: level,
+                isMuted: muted
             });
         }
     }
@@ -92,35 +131,38 @@ var VolumeManager = class VolumeManager {
     /**
      * Lấy default sink stream
      * @returns {object|null}
+     * @deprecated Không còn sử dụng control trực tiếp, trả về null
      */
     getDefaultSink() {
-        if (!this._control) return null;
-        return this._control.get_default_sink();
+        return null;
     }
 
     /**
      * Lấy giá trị volume max normalized
      * @returns {number}
+     * @deprecated Không còn sử dụng control trực tiếp, trả về 0
      */
     getVolMaxNorm() {
-        if (!this._control) return 0;
-        return this._control.get_vol_max_norm();
+        return 0;
     }
 
     /**
      * Toggle mute/unmute
-     * @returns {boolean} Trạng thái mute mới
+     * @returns {boolean} Trạng thái mute mới (dự đoán, sẽ được cập nhật khi nhận event từ server)
      */
     toggleMute() {
-        const stream = this.getDefaultSink();
-        if (!stream) return this._isMuted;
+        if (!this._methodsProxy) return this._isMuted;
 
         try {
-            const newMutedState = !stream.is_muted;
-            if (stream.change_is_muted) {
-                stream.change_is_muted(newMutedState);
-            }
-            return newMutedState;
+            // Gọi method ToggleMute qua server
+            this._methodsProxy.ToggleMuteRemote((result, error) => {
+                if (error) {
+                    log(`[DynamicIsland] VolumeManager: Error toggling mute: ${error.message || error}`);
+                }
+            });
+
+            // Dự đoán trạng thái mới (sẽ được cập nhật khi nhận event từ server)
+            return !this._isMuted;
         } catch (e) {
             log(`[DynamicIsland] VolumeManager: Error toggling mute: ${e.message || e}`);
             return this._isMuted;
@@ -133,25 +175,18 @@ var VolumeManager = class VolumeManager {
      * @returns {boolean} True nếu thành công
      */
     setVolume(percentage) {
-        const stream = this.getDefaultSink();
-        if (!stream) return false;
+        if (!this._methodsProxy) return false;
 
         try {
-            const volMax = this.getVolMaxNorm();
-            const targetVolume = Math.round((percentage / 100) * volMax);
-
-            stream.volume = targetVolume;
-            if (stream.push_volume) {
-                stream.push_volume(); // QUAN TRỌNG: Phải push để apply thay đổi
-            }
-
-            // Unmute nếu đang mute và volume > 0
-            if (this._isMuted && percentage > 0) {
-                if (stream.change_is_muted) {
-                    stream.change_is_muted(false);
+            const targetVolume = Math.round(Math.max(0, Math.min(120, percentage)));
+            
+            // Gọi method SetVolume qua server
+            this._methodsProxy.SetVolumeRemote(targetVolume, (result, error) => {
+                if (error) {
+                    log(`[DynamicIsland] VolumeManager: Error setting volume: ${error.message || error}`);
                 }
-            }
-
+            });
+            
             return true;
         } catch (e) {
             log(`[DynamicIsland] VolumeManager: Error setting volume: ${e.message || e}`);
@@ -162,12 +197,13 @@ var VolumeManager = class VolumeManager {
     destroy() {
         this._destroyed = true;
 
-        if (this._streamChangedId && this._control) {
-            this._control.disconnect(this._streamChangedId);
-            this._streamChangedId = null;
+        if (this._serverProxy) {
+            this._serverProxy = null;
+        }
+        if (this._methodsProxy) {
+            this._methodsProxy = null;
         }
 
-        this._control = null;
         this._callbacks = [];
     }
 }

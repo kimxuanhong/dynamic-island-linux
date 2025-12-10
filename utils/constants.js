@@ -34,6 +34,7 @@ var NotchConstants = {
     TIMEOUT_MEDIA_SWITCH: 10000,
     TIMEOUT_PRESENTER_SWITCH: 300,
     TIMEOUT_WINDOW: 3000,
+    TIMEOUT_RECORDING: 3000,
 
     // Animation scales
     SQUEEZE_SCALE_X: 0.75,

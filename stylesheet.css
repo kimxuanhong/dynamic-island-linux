@@ -295,13 +295,15 @@
 
 /* Minimal View Styles */
 .battery-minimal-container,
-.media-minimal-container {
+.media-minimal-container,
+.recording-minimal-container {
     padding: 0;
     margin: 0;
 }
 
 .battery-icon-secondary,
-.media-thumbnail-secondary {
+.media-thumbnail-secondary,
+.recording-icon-secondary {
     icon-size: 24px;
     margin: 0;
     padding: 0;

@@ -88,7 +88,9 @@ var BatteryView = class BatteryView {
         this.expandedContainer.add_child(this.statusLabel);
     }
 
-    updateBattery(batteryInfo) {
+    updateBattery(batteryInfo, isCompact = true) {
+        if (!batteryInfo) return;
+        
         const {percentage, isCharging, isPresent} = batteryInfo;
         let iconName;
 
@@ -151,6 +153,17 @@ var BatteryView = class BatteryView {
         if (percentage <= 20) return 'battery-low';
         if (percentage === 100) return 'battery-full';
         return '';
+    }
+
+   
+    show() {
+        this.compactContainer.show();
+        this.expandedContainer.show();
+    }
+
+    hide() {
+        this.compactContainer.hide();
+        this.expandedContainer.hide();
     }
 
     destroy() {

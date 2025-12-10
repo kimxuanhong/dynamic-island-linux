@@ -41,14 +41,12 @@ var AnimationController = class AnimationController {
         if (!this.controller.notch) return;
 
         const notch = this.controller.notch;
-        const layoutManager = this.controller.layoutManager;
-        const hasMedia = this.controller.hasMedia;
 
         notch.remove_all_transitions();
         notch.add_style_class_name('compact-state');
         notch.remove_style_class_name('expanded-state');
 
-        const geometry = layoutManager.calculateCompactGeometry(hasMedia);
+        const geometry = this.calculateCompactGeometry();
 
         notch.ease({
             width: geometry.width,
@@ -116,6 +114,25 @@ var AnimationController = class AnimationController {
                 });
             }
         });
+    }
+
+    calculateCompactGeometry() {
+        const isSingle = this.controller.cycleManager.count() <= 1;
+        if (!isSingle) {
+            const mainWidth = NotchConstants.SPLIT_MAIN_WIDTH;
+            const gap = NotchConstants.SPLIT_GAP;
+            const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
+            const groupWidth = mainWidth + gap + secWidth;
+            return {
+                width: mainWidth,
+                x: Math.floor((this.controller.monitorWidth - groupWidth) / 2)
+            };
+        } else {
+            return {
+                width: this.controller.width,
+                x: Math.floor((this.controller.monitorWidth - this.controller.width) / 2)
+            };
+        }
     }
 }
 

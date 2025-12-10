@@ -164,6 +164,21 @@ func parsePactlOutput(output string) []AppInfo {
 var reAppName = regexp.MustCompile(`application.name\s*=\s*"([^"]+)"`)
 var rePID = regexp.MustCompile(`application.process.id\s*=\s*"?(\d+)"?`)
 
+// Blacklist of apps that should NOT trigger microphone recording events
+// These are typically audio processors, effects, or system components
+var microphoneBlacklist = map[string]bool{
+	"PulseEffects":     true,
+	"pulseeffects":     true,
+	"EasyEffects":      true,
+	"easyeffects":      true,
+	"PulseAudio":       true,
+	"pulseaudio":       true,
+	"PipeWire":         true,
+	"pipewire":         true,
+	"GNOME Shell":      true,
+	"gnome-shell":      true,
+}
+
 func parsePactlBlock(block string) *AppInfo {
 	app := "unknown"
 	pid := 0
@@ -186,6 +201,11 @@ func parsePactlBlock(block string) *AppInfo {
 	}
 
 	if app == "unknown" && pid == 0 {
+		return nil
+	}
+
+	// Filter out blacklisted apps
+	if microphoneBlacklist[app] {
 		return nil
 	}
 

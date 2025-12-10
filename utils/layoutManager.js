@@ -11,21 +11,16 @@ var LayoutManager = class LayoutManager {
     }
 
     updateLayout() {
-        if (!this.controller.notch) return; // Notch chưa được tạo
-
+        if (!this.controller.notch) return;
         const state = this.controller.stateMachine.getState();
-        const presenter = this.controller.presenterRegistry.getCurrent();
-        const hasMedia = this.controller.hasMedia;
-        const isSwapped = this.controller.isSwapped;
-
         if (state === 'expanded') {
-            this._updateExpandedLayout(presenter);
+            this._updateExpandedLayout();
         } else {
-            this._updateCompactLayout(presenter, hasMedia, isSwapped);
+            this._updateCompactLayout();
         }
     }
 
-    _updateExpandedLayout(presenter) {
+    _updateExpandedLayout() {
         if (!this.controller.notch) return;
 
         if (this.controller.secondaryNotch) {
@@ -34,15 +29,16 @@ var LayoutManager = class LayoutManager {
         this.controller.notch.set_width(this.controller.expandedWidth);
     }
 
-    _updateCompactLayout(presenter, hasMedia, isSwapped) {
-        if (hasMedia) {
-            this._updateSplitModeLayout(isSwapped);
+    _updateCompactLayout() {
+        const isSingle = this.controller.cycleManager.count() <= 1;
+        if (!isSingle) {
+            this._updateSplitModeLayout();
         } else {
-            this._updateDefaultLayout(presenter);
+            this._updateDefaultLayout();
         }
     }
 
-    _updateSplitModeLayout(isSwapped) {
+    _updateSplitModeLayout() {
         if (!this.controller.notch) return;
 
         // Show secondary notch
@@ -65,10 +61,10 @@ var LayoutManager = class LayoutManager {
         }
 
         // Update content
-        this._updateSplitModeContent(isSwapped);
+        this._updateSplitModeContent();
     }
 
-    _updateSplitModeContent(isSwapped) {
+    _updateSplitModeContent() {
         if (!this.controller.notch) return;
 
         this.controller.notch.remove_all_children();
@@ -76,44 +72,36 @@ var LayoutManager = class LayoutManager {
             this.controller.secondaryNotch.remove_all_children();
         }
 
-        const presenter = this.controller.presenterRegistry.getCurrent();
-        const batteryPresenter = this.controller.presenterRegistry.getPresenter('battery');
-        const mediaPresenter = this.controller.presenterRegistry.getPresenter('media');
-        const notificationPresenter = this.controller.presenterRegistry.getPresenter('notification');
+        // Get current presenter's compact container for main notch
+        const currentPresenterName = this.controller.cycleManager.current();
+        const currentPresenter = this.controller.presenterRegistry.getPresenter(currentPresenterName);
+        const mainContent = currentPresenter?.getCompactContainer?.();
 
-        let mainContent, secContent;
-
-        if (presenter === 'notification' || presenter === 'window') {
-            mainContent = notificationPresenter?.getCompactContainer();
-            if (isSwapped) {
-                secContent = mediaPresenter?.getSecondaryContainer();
-            } else {
-                secContent = batteryPresenter?.getSecondaryContainer();
-            }
-        } else {
-            if (isSwapped) {
-                mainContent = batteryPresenter?.getCompactContainer();
-                secContent = mediaPresenter?.getSecondaryContainer();
-            } else {
-                mainContent = mediaPresenter?.getCompactContainer();
-                secContent = batteryPresenter?.getSecondaryContainer();
-            }
-        }
+        // Get next presenter's SECONDARY container for secondary notch
+        const nextPresenterName = this.controller.cycleManager.getNext();
+        const nextPresenter = this.controller.presenterRegistry.getPresenter(nextPresenterName);
+        const secContent = nextPresenter?.getSecondaryContainer?.();
 
         if (mainContent) {
+            const oldParent = mainContent.get_parent();
+            if (oldParent) oldParent.remove_child(mainContent);
+
             this.controller.notch.add_child(mainContent);
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');
         }
 
         if (secContent && this.controller.secondaryNotch) {
+            const oldParent = secContent.get_parent();
+            if (oldParent) oldParent.remove_child(secContent);
+
             this.controller.secondaryNotch.add_child(secContent);
             secContent.show();
             secContent.add_style_class_name('in-secondary');
         }
     }
 
-    _updateDefaultLayout(presenter) {
+    _updateDefaultLayout() {
         if (!this.controller.notch) return;
 
         // Hide secondary notch
@@ -130,10 +118,13 @@ var LayoutManager = class LayoutManager {
         // Update content
         this.controller.notch.remove_all_children();
 
-        const presenterObj = this.controller.presenterRegistry.getPresenter(presenter);
-        const mainContent = presenterObj?.getCompactContainer();
-
+        const currentPresenterName = this.controller.cycleManager.current();
+        const currentPresenter = this.controller.presenterRegistry.getPresenter(currentPresenterName);
+        const mainContent = currentPresenter?.getCompactContainer?.();
         if (mainContent) {
+            const oldParent = mainContent.get_parent();
+            if (oldParent) oldParent.remove_child(mainContent);
+
             this.controller.notch.add_child(mainContent);
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');
@@ -142,24 +133,6 @@ var LayoutManager = class LayoutManager {
         // Clean up style classes
         this.controller.batteryView.compactContainer.remove_style_class_name('in-secondary');
         this.controller.mediaView.compactContainer.remove_style_class_name('in-secondary');
-    }
-
-    calculateCompactGeometry(hasMedia) {
-        if (hasMedia) {
-            const mainWidth = NotchConstants.SPLIT_MAIN_WIDTH;
-            const gap = NotchConstants.SPLIT_GAP;
-            const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
-            const groupWidth = mainWidth + gap + secWidth;
-            return {
-                width: mainWidth,
-                x: Math.floor((this.controller.monitorWidth - groupWidth) / 2)
-            };
-        } else {
-            return {
-                width: this.controller.width,
-                x: Math.floor((this.controller.monitorWidth - this.controller.width) / 2)
-            };
-        }
     }
 }
 
