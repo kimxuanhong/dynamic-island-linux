@@ -78,3 +78,13 @@ func (m *ServerMethods) GetBatteryInfo() (percentage int32, isCharging bool, isP
 	}
 	return p, c, pr, nil
 }
+func (m *ServerMethods) GetMediaInfo() (player string, status string, title string, artist string, artUrl string, err *dbus.Error) {
+	if m.mediaService == nil {
+		return "", "", "", "", "", dbus.MakeFailedError(fmt.Errorf("media service not available"))
+	}
+	p, s, t, a, u, e := m.mediaService.GetMediaInfo()
+	if e != nil {
+		return "", "", "", "", "", dbus.MakeFailedError(e)
+	}
+	return p, s, t, a, u, nil
+}

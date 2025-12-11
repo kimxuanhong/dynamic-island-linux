@@ -4,24 +4,24 @@
 
 .notch {
     transition: all 200ms ease-out;
-    background-color: #000;
+    background-color: rgba(0, 0, 0, 0.85);
 }
 
 /* Trạng thái Nhỏ gọn */
 .notch.compact-state {
     border-radius: 20px;
-    background-color: #000;
+    background-color: rgba(0, 0, 0, 0.85);
 }
 
 /* Trạng thái Mở rộng */
 .notch.expanded-state {
     border-radius: 26px;
-    background-color: #000;
+    background-color: rgba(0, 0, 0, 0.85);
 }
 
 /* Hiệu ứng khi hover (subtle) */
 .notch:hover {
-    background-color: #0a0a0a;
+    background-color: rgba(0, 0, 0, 0.85);
 }
 
 /* ============================================
@@ -290,7 +290,7 @@
 .notch-secondary {
     transition: all 200ms ease-out;
     border-radius: 99px;
-    background-color: #000;
+    background-color: rgba(0, 0, 0, 0.85);
 }
 
 /* Minimal View Styles */

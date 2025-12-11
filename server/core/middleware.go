@@ -104,6 +104,7 @@ type RateLimitMiddleware struct {
 	window    time.Duration
 	counts    map[EventType][]time.Time
 	mu        sync.Mutex
+	excluded  map[EventType]bool
 }
 
 func NewRateLimitMiddleware(maxEvents int, window time.Duration) *RateLimitMiddleware {
@@ -111,7 +112,14 @@ func NewRateLimitMiddleware(maxEvents int, window time.Duration) *RateLimitMiddl
 		maxEvents: maxEvents,
 		window:    window,
 		counts:    make(map[EventType][]time.Time),
+		excluded:  make(map[EventType]bool),
 	}
+}
+
+func (m *RateLimitMiddleware) Exclude(eventType EventType) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.excluded[eventType] = true
 }
 
 func (m *RateLimitMiddleware) GetName() string {
@@ -121,6 +129,10 @@ func (m *RateLimitMiddleware) GetName() string {
 func (m *RateLimitMiddleware) Process(ctx context.Context, event *Event) (context.Context, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.excluded[event.Type] {
+		return ctx, nil
+	}
 
 	now := time.Now()
 	eventType := event.Type

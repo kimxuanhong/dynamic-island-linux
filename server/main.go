@@ -46,6 +46,13 @@ const introspectXML = `
 			<arg name="isCharging" type="b" direction="out"/>
 			<arg name="isPresent" type="b" direction="out"/>
 		</method>
+		<method name="GetMediaInfo">
+			<arg name="player" type="s" direction="out"/>
+			<arg name="status" type="s" direction="out"/>
+			<arg name="title" type="s" direction="out"/>
+			<arg name="artist" type="s" direction="out"/>
+			<arg name="artUrl" type="s" direction="out"/>
+		</method>
 		<signal name="EventOccurred">
 			<arg name="event_type" type="s" direction="out"/>
 			<arg name="app_name" type="s" direction="out"/>
@@ -166,7 +173,14 @@ func main() {
 	debounce.Exclude(core.EventMediaChanged)
 
 	monitor.bus.Use(debounce)
-	monitor.bus.Use(core.NewRateLimitMiddleware(100, 1*time.Minute))
+
+	
+	rateLimit := core.NewRateLimitMiddleware(100, 1*time.Minute)
+	rateLimit.Exclude(core.EventVolumeChanged)
+	rateLimit.Exclude(core.EventVolumeMuted)
+	rateLimit.Exclude(core.EventVolumeUnmuted)
+	monitor.bus.Use(rateLimit)
+
 	monitor.bus.Use(&core.EnrichmentMiddleware{})
 	monitor.bus.Use(&core.LoggingMiddleware{})
 

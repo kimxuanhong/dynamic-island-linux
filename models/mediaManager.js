@@ -33,6 +33,13 @@ var MediaManager = class MediaManager {
                     </method>
                     <method name="MediaPlayPause">
                     </method>
+                    <method name="GetMediaInfo">
+                        <arg name="player" type="s" direction="out"/>
+                        <arg name="status" type="s" direction="out"/>
+                        <arg name="title" type="s" direction="out"/>
+                        <arg name="artist" type="s" direction="out"/>
+                        <arg name="artUrl" type="s" direction="out"/>
+                    </method>
                 </interface>
             </node>
         `;
@@ -70,6 +77,31 @@ var MediaManager = class MediaManager {
             (proxy, error) => {
                 if (error) {
                     log(`[DynamicIsland] MediaManager: Failed to connect methods proxy: ${error.message || error}`);
+                } else {
+                    // Fetch initial media state
+                    this._methodsProxy.GetMediaInfoRemote((result, error) => {
+                        if (!error && result) {
+                            const [player, status, title, artist, artUrl] = result;
+                            if (player && status) {
+                                // Simulate event format for internal processing
+                                this._currentMetadata = {
+                                    'xesam:title': title,
+                                    'xesam:artist': artist ? [artist] : [],
+                                    'mpris:artUrl': artUrl
+                                };
+                                this._playbackStatus = status;
+                                this._currentPlayer = player;
+                                this._currentArtPath = artUrl;
+
+                                this._notifyCallbacks({
+                                    isPlaying: status === 'Playing',
+                                    metadata: this._currentMetadata,
+                                    playbackStatus: status,
+                                    artPath: artUrl
+                                });
+                            }
+                        }
+                    });
                 }
             }
         );

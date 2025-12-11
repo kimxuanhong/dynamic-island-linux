@@ -525,7 +525,7 @@ var NotchController = class NotchController {
 
         this._cancelTemporaryPresenterTimeouts();
 
-        this.presenterRegistry.switchTo('volume', true);
+        this.presenterRegistry.switchTo('volume', false);
         this.expandNotch(true);
 
         this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME);
@@ -536,7 +536,7 @@ var NotchController = class NotchController {
 
         this._cancelTemporaryPresenterTimeouts();
 
-        this.presenterRegistry.switchTo('brightness', true);
+        this.presenterRegistry.switchTo('brightness', false);
         this.expandNotch(true);
 
         this._scheduleAutoCollapse('brightness', NotchConstants.TIMEOUT_BRIGHTNESS);

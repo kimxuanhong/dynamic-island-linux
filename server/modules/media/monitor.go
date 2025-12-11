@@ -281,6 +281,12 @@ func (s *MediaSource) GetCurrentPlayer() string {
 	return s.currentPlayer
 }
 
+func (s *MediaSource) GetState() (string, string, map[string]dbus.Variant, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.currentPlayer, s.currentStatus, s.currentMetadata, s.currentArtPath
+}
+
 func (s *MediaSource) performInitialUpdate(bus core.Bus, playerName string) {
 	obj := s.conn.Object(playerName, dbus.ObjectPath(mprisPath))
 
@@ -342,7 +348,7 @@ func (s *MediaSource) batchUpdate(bus core.Bus, updates map[string]interface{}) 
 	if metadata, ok := updates["metadata"].(map[string]dbus.Variant); ok {
 		s.currentMetadata = metadata
 
-		artUrl := s.extractArtUrl(metadata)
+		artUrl := s.ExtractArtUrl(metadata)
 		if artUrl != "" {
 			if strings.HasPrefix(artUrl, "http://") || strings.HasPrefix(artUrl, "https://") {
 
@@ -380,7 +386,7 @@ func (s *MediaSource) batchUpdate(bus core.Bus, updates map[string]interface{}) 
 	s.mu.Unlock()
 }
 
-func (s *MediaSource) extractMetadataValue(metadata map[string]dbus.Variant, keys []string) string {
+func (s *MediaSource) ExtractMetadataValue(metadata map[string]dbus.Variant, keys []string) string {
 	if metadata == nil {
 		return ""
 	}
@@ -398,15 +404,15 @@ func (s *MediaSource) extractMetadataValue(metadata map[string]dbus.Variant, key
 	return ""
 }
 
-func (s *MediaSource) extractArtUrl(metadata map[string]dbus.Variant) string {
-	return s.extractMetadataValue(metadata, []string{"mpris:artUrl", "xesam:artUrl", "mpris:arturl"})
+func (s *MediaSource) ExtractArtUrl(metadata map[string]dbus.Variant) string {
+	return s.ExtractMetadataValue(metadata, []string{"mpris:artUrl", "xesam:artUrl", "mpris:arturl"})
 }
 
-func (s *MediaSource) extractTitle(metadata map[string]dbus.Variant) string {
-	return s.extractMetadataValue(metadata, []string{"xesam:title", "mpris:title"})
+func (s *MediaSource) ExtractTitle(metadata map[string]dbus.Variant) string {
+	return s.ExtractMetadataValue(metadata, []string{"xesam:title", "mpris:title"})
 }
 
-func (s *MediaSource) extractArtist(metadata map[string]dbus.Variant) string {
+func (s *MediaSource) ExtractArtist(metadata map[string]dbus.Variant) string {
 	if metadata == nil {
 		return ""
 	}
@@ -469,8 +475,8 @@ func (s *MediaSource) notifyCallbacks(bus core.Bus, playerName string, status st
 
 	pid := s.getPlayerPID(playerName)
 
-	title := s.extractTitle(metadata)
-	artist := s.extractArtist(metadata)
+	title := s.ExtractTitle(metadata)
+	artist := s.ExtractArtist(metadata)
 
 	album := ""
 	if metadata != nil {

@@ -77,3 +77,24 @@ func (s *MediaService) Previous() error {
 func (s *MediaService) PlayPause() error {
 	return s.sendPlayerCommand("PlayPause")
 }
+func (s *MediaService) GetMediaInfo() (string, string, string, string, string, error) {
+	if s.mediaSource == nil {
+		return "", "", "", "", "", fmt.Errorf("media source not available")
+	}
+
+	player, status, metadata, artPath := s.mediaSource.GetState()
+	if player == "" {
+		return "", "", "", "", "", nil
+	}
+
+	title := s.mediaSource.ExtractTitle(metadata)
+	artist := s.mediaSource.ExtractArtist(metadata)
+	// If artPath is cached (from GetState), use it. otherwise extract from metadata.
+	// GetState returns currentArtPath which is the cached local path if available, or just the URL.
+	artUrl := artPath
+	if artUrl == "" {
+		artUrl = s.mediaSource.ExtractArtUrl(metadata)
+	}
+
+	return player, status, title, artist, artUrl, nil
+}
