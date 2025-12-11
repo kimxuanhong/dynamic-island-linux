@@ -132,13 +132,6 @@ func (s *BatterySource) fetchInitialValue(bus core.Bus) error {
 		return fmt.Errorf("invalid IsPresent type")
 	}
 
-	s.mu.Lock()
-	s.lastPercent = int(percentage)
-	s.lastCharging = (state == DeviceStateCharging || state == DeviceStateFullyCharged)
-	s.lastPresent = isPresent
-	s.initialized = true
-	s.mu.Unlock()
-
 	s.publishEvent(bus, int(percentage), state, isPresent)
 	return nil
 }
