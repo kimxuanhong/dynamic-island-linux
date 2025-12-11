@@ -497,6 +497,10 @@ var NotchController = class NotchController {
 
             this.cycleManager.activate('recording');
             this.presenterRegistry.switchTo('recording', true);
+            if (this.stateMachine.isCompact()) {
+                this.expandNotch(true);
+                this._scheduleAutoCollapse('recording', NotchConstants.TIMEOUT_RECORDING);
+            }
         } else {
             this.cycleManager.deactivate('recording');
             this.layoutManager.updateLayout();
