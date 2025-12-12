@@ -17,16 +17,18 @@ const (
 )
 
 type BluetoothSource struct {
-	conn      *dbus.Conn
-	stopChan  chan struct{}
-	eventChan chan *dbus.Signal
-	stopOnce  sync.Once
+	conn            *dbus.Conn
+	stopChan        chan struct{}
+	eventChan       chan *dbus.Signal
+	stopOnce        sync.Once
+	mediaController MediaController
 }
 
-func NewBluetoothSource() *BluetoothSource {
+func NewBluetoothSource(mediaController MediaController) *BluetoothSource {
 	return &BluetoothSource{
-		stopChan:  make(chan struct{}),
-		eventChan: make(chan *dbus.Signal, 10),
+		stopChan:        make(chan struct{}),
+		eventChan:       make(chan *dbus.Signal, 10),
+		mediaController: mediaController,
 	}
 }
 
@@ -156,6 +158,14 @@ func (s *BluetoothSource) emitBluetoothEvent(bus core.Bus, connected bool, props
 		event.Metadata["address"] = props.Address
 		event.Metadata["device_type"] = deviceType
 		log.Printf("⚪ BT Disconnected: %s (%s)", props.Alias, props.Address)
+
+		// Tự động dừng nhạc khi tai nghe hoặc loa bị ngắt kết nối
+		if s.mediaController != nil && isAudioDevice(deviceType) {
+			log.Printf("🎵 Auto-pausing media due to audio device disconnect: %s", props.Alias)
+			if err := s.mediaController.Pause(); err != nil {
+				log.Printf("⚠️ Failed to pause media: %v", err)
+			}
+		}
 	}
 
 	bus.Publish(event)
@@ -181,6 +191,11 @@ func classifyDeviceType(icon string) string {
 	default:
 		return "bluetooth"
 	}
+}
+
+// isAudioDevice kiểm tra xem thiết bị có phải là thiết bị âm thanh không
+func isAudioDevice(deviceType string) bool {
+	return deviceType == "headphone" || deviceType == "speaker"
 }
 
 type DeviceProps struct {

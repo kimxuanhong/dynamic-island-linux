@@ -53,6 +53,9 @@ func (s *MediaService) sendPlayerCommand(method string) error {
 	case "Previous":
 		log.Printf("⏮️ Media Previous: %s", playerName)
 		call = obj.Call(mprisPlayerInterface+".Previous", 0)
+	case "Pause":
+		log.Printf("⏸️ Media Pause: %s", playerName)
+		call = obj.Call(mprisPlayerInterface+".Pause", 0)
 	default:
 		return fmt.Errorf("unknown method: %s", method)
 	}
@@ -77,6 +80,11 @@ func (s *MediaService) Previous() error {
 func (s *MediaService) PlayPause() error {
 	return s.sendPlayerCommand("PlayPause")
 }
+
+func (s *MediaService) Pause() error {
+	return s.sendPlayerCommand("Pause")
+}
+
 func (s *MediaService) GetMediaInfo() (string, string, string, string, string, error) {
 	if s.mediaSource == nil {
 		return "", "", "", "", "", fmt.Errorf("media source not available")

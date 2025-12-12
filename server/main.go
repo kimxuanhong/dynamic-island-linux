@@ -76,6 +76,7 @@ type EventMonitor struct {
 	stopChan      chan struct{}
 	mediaSource   *media.MediaSource
 	batterySource *battery.BatterySource
+	mediaService  *media.MediaService
 }
 
 func NewEventMonitor() (*EventMonitor, error) {
@@ -122,6 +123,7 @@ func NewEventMonitor() (*EventMonitor, error) {
 		stopChan:      make(chan struct{}),
 		mediaSource:   mediaSource,
 		batterySource: batterySource,
+		mediaService:  mediaService,
 	}
 
 	return m, nil
@@ -174,7 +176,6 @@ func main() {
 
 	monitor.bus.Use(debounce)
 
-	
 	rateLimit := core.NewRateLimitMiddleware(100, 1*time.Minute)
 	rateLimit.Exclude(core.EventVolumeChanged)
 	rateLimit.Exclude(core.EventVolumeMuted)
@@ -201,7 +202,7 @@ func main() {
 
 	monitor.RegisterSource(microphone.NewMicrophoneSource())
 	monitor.RegisterSource(camera.NewCameraSource())
-	monitor.RegisterSource(bluetooth.NewBluetoothSource())
+	monitor.RegisterSource(bluetooth.NewBluetoothSource(monitor.mediaService))
 	monitor.RegisterSource(notification.NewNotificationSource())
 	monitor.RegisterSource(volume.NewVolumeSource())
 	monitor.RegisterSource(brightness.NewBrightnessSource())
