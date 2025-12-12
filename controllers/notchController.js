@@ -262,6 +262,13 @@ var NotchController = class NotchController {
             return Clutter.EVENT_STOP;
         });
 
+        this.secondaryNotch.connect('enter-event', () => {
+            if (this.stateMachine.isCompact() && !this.stateMachine.isAnimating()) {
+                this.squeeze();
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         Main.layoutManager.addChrome(this.secondaryNotch, {
             affectsInputRegion: true,
             trackFullscreen: false
