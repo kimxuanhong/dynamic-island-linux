@@ -560,6 +560,13 @@ var NotchController = class NotchController {
     }
 
     _onWindowLaunched(info) {
+        if (info.event === 'closed') {
+            if (this.stateMachine.isCompact()) {
+                this.squeeze();
+            }
+            return;
+        }
+
         this.windowView.updateWindow(info);
 
         if (this.stateMachine.isCompact()) {

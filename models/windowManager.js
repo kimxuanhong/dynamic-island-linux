@@ -66,10 +66,18 @@ var WindowManager = class WindowManager {
         // Cleanup khi window bị destroy
         metaWindow.connect('unmanaged', () => {
             this._trackedWindows.delete(metaWindow);
+            this._notifyCallbacks({
+                event: 'closed',
+                appName: appName || 'Unknown App',
+                windowTitle: windowTitle || '',
+                appIcon: appIcon,
+                metaWindow: metaWindow
+            });
         });
 
         // Notify callbacks
         this._notifyCallbacks({
+            event: 'launched',
             appName: appName || 'Unknown App',
             windowTitle: windowTitle || '',
             appIcon: appIcon,
