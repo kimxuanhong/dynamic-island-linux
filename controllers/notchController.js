@@ -310,7 +310,7 @@ var NotchController = class NotchController {
         });
 
         this._leaveEventId = this.notch.connect('leave-event', () => {
-            if (this.stateMachine.isExpanded() && !this.timeoutManager.has('collapse')) {
+            if ((this.stateMachine.isExpanded() || this.stateMachine.isAnimating()) && !this.timeoutManager.has('collapse')) {
                 this.timeoutManager.set('collapse', NotchConstants.TIMEOUT_COLLAPSE, () => {
                     if (this.stateMachine.isExpanded()) {
                         this.compactNotch();
@@ -721,6 +721,7 @@ var NotchController = class NotchController {
     }
 
     squeeze() {
+        if (!this.stateMachine.isCompact()) return;
         this.animationController.squeeze();
     }
 
