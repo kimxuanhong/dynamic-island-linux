@@ -241,9 +241,9 @@ var MediaView = class MediaView {
 
         // Main control buttons: Previous, Play/Pause, Next
         const controlConfig = [
-            {icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious()},
-            {icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true},
-            {icon: 'media-skip-forward-symbolic', handler: () => this._onNext()},
+            { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
+            { icon: 'media-playback-start-symbolic', handler: () => this._onPlayPause(), playPause: true },
+            { icon: 'media-skip-forward-symbolic', handler: () => this._onNext() },
         ];
 
         controlConfig.forEach(config => {
@@ -308,7 +308,7 @@ var MediaView = class MediaView {
     }
 
     updateMedia(mediaInfo) {
-        const {isPlaying, metadata, playbackStatus, artPath} = mediaInfo;
+        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -420,7 +420,7 @@ var MediaView = class MediaView {
                 // Local file
                 const path = artUrl.replace('file://', '');
                 const file = Gio.File.new_for_path(path);
-                const gicon = new Gio.FileIcon({file: file});
+                const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
                 if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
@@ -574,8 +574,13 @@ var MediaView = class MediaView {
     }
 
     _onAudioDevice() {
-        this._volumeManager.toggleMute();
-        this._updateAllIcons();
+        if (this._volumeRequestHandler) {
+            this._volumeRequestHandler();
+        }
+    }
+
+    setVolumeRequestHandler(handler) {
+        this._volumeRequestHandler = handler;
     }
 
     _onArtClick() {

@@ -13,12 +13,19 @@ var VolumeView = class VolumeView {
         this.expandedIcon = new St.Icon({
             icon_name: 'audio-volume-high-symbolic',
             icon_size: 64,
-            style: 'color: white;'
+            style: 'color: white;',
+            reactive: true
+        });
+
+        this.expandedIcon.connect('button-press-event', () => {
+            this._volumeManager.toggleMute();
+            return Clutter.EVENT_STOP;
         });
 
         this.expandedIconWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
+            reactive: true
         });
         this.expandedIconWrapper.set_child(this.expandedIcon);
 
@@ -133,7 +140,7 @@ var VolumeView = class VolumeView {
     }
 
     updateVolume(volumeInfo) {
-        const {volume, isMuted} = volumeInfo;
+        const { volume, isMuted } = volumeInfo;
 
         // Cập nhật icon
         let iconName;

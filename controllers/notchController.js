@@ -113,6 +113,13 @@ var NotchController = class NotchController {
         ]);
 
         this.mediaView._updateAllIcons();
+
+        this.mediaView.setVolumeRequestHandler(() => {
+            this._cancelTemporaryPresenterTimeouts();
+            this.presenterRegistry.switchTo('volume', true);
+            this.expandNotch(true);
+            this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME);
+        });
     }
 
     _registerPresenters() {
