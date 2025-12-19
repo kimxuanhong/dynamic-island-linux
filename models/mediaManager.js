@@ -12,6 +12,13 @@ var MediaManager = class MediaManager {
         this._destroyed = false;
         this._isInitializing = true;
 
+        // Method mapping for player commands
+        this._commandMethods = {
+            'PlayPause': 'MediaPlayPauseRemote',
+            'Next': 'MediaNextRemote',
+            'Previous': 'MediaPreviousRemote'
+        };
+
         this._initServerConnection();
     }
 
@@ -80,217 +87,332 @@ var MediaManager = class MediaManager {
                 } else {
                     // Fetch initial media state
                     this._methodsProxy.GetMediaInfoRemote((result, error) => {
-                        if (!error && result) {
-                            const [player, status, title, artist, artUrl] = result;
-                            if (player && status) {
-                                // Simulate event format for internal processing
-                                this._currentMetadata = {
-                                    'xesam:title': title,
-                                    'xesam:artist': artist ? [artist] : [],
-                                    'mpris:artUrl': artUrl
-                                };
-                                this._playbackStatus = status;
-                                this._currentPlayer = player;
-                                this._currentArtPath = artUrl;
-
-                                this._notifyCallbacks({
-                                    isPlaying: status === 'Playing',
-                                    metadata: this._currentMetadata,
-                                    playbackStatus: status,
-                                    artPath: artUrl
-                                });
-                            }
+                        if (error || !result) {
+                            return;
                         }
+
+                        const [player, status, title, artist, artUrl] = result;
+                        if (!player || !status) {
+                            return;
+                        }
+
+                        // Create metadata object in same format as server events
+                        const metadataObj = {
+                            player,
+                            status,
+                            title: title || '',
+                            artist: artist || '',
+                            artUrl: artUrl || '',
+                            isPlaying: status === 'Playing'
+                        };
+
+                        this._updateMediaState(metadataObj);
                     });
                 }
             }
         );
     }
 
-    _onServerEvent(eventType, appName, pid, timestamp, metadata) {
-        if (this._destroyed) return;
+    /**
+     * Normalize artist value to array format
+     * @param {string|Array|undefined} artist - Artist value from server
+     * @returns {Array} Normalized artist array
+     */
+    _normalizeArtist(artist) {
+        if (!artist) return [];
+        if (Array.isArray(artist)) return artist;
+        return [String(artist)];
+    }
 
-        // Chỉ xử lý các events media
-        if (eventType !== 'media_changed') {
-            return;
+    /**
+     * Parse metadata from server (can be string JSON or object)
+     * @param {string|object} metadata - Metadata from server
+     * @returns {object|null} Parsed metadata object or null on error
+     */
+    _parseMetadata(metadata) {
+        if (!metadata) return null;
+
+        if (typeof metadata === 'object') {
+            return metadata;
         }
 
-        // Parse metadata JSON
-        let metadataObj = {};
-        try {
-            if (metadata && typeof metadata === 'string') {
-                metadataObj = JSON.parse(metadata);
+        if (typeof metadata === 'string') {
+            try {
+                return JSON.parse(metadata);
+            } catch (e) {
+                log(`[DynamicIsland] MediaManager: Failed to parse metadata JSON: ${e.message || e}`);
+                return null;
             }
-        } catch (e) {
-            log(`[DynamicIsland] MediaManager: Failed to parse metadata: ${e.message || e}`);
-            return;
         }
 
-        // Cập nhật trạng thái media
-        const status = metadataObj.status || '';
-        const isPlaying = metadataObj.isPlaying !== undefined ? Boolean(metadataObj.isPlaying) : false;
-        const title = metadataObj.title || '';
-        const artist = metadataObj.artist || '';
-        const album = metadataObj.album || '';
-        const artUrl = metadataObj.artUrl || '';
-        const player = metadataObj.player || '';
+        return null;
+    }
 
-        // Nếu player rỗng hoặc status rỗng, có nghĩa là không có player nào đang chạy
-        if (!player || !status) {
-            this._playbackStatus = null;
-            this._currentMetadata = null;
-            this._currentArtPath = null;
-            this._currentPlayer = null;
-
-            this._notifyCallbacks({
-                isPlaying: false,
-                metadata: null,
-                playbackStatus: null,
-                artPath: null
-            });
-            return;
-        }
-
-        // Cập nhật metadata object (để tương thích với các helper methods)
-        this._currentMetadata = {
-            'xesam:title': title,
-            'xesam:artist': artist ? [artist] : [],
-            'xesam:album': album,
-            'mpris:artUrl': artUrl
+    /**
+     * Create metadata object in standard format
+     * @param {object} metadataObj - Parsed metadata object
+     * @returns {object} Standardized metadata object
+     */
+    _createMetadataObject(metadataObj) {
+        const artist = metadataObj.artist !== undefined ? metadataObj.artist : '';
+        
+        return {
+            'xesam:title': metadataObj.title || '',
+            'xesam:artist': this._normalizeArtist(artist),
+            'xesam:album': metadataObj.album || '',
+            'mpris:artUrl': metadataObj.artUrl || ''
         };
+    }
 
-        this._playbackStatus = status;
-        this._currentArtPath = artUrl;
-        this._currentPlayer = player;
+    /**
+     * Clear current media state and notify callbacks
+     */
+    _clearMediaState() {
+        this._playbackStatus = null;
+        this._currentMetadata = null;
+        this._currentArtPath = null;
+        this._currentPlayer = null;
 
-        // Notify callbacks
         this._notifyCallbacks({
-            isPlaying: isPlaying,
-            metadata: this._currentMetadata,
-            playbackStatus: status,
-            artPath: artUrl
+            isPlaying: false,
+            metadata: null,
+            playbackStatus: null,
+            artPath: null
         });
     }
 
-    // Helper methods để extract metadata (giữ lại để tương thích với code cũ)
+    /**
+     * Update media state from metadata object
+     * @param {object} metadataObj - Parsed metadata object
+     */
+    _updateMediaState(metadataObj) {
+        const status = metadataObj.status || '';
+        const player = metadataObj.player || '';
+
+        // Clear state if no active player
+        if (!player || !status) {
+            this._clearMediaState();
+            return;
+        }
+
+        // Update state
+        this._currentMetadata = this._createMetadataObject(metadataObj);
+        this._playbackStatus = status;
+        this._currentArtPath = metadataObj.artUrl || '';
+        this._currentPlayer = player;
+
+        // Notify callbacks
+        const isPlaying = metadataObj.isPlaying !== undefined 
+            ? Boolean(metadataObj.isPlaying) 
+            : status === 'Playing';
+
+        this._notifyCallbacks({
+            isPlaying,
+            metadata: this._currentMetadata,
+            playbackStatus: status,
+            artPath: this._currentArtPath
+        });
+    }
+
+    _onServerEvent(eventType, appName, pid, timestamp, metadata) {
+        if (this._destroyed || eventType !== 'media_changed') {
+            return;
+        }
+
+        const metadataObj = this._parseMetadata(metadata);
+        if (!metadataObj) {
+            return;
+        }
+
+        this._updateMediaState(metadataObj);
+    }
+
+    /**
+     * Extract metadata value by trying multiple keys
+     * @param {object} metadata - Metadata object
+     * @param {Array<string>} keys - Array of keys to try
+     * @returns {*} First found value or null
+     */
     _extractMetadataValue(metadata, keys) {
-        try {
-            if (!metadata) return null;
-            for (const key of keys) {
-                if (metadata[key] !== undefined && metadata[key] !== null) {
-                    const value = metadata[key];
-                    // Nếu là array (như xesam:artist), lấy phần tử đầu
-                    if (Array.isArray(value) && value.length > 0) {
-                        return value[0];
-                    }
-                    return value;
+        if (!metadata) return null;
+
+        for (const key of keys) {
+            const value = metadata[key];
+            if (value !== undefined && value !== null) {
+                // If array, return first element (for compatibility)
+                if (Array.isArray(value) && value.length > 0) {
+                    return value[0];
                 }
+                return value;
             }
-        } catch (e) {
-            log(`[DynamicIsland] MediaManager: Error extracting metadata value: ${e.message || e}`);
         }
         return null;
     }
 
+    /**
+     * Extract art URL from metadata
+     * @param {object} metadata - Metadata object
+     * @returns {string|null} Art URL or null
+     */
     _extractArtUrl(metadata) {
-        return this._extractMetadataValue(metadata, ['mpris:artUrl', 'xesam:artUrl', 'mpris:arturl']);
+        return this._extractMetadataValue(metadata, [
+            'mpris:artUrl', 
+            'xesam:artUrl', 
+            'mpris:arturl'
+        ]);
     }
 
+    /**
+     * Extract title from metadata
+     * @param {object} metadata - Metadata object
+     * @returns {string|null} Title or null
+     */
     _extractTitle(metadata) {
-        return this._extractMetadataValue(metadata, ['xesam:title', 'mpris:title']);
+        return this._extractMetadataValue(metadata, [
+            'xesam:title', 
+            'mpris:title'
+        ]);
     }
 
-
+    /**
+     * Extract artist from metadata and return as string
+     * @param {object} metadata - Metadata object
+     * @returns {string|null} Artist string or null
+     */
     _extractArtist(metadata) {
-        try {
-            if (!metadata) return null;
-            const artist = this._extractMetadataValue(metadata, ['xesam:artist', 'xesam:albumArtist']);
-            if (Array.isArray(artist) && artist.length > 0) {
-                return artist.join(', ');
-            }
-            return artist || null;
-        } catch (e) {
-            log(`[DynamicIsland] MediaManager: Error extracting artist: ${e.message || e}`);
+        if (!metadata) return null;
+
+        const artist = this._extractMetadataValue(metadata, [
+            'xesam:artist', 
+            'xesam:albumArtist'
+        ]);
+
+        if (!artist) return null;
+
+        // Handle arrays (flatten nested arrays)
+        if (Array.isArray(artist)) {
+            const flattened = artist.flat().filter(Boolean);
+            return flattened.length > 0 ? flattened.join(', ') : null;
         }
-        return null;
+
+        // Ensure string return
+        return String(artist);
     }
 
+    /**
+     * Get art URL from metadata
+     * @param {object} metadata - Metadata object
+     * @returns {string|null} Art URL or null
+     */
     getArtUrl(metadata) {
-        // Server đã download và cache art, chỉ cần trả về path từ metadata
-        if (!metadata) return null;
-        return this._extractArtUrl(metadata);
+        return metadata ? this._extractArtUrl(metadata) : null;
     }
 
+    /**
+     * Get title from metadata
+     * @param {object} metadata - Metadata object
+     * @returns {string|null} Title or null
+     */
     getTitle(metadata) {
-        if (!metadata) return null;
-        return this._extractTitle(metadata);
+        return metadata ? this._extractTitle(metadata) : null;
     }
 
+    /**
+     * Get artist from metadata as string
+     * @param {object} metadata - Metadata object
+     * @returns {string|null} Artist string or null
+     */
     getArtist(metadata) {
-        if (!metadata) return null;
-        return this._extractArtist(metadata);
+        return metadata ? this._extractArtist(metadata) : null;
     }
 
+    /**
+     * Check if metadata has art URL
+     * @param {object} metadata - Metadata object
+     * @returns {boolean} True if art URL exists
+     */
     hasArtUrl(metadata) {
-        if (!metadata) return false;
-        const artUrl = this._extractArtUrl(metadata);
-        return !!artUrl;
+        return !!this.getArtUrl(metadata);
     }
 
+    /**
+     * Send player command to server
+     * @param {string} method - Command method ('PlayPause', 'Next', 'Previous')
+     */
     sendPlayerCommand(method) {
-        if (!this._methodsProxy) return;
+        if (!this._methodsProxy) {
+            log(`[DynamicIsland] MediaManager: Methods proxy not available`);
+            return;
+        }
+
+        const methodName = this._commandMethods[method];
+        if (!methodName) {
+            log(`[DynamicIsland] MediaManager: Unknown command method: ${method}`);
+            return;
+        }
+
         try {
-            // Gọi methods qua server
-            if (method === 'PlayPause') {
-                this._methodsProxy.MediaPlayPauseRemote((result, error) => {
-                    if (error) {
-                        log(`[DynamicIsland] MediaManager: Error sending PlayPause command: ${error.message || error}`);
-                    }
-                });
-            } else if (method === 'Next') {
-                this._methodsProxy.MediaNextRemote((result, error) => {
-                    if (error) {
-                        log(`[DynamicIsland] MediaManager: Error sending Next command: ${error.message || error}`);
-                    }
-                });
-            } else if (method === 'Previous') {
-                this._methodsProxy.MediaPreviousRemote((result, error) => {
-                    if (error) {
-                        log(`[DynamicIsland] MediaManager: Error sending Previous command: ${error.message || error}`);
-                    }
-                });
-            }
+            this._methodsProxy[methodName]((result, error) => {
+                if (error) {
+                    log(`[DynamicIsland] MediaManager: Error sending ${method} command: ${error.message || error}`);
+                }
+            });
         } catch (e) {
-            log(`[DynamicIsland] MediaManager: Error sending ${method} command: ${e.message || e}`);
+            log(`[DynamicIsland] MediaManager: Exception sending ${method} command: ${e.message || e}`);
         }
     }
 
+    /**
+     * Add callback for media state changes
+     * @param {Function} callback - Callback function
+     */
     addCallback(callback) {
-        this._callbacks.push(callback);
+        if (typeof callback === 'function') {
+            this._callbacks.push(callback);
+        }
     }
 
+    /**
+     * Notify all registered callbacks
+     * @param {object} info - Media info object
+     */
     _notifyCallbacks(info) {
-        this._callbacks.forEach(cb => cb(info));
+        this._callbacks.forEach(callback => {
+            try {
+                callback(info);
+            } catch (e) {
+                log(`[DynamicIsland] MediaManager: Callback error: ${e.message || e}`);
+            }
+        });
     }
 
+    /**
+     * Check if media is currently playing
+     * @returns {boolean} True if playing
+     */
     isMediaPlaying() {
         return this._playbackStatus === 'Playing';
     }
 
+    /**
+     * Get current player bus name
+     * @returns {string|null} Player bus name or null
+     */
     getCurrentPlayer() {
         return this._currentPlayer;
     }
 
+    /**
+     * Clean up and destroy MediaManager
+     */
     destroy() {
         this._destroyed = true;
 
-        if (this._serverProxy) {
-            this._serverProxy = null;
-        }
-        if (this._methodsProxy) {
-            this._methodsProxy = null;
-        }
+        // Disconnect proxies
+        this._serverProxy = null;
+        this._methodsProxy = null;
 
+        // Clear state
         this._playbackStatus = null;
         this._currentMetadata = null;
         this._currentArtPath = null;

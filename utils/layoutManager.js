@@ -67,35 +67,68 @@ var LayoutManager = class LayoutManager {
     _updateSplitModeContent() {
         if (!this.controller.notch) return;
 
+        // Get containers before removing children
+        const currentPresenterName = this.controller.cycleManager.current();
+        const currentPresenter = this.controller.presenterRegistry.getPresenter(currentPresenterName);
+        const mainContent = currentPresenter?.getCompactContainer?.();
+
+        const nextPresenterName = this.controller.cycleManager.getNext();
+        const nextPresenter = this.controller.presenterRegistry.getPresenter(nextPresenterName);
+        const secContent = nextPresenter?.getSecondaryContainer?.();
+
+        // Remove all children first - this will remove mainContent and secContent if they were children
+        // We need to safely remove them first if they have different parents
+        if (mainContent) {
+            const oldParent = mainContent.get_parent();
+            if (oldParent && oldParent !== this.controller.notch) {
+                try {
+                    oldParent.remove_child(mainContent);
+                } catch (e) {
+                    // Ignore if already removed or doesn't exist
+                }
+            }
+        }
+
+        if (secContent && this.controller.secondaryNotch) {
+            const oldParent = secContent.get_parent();
+            if (oldParent && oldParent !== this.controller.secondaryNotch) {
+                try {
+                    oldParent.remove_child(secContent);
+                } catch (e) {
+                    // Ignore if already removed or doesn't exist
+                }
+            }
+        }
+
+        // Now safe to remove all children
         this.controller.notch.remove_all_children();
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.remove_all_children();
         }
 
-        // Get current presenter's compact container for main notch
-        const currentPresenterName = this.controller.cycleManager.current();
-        const currentPresenter = this.controller.presenterRegistry.getPresenter(currentPresenterName);
-        const mainContent = currentPresenter?.getCompactContainer?.();
-
-        // Get next presenter's SECONDARY container for secondary notch
-        const nextPresenterName = this.controller.cycleManager.getNext();
-        const nextPresenter = this.controller.presenterRegistry.getPresenter(nextPresenterName);
-        const secContent = nextPresenter?.getSecondaryContainer?.();
-
+        // Add new children
         if (mainContent) {
-            const oldParent = mainContent.get_parent();
-            if (oldParent) oldParent.remove_child(mainContent);
-
-            this.controller.notch.add_child(mainContent);
+            try {
+                // After remove_all_children(), mainContent should have no parent
+                if (!mainContent.get_parent()) {
+                    this.controller.notch.add_child(mainContent);
+                }
+            } catch (e) {
+                log(`[DynamicIsland] LayoutManager: Error adding mainContent: ${e.message || e}`);
+            }
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');
         }
 
         if (secContent && this.controller.secondaryNotch) {
-            const oldParent = secContent.get_parent();
-            if (oldParent) oldParent.remove_child(secContent);
-
-            this.controller.secondaryNotch.add_child(secContent);
+            try {
+                // After remove_all_children(), secContent should have no parent
+                if (!secContent.get_parent()) {
+                    this.controller.secondaryNotch.add_child(secContent);
+                }
+            } catch (e) {
+                log(`[DynamicIsland] LayoutManager: Error adding secContent: ${e.message || e}`);
+            }
             secContent.show();
             secContent.add_style_class_name('in-secondary');
         }
@@ -115,17 +148,36 @@ var LayoutManager = class LayoutManager {
         const startX = Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
         this.controller.notch.set_position(startX, NotchConstants.NOTCH_Y_POSITION);
 
-        // Update content
-        this.controller.notch.remove_all_children();
-
+        // Get container before removing children
         const currentPresenterName = this.controller.cycleManager.current();
         const currentPresenter = this.controller.presenterRegistry.getPresenter(currentPresenterName);
         const mainContent = currentPresenter?.getCompactContainer?.();
+
+        // Remove mainContent from old parent if it has a different parent
         if (mainContent) {
             const oldParent = mainContent.get_parent();
-            if (oldParent) oldParent.remove_child(mainContent);
+            if (oldParent && oldParent !== this.controller.notch) {
+                try {
+                    oldParent.remove_child(mainContent);
+                } catch (e) {
+                    // Ignore if already removed or doesn't exist
+                }
+            }
+        }
 
-            this.controller.notch.add_child(mainContent);
+        // Now safe to remove all children
+        this.controller.notch.remove_all_children();
+
+        // Add new child
+        if (mainContent) {
+            try {
+                // After remove_all_children(), mainContent should have no parent
+                if (!mainContent.get_parent()) {
+                    this.controller.notch.add_child(mainContent);
+                }
+            } catch (e) {
+                log(`[DynamicIsland] LayoutManager: Error adding mainContent: ${e.message || e}`);
+            }
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');
         }

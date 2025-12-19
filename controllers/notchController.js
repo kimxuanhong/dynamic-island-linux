@@ -235,7 +235,6 @@ var NotchController = class NotchController {
         this.notch.add_child(this.bluetoothView.compactContainer);
         this.notch.add_child(this.mediaView.compactContainer);
         this.notch.add_child(this.recordingView.compactContainer);
-        this.notch.add_child(this.recordingView.compactContainer);
 
         Main.layoutManager.addChrome(this.notch, {
             affectsInputRegion: true,
@@ -664,9 +663,33 @@ var NotchController = class NotchController {
         const container = presenter.getExpandedContainer();
         if (!container) return;
 
-        if (!container.get_parent()) {
-            this.notch.add_child(container);
+        const currentParent = container.get_parent();
+        
+        // If container already has this.notch as parent, just show it
+        if (currentParent === this.notch) {
+            container.show();
+            return;
         }
+
+        // If container has a different parent, remove it first
+        if (currentParent) {
+            try {
+                currentParent.remove_child(container);
+            } catch (e) {
+                // Ignore if already removed or doesn't exist
+            }
+        }
+
+        // Now safe to add - container should have no parent
+        if (!container.get_parent()) {
+            try {
+                this.notch.add_child(container);
+            } catch (e) {
+                log(`[DynamicIsland] NotchController: Error adding expanded container: ${e.message || e}`);
+                return;
+            }
+        }
+        
         container.show();
     }
 
