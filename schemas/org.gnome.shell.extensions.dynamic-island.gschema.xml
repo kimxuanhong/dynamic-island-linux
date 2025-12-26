@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="dynamic-island">
+  <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="hide-datepanel" type="b">
+      <default>false</default>
+      <summary>Hide Date Panel</summary>
+      <description>Hide the GNOME date panel when extension is enabled</description>
+    </key>
+    <key name="datepanel-position" type="s">
+      <default>"right"</default>
+      <summary>Date Panel Position</summary>
+      <description>Position of the GNOME date panel (left, center, right)</description>
+      <choices>
+        <choice value="left"/>
+        <choice value="center"/>
+        <choice value="right"/>
+      </choices>
+    </key>
+    <key name="notch-margin-top" type="i">
+      <default>5</default>
+      <summary>Notch Top Margin</summary>
+      <description>Margin from top edge of screen in pixels</description>
+      <range min="0" max="100"/>
+    </key>
+  </schema>
+</schemalist>
+

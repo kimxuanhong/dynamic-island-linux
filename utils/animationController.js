@@ -23,12 +23,18 @@ var AnimationController = class AnimationController {
         notch.add_style_class_name('expanded-state');
         notch.remove_style_class_name('compact-state');
 
-        const newX = Math.floor((monitorWidth - expandedWidth) / 2);
+        const newX = this.controller._calculateNotchX ? 
+            this.controller._calculateNotchX(expandedWidth) : 
+            Math.floor((monitorWidth - expandedWidth) / 2);
+        const newY = this.controller._calculateNotchY ? 
+            this.controller._calculateNotchY() : 
+            NotchConstants.NOTCH_Y_POSITION;
 
         notch.ease({
             width: expandedWidth,
             height: expandedHeight,
             x: newX,
+            y: newY,
             duration: NotchConstants.ANIMATION_EXPAND_DURATION,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
@@ -47,11 +53,15 @@ var AnimationController = class AnimationController {
         notch.remove_style_class_name('expanded-state');
 
         const geometry = this.calculateCompactGeometry();
+        const y = this.controller._calculateNotchY ? 
+            this.controller._calculateNotchY() : 
+            NotchConstants.NOTCH_Y_POSITION;
 
         notch.ease({
             width: geometry.width,
             height: this.controller.height,
             x: geometry.x,
+            y: y,
             duration: NotchConstants.ANIMATION_COMPACT_DURATION,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
@@ -123,14 +133,20 @@ var AnimationController = class AnimationController {
             const gap = NotchConstants.SPLIT_GAP;
             const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
             const groupWidth = mainWidth + gap + secWidth;
+            const x = this.controller._calculateNotchX ? 
+                this.controller._calculateNotchX(groupWidth) : 
+                Math.floor((this.controller.monitorWidth - groupWidth) / 2);
             return {
                 width: mainWidth,
-                x: Math.floor((this.controller.monitorWidth - groupWidth) / 2)
+                x: x
             };
         } else {
+            const x = this.controller._calculateNotchX ? 
+                this.controller._calculateNotchX(this.controller.width) : 
+                Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
             return {
                 width: this.controller.width,
-                x: Math.floor((this.controller.monitorWidth - this.controller.width) / 2)
+                x: x
             };
         }
     }

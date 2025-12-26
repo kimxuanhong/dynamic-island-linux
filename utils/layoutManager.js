@@ -52,12 +52,17 @@ var LayoutManager = class LayoutManager {
         const gap = NotchConstants.SPLIT_GAP;
         const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
         const groupWidth = mainWidth + gap + secWidth;
-        const startX = Math.floor((this.controller.monitorWidth - groupWidth) / 2);
+        const startX = this.controller._calculateNotchX ? 
+            this.controller._calculateNotchX(groupWidth) : 
+            Math.floor((this.controller.monitorWidth - groupWidth) / 2);
+        const startY = this.controller._calculateNotchY ? 
+            this.controller._calculateNotchY() : 
+            NotchConstants.NOTCH_Y_POSITION;
 
         this.controller.notch.set_width(mainWidth);
-        this.controller.notch.set_position(startX, NotchConstants.NOTCH_Y_POSITION);
+        this.controller.notch.set_position(startX, startY);
         if (this.controller.secondaryNotch) {
-            this.controller.secondaryNotch.set_position(startX + mainWidth + gap, NotchConstants.NOTCH_Y_POSITION);
+            this.controller.secondaryNotch.set_position(startX + mainWidth + gap, startY);
         }
 
         // Update content
@@ -145,8 +150,13 @@ var LayoutManager = class LayoutManager {
 
         // Set position
         this.controller.notch.set_width(this.controller.width);
-        const startX = Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
-        this.controller.notch.set_position(startX, NotchConstants.NOTCH_Y_POSITION);
+        const startX = this.controller._calculateNotchX ? 
+            this.controller._calculateNotchX(this.controller.width) : 
+            Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
+        const startY = this.controller._calculateNotchY ? 
+            this.controller._calculateNotchY() : 
+            NotchConstants.NOTCH_Y_POSITION;
+        this.controller.notch.set_position(startX, startY);
 
         // Get container before removing children
         const currentPresenterName = this.controller.cycleManager.current();

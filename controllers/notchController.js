@@ -34,12 +34,15 @@ const RecordingView = Me.imports.views.recordingView.RecordingView;
 const CameraView = Me.imports.views.cameraView.CameraView;
 
 var NotchController = class NotchController {
-    constructor() {
+    constructor(settings = null) {
         this.width = NotchConstants.COMPACT_WIDTH;
         this.height = NotchConstants.COMPACT_HEIGHT;
         this.expandedWidth = NotchConstants.EXPANDED_WIDTH;
         this.expandedHeight = NotchConstants.EXPANDED_HEIGHT;
         this.originalScale = NotchConstants.ORIGINAL_SCALE;
+
+        // Settings
+        this.settings = settings;
 
         // UI Actors
         this.notch = null;
@@ -228,8 +231,9 @@ var NotchController = class NotchController {
         this.notch.set_scale(this.originalScale, this.originalScale);
         this.notch.set_pivot_point(0.5, 0.5)
 
-        const initialX = Math.floor((this.monitorWidth - this.width) / 2);
-        this.notch.set_position(initialX, NotchConstants.NOTCH_Y_POSITION);
+        const initialX = this._calculateNotchX(this.width);
+        const initialY = this._calculateNotchY();
+        this.notch.set_position(initialX, initialY);
 
         this.notch.add_child(this.batteryView.compactContainer);
         this.notch.add_child(this.bluetoothView.compactContainer);
@@ -739,6 +743,32 @@ var NotchController = class NotchController {
     squeeze() {
         if (!this.stateMachine.isCompact()) return;
         this.animationController.squeeze();
+    }
+
+    _calculateNotchX(notchWidth) {
+        // Notch luôn ở giữa màn hình
+        return Math.floor((this.monitorWidth - notchWidth) / 2);
+    }
+
+    _calculateNotchY() {
+        const topMargin = this.settings ? this.settings.get_int('notch-margin-top') : NotchConstants.NOTCH_Y_POSITION;
+        return topMargin;
+    }
+
+    updatePosition() {
+        if (!this.notch) return;
+        
+        const currentWidth = this.stateMachine.isExpanded() 
+            ? this.expandedWidth 
+            : this.width;
+        
+        const newX = this._calculateNotchX(currentWidth);
+        const newY = this._calculateNotchY();
+        
+        this.notch.set_position(newX, newY);
+        
+        // Cập nhật layout để secondary notch cũng được di chuyển
+        this.layoutManager.updateLayout();
     }
 
     destroy() {
