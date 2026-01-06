@@ -5,7 +5,6 @@ var RecordingManager = class RecordingManager {
         this._callbacks = [];
         this._isRecording = false;
         this._appName = '';
-        this._startTime = null;
         this._serverProxy = null;
         this._destroyed = false;
         this._isInitializing = true;
@@ -86,17 +85,14 @@ var RecordingManager = class RecordingManager {
         if (isStarted) {
             this._isRecording = true;
             this._appName = appName || metadataObj.app_name || 'Microphone';
-            this._startTime = Date.now();
         } else {
             this._isRecording = false;
-            this._startTime = null;
         }
 
         // Gọi callback với format tương tự như các manager khác
         const info = {
             isRecording: this._isRecording,
-            appName: this._appName,
-            startTime: this._startTime
+            appName: this._appName
         };
         this._notifyCallbacks(info);
     }
@@ -131,12 +127,9 @@ var RecordingManager = class RecordingManager {
             return null;
         }
 
-        const elapsed = this._startTime ? Math.floor((Date.now() - this._startTime) / 1000) : 0;
         return {
             isRecording: true,
-            appName: this._appName,
-            elapsedSeconds: elapsed,
-            startTime: this._startTime
+            appName: this._appName
         };
     }
 

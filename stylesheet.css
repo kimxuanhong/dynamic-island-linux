@@ -321,3 +321,21 @@
 
 /* Restore padding for normal compact view (when NOT in secondary) */
 /* Removed as we reverted to inline styles in extension.js */
+
+/* ============================================
+   RECORDING DOT - Chấm xanh chớp tắt
+   ============================================ */
+
+.recording-dot {
+    animation: blink-recording 1s ease-in-out infinite;
+}
+
+@keyframes blink-recording {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}

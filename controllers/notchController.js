@@ -502,8 +502,6 @@ var NotchController = class NotchController {
     _onRecordingChanged(info) {
         if (info && info.isRecording) {
             this.recordingView.updateRecording(info);
-            const startTime = info.startTime || Date.now();
-            this.recordingView.startTimer(startTime);
 
             this.cycleManager.activate('recording');
             this.presenterRegistry.switchTo('recording', true);
