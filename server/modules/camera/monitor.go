@@ -3,7 +3,6 @@ package camera
 import (
 	"dynamic-island-server/core"
 	"fmt"
-	"log"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -34,11 +33,11 @@ func (s *CameraSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 
 	videoDevices := s.findVideoDevices()
 	if len(videoDevices) == 0 {
-		log.Println("⚠️  No video devices found, camera monitoring disabled")
+		// log.Println("⚠️  No video devices found, camera monitoring disabled")
 		return nil
 	}
 
-	log.Printf("📹 Monitoring %d video devices: %v", len(videoDevices), videoDevices)
+	// log.Printf("📹 Monitoring %d video devices: %v", len(videoDevices), videoDevices)
 
 	go s.watchWithInotify(videoDevices, bus, stopChan)
 
@@ -75,16 +74,16 @@ func (s *CameraSource) watchWithInotify(devices []string, bus core.Bus, stopChan
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Printf("Failed to create fsnotify watcher: %v", err)
+		// log.Printf("Failed to create fsnotify watcher: %v", err)
 		return
 	}
 	defer watcher.Close()
 
 	for _, device := range devices {
 		if err := watcher.Add(device); err != nil {
-			log.Printf("Failed to watch %s: %v", device, err)
+			// log.Printf("Failed to watch %s: %v", device, err)
 		} else {
-			log.Printf("👁️  Watching: %s", device)
+			// log.Printf("👁️  Watching: %s", device)
 		}
 	}
 
@@ -108,11 +107,11 @@ func (s *CameraSource) watchWithInotify(devices []string, bus core.Bus, stopChan
 					}
 				}
 
-			case err, ok := <-watcher.Errors:
+			case _, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				log.Printf("fsnotify error: %v", err)
+				// log.Printf("fsnotify error: %v", err)
 
 			case <-stopChan:
 				return

@@ -3,7 +3,6 @@ package bluetooth
 import (
 	"dynamic-island-server/core"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -54,7 +53,7 @@ func (s *BluetoothSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 
 	s.conn.Signal(s.eventChan)
 
-	log.Println("🔵 Bluetooth Monitor started (System Bus)")
+	// log.Println("🔵 Bluetooth Monitor started (System Bus)")
 
 	go func() {
 		defer func() {
@@ -70,10 +69,10 @@ func (s *BluetoothSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 					s.handleSignal(signal, bus)
 				}
 			case <-stopChan:
-				log.Println("🔵 Bluetooth Monitor stopped (external stop)")
+				// log.Println("🔵 Bluetooth Monitor stopped (external stop)")
 				return
 			case <-s.stopChan:
-				log.Println("🔵 Bluetooth Monitor stopped (internal stop)")
+				// log.Println("🔵 Bluetooth Monitor stopped (internal stop)")
 				return
 			}
 		}
@@ -101,13 +100,13 @@ func (s *BluetoothSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	if connectedVar, ok := changedProps["Connected"]; ok {
 		connected, ok := connectedVar.Value().(bool)
 		if !ok {
-			log.Printf("⚠️ Invalid Connected property type: %T", connectedVar.Value())
+			// log.Printf("⚠️ Invalid Connected property type: %T", connectedVar.Value())
 			return
 		}
 
 		props, err := s.getDeviceProperties(devicePath)
 		if err != nil {
-			log.Printf("⚠️ Failed to get device properties for %s: %v", devicePath, err)
+			// log.Printf("⚠️ Failed to get device properties for %s: %v", devicePath, err)
 			return
 		}
 
@@ -122,14 +121,14 @@ func (s *BluetoothSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	if pairedVar, ok := changedProps["Paired"]; ok {
 		paired, ok := pairedVar.Value().(bool)
 		if !ok {
-			log.Printf("⚠️ Invalid Paired property type: %T", pairedVar.Value())
+			// log.Printf("⚠️ Invalid Paired property type: %T", pairedVar.Value())
 			return
 		}
 
 		if paired {
 			props, err := s.getDeviceProperties(devicePath)
 			if err != nil {
-				log.Printf("⚠️ Failed to get device properties for %s: %v", devicePath, err)
+				// log.Printf("⚠️ Failed to get device properties for %s: %v", devicePath, err)
 				return
 			}
 
@@ -151,19 +150,19 @@ func (s *BluetoothSource) emitBluetoothEvent(bus core.Bus, connected bool, props
 		event.Metadata["address"] = props.Address
 		event.Metadata["icon"] = props.Icon
 		event.Metadata["device_type"] = deviceType
-		log.Printf("🔵 BT Connected: %s (%s) Type: %s", props.Alias, props.Address, deviceType)
+		// log.Printf("🔵 BT Connected: %s (%s) Type: %s", props.Alias, props.Address, deviceType)
 	} else {
 		event = core.NewEvent(core.EventBluetoothDisconnected, props.Alias, 0)
 		event.Metadata["device"] = "bluetooth"
 		event.Metadata["address"] = props.Address
 		event.Metadata["device_type"] = deviceType
-		log.Printf("⚪ BT Disconnected: %s (%s)", props.Alias, props.Address)
+		// log.Printf("⚪ BT Disconnected: %s (%s)", props.Alias, props.Address)
 
 		// Tự động dừng nhạc khi tai nghe hoặc loa bị ngắt kết nối
 		if s.mediaController != nil && isAudioDevice(deviceType) {
-			log.Printf("🎵 Auto-pausing media due to audio device disconnect: %s", props.Alias)
+			// log.Printf("🎵 Auto-pausing media due to audio device disconnect: %s", props.Alias)
 			if err := s.mediaController.Pause(); err != nil {
-				log.Printf("⚠️ Failed to pause media: %v", err)
+				// log.Printf("⚠️ Failed to pause media: %v", err)
 			}
 		}
 	}

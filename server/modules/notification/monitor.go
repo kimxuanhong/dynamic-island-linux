@@ -3,7 +3,6 @@ package notification
 import (
 	"dynamic-island-server/core"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/godbus/dbus/v5"
@@ -49,7 +48,7 @@ func (s *NotificationSource) Start(bus core.Bus, stopChan <-chan struct{}) error
 
 	s.conn.Signal(s.eventChan)
 
-	log.Println("🔔 Notification Listener started (Waiting for JS signal)")
+	// log.Println("🔔 Notification Listener started (Waiting for JS signal)")
 
 	go func() {
 		defer func() {
@@ -65,10 +64,10 @@ func (s *NotificationSource) Start(bus core.Bus, stopChan <-chan struct{}) error
 					s.handleSignal(signal, bus)
 				}
 			case <-stopChan:
-				log.Println("🔔 Notification Monitor stopped (external stop)")
+				// log.Println("🔔 Notification Monitor stopped (external stop)")
 				return
 			case <-s.stopChan:
-				log.Println("🔔 Notification Monitor stopped (internal stop)")
+				// log.Println("🔔 Notification Monitor stopped (internal stop)")
 				return
 			}
 		}
@@ -85,31 +84,31 @@ func (s *NotificationSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	}
 
 	if len(signal.Body) < 4 {
-		log.Printf("⚠️ Invalid notification signal: expected 4 arguments, got %d", len(signal.Body))
+		// log.Printf("⚠️ Invalid notification signal: expected 4 arguments, got %d", len(signal.Body))
 		return
 	}
 
 	appName, ok := signal.Body[0].(string)
 	if !ok {
-		log.Printf("⚠️ Invalid app_name type: %T", signal.Body[0])
+		// log.Printf("⚠️ Invalid app_name type: %T", signal.Body[0])
 		return
 	}
 
 	title, ok := signal.Body[1].(string)
 	if !ok {
-		log.Printf("⚠️ Invalid title type: %T", signal.Body[1])
+		// log.Printf("⚠️ Invalid title type: %T", signal.Body[1])
 		return
 	}
 
 	body, ok := signal.Body[2].(string)
 	if !ok {
-		log.Printf("⚠️ Invalid body type: %T", signal.Body[2])
+		// log.Printf("⚠️ Invalid body type: %T", signal.Body[2])
 		return
 	}
 
 	icon, ok := signal.Body[3].(string)
 	if !ok {
-		log.Printf("⚠️ Invalid icon type: %T", signal.Body[3])
+		// log.Printf("⚠️ Invalid icon type: %T", signal.Body[3])
 		return
 	}
 
@@ -118,7 +117,7 @@ func (s *NotificationSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	event.Metadata["body"] = body
 	event.Metadata["icon"] = icon
 
-	log.Printf("📥 Notification from JS: [%s] %s", appName, title)
+	// log.Printf("📥 Notification from JS: [%s] %s", appName, title)
 	bus.Publish(event)
 }
 

@@ -74,7 +74,7 @@ var CameraManager = class CameraManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] CameraManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] CameraManager: Failed to parse metadata: ${e.message || e}`);
         }
 
         if (eventType === 'camera_start') {
@@ -100,7 +100,7 @@ var CameraManager = class CameraManager {
             try {
                 callback(info);
             } catch (e) {
-                log(`[DynamicIsland] CameraManager: Callback error: ${e.message || e}`);
+                // log(`[DynamicIsland] CameraManager: Callback error: ${e.message || e}`);
             }
         });
     }

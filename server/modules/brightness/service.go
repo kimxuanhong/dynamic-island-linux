@@ -2,7 +2,6 @@ package brightness
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 
 	"github.com/godbus/dbus/v5"
@@ -24,7 +23,7 @@ func (s *BrightnessService) SetBrightness(level int32) error {
 		level = 100
 	}
 
-	log.Printf("☀️ SetBrightness called: %d%%", level)
+	// log.Printf("☀️ SetBrightness called: %d%%", level)
 
 	if s.conn == nil {
 
@@ -39,7 +38,7 @@ func (s *BrightnessService) SetBrightness(level int32) error {
 		dbus.MakeVariant(int32(level)))
 
 	if call.Err != nil {
-		log.Printf("Error setting brightness via DBus: %v", call.Err)
+		// log.Printf("Error setting brightness via DBus: %v", call.Err)
 
 		return s.setBrightnessViaCLI(level)
 	}
@@ -55,7 +54,7 @@ func (s *BrightnessService) setBrightnessViaCLI(level int32) error {
 		"Brightness", "i", fmt.Sprintf("%d", level))
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("Error setting brightness via CLI: %v", err)
+		// log.Printf("Error setting brightness via CLI: %v", err)
 		return fmt.Errorf("failed to set brightness: %v", err)
 	}
 	return nil

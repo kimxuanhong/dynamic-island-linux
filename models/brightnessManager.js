@@ -39,7 +39,7 @@ var BrightnessManager = class BrightnessManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] BrightnessManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] BrightnessManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -63,7 +63,7 @@ var BrightnessManager = class BrightnessManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] BrightnessManager: Failed to connect methods proxy: ${error.message || error}`);
+                    // log(`[DynamicIsland] BrightnessManager: Failed to connect methods proxy: ${error.message || error}`);
                 }
             }
         );
@@ -89,7 +89,7 @@ var BrightnessManager = class BrightnessManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] BrightnessManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] BrightnessManager: Failed to parse metadata: ${e.message || e}`);
             return;
         }
 
@@ -126,17 +126,17 @@ var BrightnessManager = class BrightnessManager {
 
         try {
             const targetBrightness = Math.round(Math.max(0, Math.min(100, percentage)));
-            
+
             // Gọi method SetBrightness qua server
             this._methodsProxy.SetBrightnessRemote(targetBrightness, (result, error) => {
                 if (error) {
-                    log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${error.message || error}`);
+                    // log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${error.message || error}`);
                 }
             });
-            
+
             return true;
         } catch (e) {
-            log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${e.message || e}`);
+            // log(`[DynamicIsland] BrightnessManager: Error setting brightness: ${e.message || e}`);
             return false;
         }
     }

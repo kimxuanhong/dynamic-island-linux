@@ -5,7 +5,6 @@ import (
 	"dynamic-island-server/core"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -78,7 +77,7 @@ func (s *MediaSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 	}
 
 	s.conn.Signal(s.eventChan)
-	log.Println("🎵 Media Monitor started (MPRIS)")
+	// log.Println("🎵 Media Monitor started (MPRIS)")
 
 	s.scanAndUpdatePlayers(bus)
 
@@ -96,10 +95,10 @@ func (s *MediaSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 					s.handleSignal(signal, bus)
 				}
 			case <-stopChan:
-				log.Println("🎵 Media Monitor stopped (external stop)")
+				// log.Println("🎵 Media Monitor stopped (external stop)")
 				return
 			case <-s.stopChan:
-				log.Println("🎵 Media Monitor stopped (internal stop)")
+				// log.Println("🎵 Media Monitor stopped (internal stop)")
 				return
 			}
 		}
@@ -126,13 +125,13 @@ func (s *MediaSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 
 			if oldOwner == "" && newOwner != "" {
 
-				log.Printf("🎵 MPRIS player appeared: %s", name)
+				// log.Printf("🎵 MPRIS player appeared: %s", name)
 				s.disconnectPlayer()
 				s.addToPlayerList(name)
 				s.connectToPlayer(name, bus)
 			} else if oldOwner != "" && newOwner == "" {
 
-				log.Printf("🎵 MPRIS player disappeared: %s", name)
+				// log.Printf("🎵 MPRIS player disappeared: %s", name)
 				s.removeFromPlayerList(name)
 
 				s.disconnectPlayer()
@@ -201,7 +200,7 @@ func (s *MediaSource) scanAndUpdatePlayers(bus core.Bus) {
 	var names []string
 	err := s.conn.BusObject().Call("org.freedesktop.DBus.ListNames", 0).Store(&names)
 	if err != nil {
-		log.Printf("⚠️ Failed to list DBus names: %v", err)
+		// log.Printf("⚠️ Failed to list DBus names: %v", err)
 		return
 	}
 
@@ -214,7 +213,7 @@ func (s *MediaSource) scanAndUpdatePlayers(bus core.Bus) {
 		}
 	}
 
-	log.Printf("🎵 Found %d media player(s)", len(validPlayers))
+	// log.Printf("🎵 Found %d media player(s)", len(validPlayers))
 
 	s.mu.Lock()
 	s.playerList = validPlayers
@@ -270,7 +269,7 @@ func (s *MediaSource) connectToPlayer(playerName string, bus core.Bus) {
 	s.currentPlayer = playerName
 	s.mu.Unlock()
 
-	log.Printf("🎵 Connected to player: %s", playerName)
+	// log.Printf("🎵 Connected to player: %s", playerName)
 
 	s.performInitialUpdate(bus, playerName)
 }
@@ -500,7 +499,7 @@ func (s *MediaSource) notifyCallbacks(bus core.Bus, playerName string, status st
 	event.Metadata["artUrl"] = artUrl
 	event.Metadata["player"] = playerName
 
-	log.Printf("🎵 Media: [%s] %s - %s (%s) PID: %d", appName, artist, title, status, pid)
+	// log.Printf("🎵 Media: [%s] %s - %s (%s) PID: %d", appName, artist, title, status, pid)
 	bus.Publish(event)
 }
 
@@ -526,19 +525,19 @@ func (s *MediaSource) getPlayerPID(serviceName string) int {
 func (s *MediaSource) downloadAndCacheImage(url string, bus core.Bus) {
 	resp, err := s.httpClient.Get(url)
 	if err != nil {
-		log.Printf("⚠️ MediaSource: Error downloading album art from %s: %v", url, err)
+		// log.Printf("⚠️ MediaSource: Error downloading album art from %s: %v", url, err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("⚠️ MediaSource: Failed to download album art from %s: status %d", url, resp.StatusCode)
+		// log.Printf("⚠️ MediaSource: Failed to download album art from %s: status %d", url, resp.StatusCode)
 		return
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("⚠️ MediaSource: Error reading album art bytes from %s: %v", url, err)
+		// log.Printf("⚠️ MediaSource: Error reading album art bytes from %s: %v", url, err)
 		return
 	}
 
@@ -560,13 +559,13 @@ func (s *MediaSource) downloadAndCacheImage(url string, bus core.Bus) {
 func (s *MediaSource) saveAndCacheImage(url string, data []byte) string {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		log.Printf("⚠️ MediaSource: Error getting cache directory: %v", err)
+		// log.Printf("⚠️ MediaSource: Error getting cache directory: %v", err)
 		return ""
 	}
 
 	dir := filepath.Join(cacheDir, "dynamic-island-art")
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		log.Printf("⚠️ MediaSource: Error creating cache directory: %v", err)
+		// log.Printf("⚠️ MediaSource: Error creating cache directory: %v", err)
 		return ""
 	}
 
@@ -575,7 +574,7 @@ func (s *MediaSource) saveAndCacheImage(url string, data []byte) string {
 	path := filepath.Join(dir, filename)
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		log.Printf("⚠️ MediaSource: Error saving album art to cache: %v", err)
+		// log.Printf("⚠️ MediaSource: Error saving album art to cache: %v", err)
 		return ""
 	}
 

@@ -3,7 +3,6 @@ package handlers
 import (
 	"dynamic-island-server/core"
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -33,11 +32,11 @@ func (h *DBusEmitHandler) Handle(event *core.Event) error {
 		if bytes, err := json.Marshal(event.Metadata); err == nil {
 			metadataJSON = string(bytes)
 		} else {
-			log.Printf("⚠️ Failed to marshal metadata: %v", err)
+			// log.Printf("⚠️ Failed to marshal metadata: %v", err)
 		}
 	}
 
-	log.Printf("📡 Emitting DBus Signal: [%s] App: %s, PID: %d, Meta: %s", event.Type, event.AppName, event.PID, metadataJSON)
+	// log.Printf("📡 Emitting DBus Signal: [%s] App: %s, PID: %d, Meta: %s", event.Type, event.AppName, event.PID, metadataJSON)
 
 	return h.conn.Emit(objectPath, serviceName+".EventOccurred",
 		string(event.Type), event.AppName, int32(event.PID),

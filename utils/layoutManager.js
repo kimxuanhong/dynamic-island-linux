@@ -52,11 +52,11 @@ var LayoutManager = class LayoutManager {
         const gap = NotchConstants.SPLIT_GAP;
         const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
         const groupWidth = mainWidth + gap + secWidth;
-        const startX = this.controller._calculateNotchX ? 
-            this.controller._calculateNotchX(groupWidth) : 
+        const startX = this.controller._calculateNotchX ?
+            this.controller._calculateNotchX(groupWidth) :
             Math.floor((this.controller.monitorWidth - groupWidth) / 2);
-        const startY = this.controller._calculateNotchY ? 
-            this.controller._calculateNotchY() : 
+        const startY = this.controller._calculateNotchY ?
+            this.controller._calculateNotchY() :
             NotchConstants.NOTCH_Y_POSITION;
 
         this.controller.notch.set_width(mainWidth);
@@ -119,7 +119,7 @@ var LayoutManager = class LayoutManager {
                     this.controller.notch.add_child(mainContent);
                 }
             } catch (e) {
-                log(`[DynamicIsland] LayoutManager: Error adding mainContent: ${e.message || e}`);
+                // log(`[DynamicIsland] LayoutManager: Error adding mainContent: ${e.message || e}`);
             }
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');
@@ -132,7 +132,7 @@ var LayoutManager = class LayoutManager {
                     this.controller.secondaryNotch.add_child(secContent);
                 }
             } catch (e) {
-                log(`[DynamicIsland] LayoutManager: Error adding secContent: ${e.message || e}`);
+                // log(`[DynamicIsland] LayoutManager: Error adding secContent: ${e.message || e}`);
             }
             secContent.show();
             secContent.add_style_class_name('in-secondary');
@@ -150,11 +150,11 @@ var LayoutManager = class LayoutManager {
 
         // Set position
         this.controller.notch.set_width(this.controller.width);
-        const startX = this.controller._calculateNotchX ? 
-            this.controller._calculateNotchX(this.controller.width) : 
+        const startX = this.controller._calculateNotchX ?
+            this.controller._calculateNotchX(this.controller.width) :
             Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
-        const startY = this.controller._calculateNotchY ? 
-            this.controller._calculateNotchY() : 
+        const startY = this.controller._calculateNotchY ?
+            this.controller._calculateNotchY() :
             NotchConstants.NOTCH_Y_POSITION;
         this.controller.notch.set_position(startX, startY);
 
@@ -186,7 +186,7 @@ var LayoutManager = class LayoutManager {
                     this.controller.notch.add_child(mainContent);
                 }
             } catch (e) {
-                log(`[DynamicIsland] LayoutManager: Error adding mainContent: ${e.message || e}`);
+                // log(`[DynamicIsland] LayoutManager: Error adding mainContent: ${e.message || e}`);
             }
             mainContent.show();
             mainContent.remove_style_class_name('in-secondary');

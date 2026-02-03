@@ -3,7 +3,6 @@ package brightness
 import (
 	"dynamic-island-server/core"
 	"fmt"
-	"log"
 	"math"
 	"sync"
 
@@ -48,7 +47,7 @@ func (s *BrightnessSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 	s.conn = conn
 
 	if err := s.fetchInitialValue(bus); err != nil {
-		log.Printf("⚠️ Failed to get initial brightness: %v", err)
+		// log.Printf("⚠️ Failed to get initial brightness: %v", err)
 
 	}
 
@@ -61,7 +60,7 @@ func (s *BrightnessSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 	}
 
 	s.conn.Signal(s.eventChan)
-	log.Println("☀️ Brightness Monitor started (GNOME Settings Daemon)")
+	// log.Println("☀️ Brightness Monitor started (GNOME Settings Daemon)")
 
 	go func() {
 		defer func() {
@@ -77,10 +76,10 @@ func (s *BrightnessSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 					s.handleSignal(signal, bus)
 				}
 			case <-stopChan:
-				log.Println("☀️ Brightness Monitor stopped (external stop)")
+				// log.Println("☀️ Brightness Monitor stopped (external stop)")
 				return
 			case <-s.stopChan:
-				log.Println("☀️ Brightness Monitor stopped (internal stop)")
+				// log.Println("☀️ Brightness Monitor stopped (internal stop)")
 				return
 			}
 		}
@@ -116,7 +115,7 @@ func (s *BrightnessSource) fetchInitialValue(bus core.Bus) error {
 	s.initialized = true
 	s.mu.Unlock()
 
-	log.Printf("☀️ Initial Brightness: %d%%", int(value))
+	// log.Printf("☀️ Initial Brightness: %d%%", int(value))
 	return nil
 }
 
@@ -152,7 +151,7 @@ func (s *BrightnessSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	case uint:
 		newLevel = int32(v)
 	default:
-		log.Printf("⚠️ Unexpected brightness type: %T", v)
+		// log.Printf("⚠️ Unexpected brightness type: %T", v)
 		return
 	}
 
@@ -166,7 +165,7 @@ func (s *BrightnessSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 		s.lastPercent = percent
 		s.initialized = true
 		s.mu.Unlock()
-		log.Printf("☀️ Brightness initialized: %d%%", percent)
+		// log.Printf("☀️ Brightness initialized: %d%%", percent)
 		return
 	}
 
@@ -182,7 +181,7 @@ func (s *BrightnessSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	diff := int(math.Abs(float64(percent - oldPercent)))
 
 	if diff > maxBrightnessJump {
-		log.Printf("☀️ Brightness jumped %d%% -> %d%% (Ignored > %d%% jump)", oldPercent, percent, maxBrightnessJump)
+		// log.Printf("☀️ Brightness jumped %d%% -> %d%% (Ignored > %d%% jump)", oldPercent, percent, maxBrightnessJump)
 		return
 	}
 
@@ -193,11 +192,11 @@ func (s *BrightnessSource) emitEvent(bus core.Bus, percent, oldPercent int) {
 
 	icon := s.selectIcon(percent)
 
-	direction := "↑"
-	if percent < oldPercent {
-		direction = "↓"
-	}
-	log.Printf("☀️ Brightness Changed: %d%% %s %d%%", oldPercent, direction, percent)
+	// direction := "↑"
+	// if percent < oldPercent {
+	// 	direction = "↓"
+	// }
+	// log.Printf("☀️ Brightness Changed: %d%% %s %d%%", oldPercent, direction, percent)
 
 	event := core.NewEvent(core.EventBrightnessChanged, "system", 0)
 	event.Metadata["level"] = percent

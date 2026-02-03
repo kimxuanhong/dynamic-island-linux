@@ -40,7 +40,7 @@ var NotificationManager = class NotificationManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] NotificationManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] NotificationManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -90,11 +90,11 @@ var NotificationManager = class NotificationManager {
 
     _onNotificationAdded(source, notification) {
         if (this._destroyed) return;
-        
+
         const title = notification.title || '';
         const body = notification.body || notification.bannerBodyText || '';
         const appName = source.title || '';
-        
+
         // Lấy icon path từ GIcon
         let iconPath = '';
         if (source.icon) {
@@ -142,7 +142,7 @@ var NotificationManager = class NotificationManager {
                 new GLib.Variant('(ssss)', [appName, title, body, icon]) // arguments
             );
         } catch (e) {
-            log(`[DynamicIsland] NotificationManager: Error emitting notification signal: ${e.message || e}`);
+            // log(`[DynamicIsland] NotificationManager: Error emitting notification signal: ${e.message || e}`);
         }
     }
 
@@ -161,7 +161,7 @@ var NotificationManager = class NotificationManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] NotificationManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] NotificationManager: Failed to parse metadata: ${e.message || e}`);
             return;
         }
 
@@ -192,7 +192,7 @@ var NotificationManager = class NotificationManager {
             try {
                 source.disconnect(signalId);
             } catch (e) {
-                log(`[DynamicIsland] NotificationManager: Error disconnecting signal: ${e.message || e}`);
+                // log(`[DynamicIsland] NotificationManager: Error disconnecting signal: ${e.message || e}`);
             }
         });
         this._sources.clear();

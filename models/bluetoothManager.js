@@ -36,7 +36,7 @@ var BluetoothManager = class BluetoothManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] BluetoothManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] BluetoothManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -74,7 +74,7 @@ var BluetoothManager = class BluetoothManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] BluetoothManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] BluetoothManager: Failed to parse metadata: ${e.message || e}`);
         }
 
         const isConnected = eventType === 'bluetooth_connected';

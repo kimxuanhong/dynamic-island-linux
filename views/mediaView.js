@@ -468,7 +468,7 @@ var MediaView = class MediaView {
                         }
                     }
                 } catch (e) {
-                    log(`[DynamicIsland] MediaView: Error setting album art icon: ${e.message || e}`);
+                    // log(`[DynamicIsland] MediaView: Error setting album art icon: ${e.message || e}`);
                     // Fallback
                     this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                     if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';

@@ -43,7 +43,7 @@ var BatteryManager = class BatteryManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] BatteryManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] BatteryManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -64,7 +64,7 @@ var BatteryManager = class BatteryManager {
         try {
             this._serverProxy.GetBatteryInfoRemote((result, error) => {
                 if (error) {
-                    log(`[DynamicIsland] BatteryManager: Failed to get initial battery info: ${error.message || error}`);
+                    // log(`[DynamicIsland] BatteryManager: Failed to get initial battery info: ${error.message || error}`);
                     // Đánh dấu đã khởi tạo xong dù có lỗi
                     imports.mainloop.timeout_add(500, () => {
                         this._isInitializing = false;
@@ -89,7 +89,7 @@ var BatteryManager = class BatteryManager {
                 this._notifyCallbacks();
             });
         } catch (e) {
-            log(`[DynamicIsland] BatteryManager: Error calling GetBatteryInfo: ${e.message || e}`);
+            // log(`[DynamicIsland] BatteryManager: Error calling GetBatteryInfo: ${e.message || e}`);
             // Đánh dấu đã khởi tạo xong dù có lỗi
             imports.mainloop.timeout_add(500, () => {
                 this._isInitializing = false;
@@ -111,7 +111,7 @@ var BatteryManager = class BatteryManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] BatteryManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] BatteryManager: Failed to parse metadata: ${e.message || e}`);
             return;
         }
 
@@ -121,8 +121,8 @@ var BatteryManager = class BatteryManager {
         const isPresent = metadataObj.isPresent !== undefined ? Boolean(metadataObj.isPresent) : this._isPresent;
 
         // Kiểm tra xem có thay đổi không
-        const hasChanged = this._currentPercentage !== percentage || 
-            this._isCharging !== isCharging || 
+        const hasChanged = this._currentPercentage !== percentage ||
+            this._isCharging !== isCharging ||
             this._isPresent !== isPresent;
 
         // Cập nhật giá trị
@@ -152,17 +152,17 @@ var BatteryManager = class BatteryManager {
 
     _notifyCallbacks() {
         const info = this.getBatteryInfo();
-        
+
         // Nếu không có thông tin, không notify
         if (!info) {
             return;
         }
-        
+
         // Detect charging state change for auto-expand
         const wasCharging = this._wasCharging;
         this._wasCharging = info.isCharging;
         info.shouldAutoExpand = info.isCharging && !wasCharging;
-        
+
         this._callbacks.forEach(cb => cb(info));
     }
 

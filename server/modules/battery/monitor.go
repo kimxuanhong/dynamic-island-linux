@@ -3,7 +3,6 @@ package battery
 import (
 	"dynamic-island-server/core"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/godbus/dbus/v5"
@@ -58,7 +57,7 @@ func (s *BatterySource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 	s.conn = conn
 
 	if err := s.fetchInitialValue(bus); err != nil {
-		log.Printf("⚠️ Failed to get initial battery value: %v", err)
+		// log.Printf("⚠️ Failed to get initial battery value: %v", err)
 	}
 
 	matchRule := fmt.Sprintf("type='signal',path='%s',interface='%s',member='PropertiesChanged'", upowerPath, propsInterface)
@@ -70,7 +69,7 @@ func (s *BatterySource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 	}
 
 	s.conn.Signal(s.eventChan)
-	log.Println("🔋 Battery Monitor started (UPower)")
+	// log.Println("🔋 Battery Monitor started (UPower)")
 
 	go func() {
 		defer func() {
@@ -86,10 +85,10 @@ func (s *BatterySource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 					s.handleSignal(signal, bus)
 				}
 			case <-stopChan:
-				log.Println("🔋 Battery Monitor stopped (external stop)")
+				// log.Println("🔋 Battery Monitor stopped (external stop)")
 				return
 			case <-s.stopChan:
-				log.Println("🔋 Battery Monitor stopped (internal stop)")
+				// log.Println("🔋 Battery Monitor stopped (internal stop)")
 				return
 			}
 		}
@@ -230,7 +229,7 @@ func (s *BatterySource) publishEvent(bus core.Bus, percentage int, state uint32,
 	event.Metadata["isPresent"] = isPresent
 	event.Metadata["state"] = int(state)
 
-	log.Printf("🔋 Battery: %d%% (%s, Present: %v)", percentage, map[bool]string{true: "Charging", false: "Discharging"}[isCharging], isPresent)
+	// log.Printf("🔋 Battery: %d%% (%s, Present: %v)", percentage, map[bool]string{true: "Charging", false: "Discharging"}[isCharging], isPresent)
 	bus.Publish(event)
 }
 

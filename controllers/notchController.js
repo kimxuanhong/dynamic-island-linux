@@ -422,7 +422,7 @@ var NotchController = class NotchController {
                 }
                 icon.destroy();
             } catch (e) {
-                log(`[DynamicIsland] NotchController: Error cleaning up animated icon: ${e.message || e}`);
+                // log(`[DynamicIsland] NotchController: Error cleaning up animated icon: ${e.message || e}`);
             }
             this._animatedIcons.delete(animationId);
         }
@@ -659,7 +659,7 @@ var NotchController = class NotchController {
         if (!container) return;
 
         const currentParent = container.get_parent();
-        
+
         // If container already has this.notch as parent, just show it
         if (currentParent === this.notch) {
             container.show();
@@ -680,11 +680,11 @@ var NotchController = class NotchController {
             try {
                 this.notch.add_child(container);
             } catch (e) {
-                log(`[DynamicIsland] NotchController: Error adding expanded container: ${e.message || e}`);
+                // log(`[DynamicIsland] NotchController: Error adding expanded container: ${e.message || e}`);
                 return;
             }
         }
-        
+
         container.show();
     }
 
@@ -755,16 +755,16 @@ var NotchController = class NotchController {
 
     updatePosition() {
         if (!this.notch) return;
-        
-        const currentWidth = this.stateMachine.isExpanded() 
-            ? this.expandedWidth 
+
+        const currentWidth = this.stateMachine.isExpanded()
+            ? this.expandedWidth
             : this.width;
-        
+
         const newX = this._calculateNotchX(currentWidth);
         const newY = this._calculateNotchY();
-        
+
         this.notch.set_position(newX, newY);
-        
+
         // Cập nhật layout để secondary notch cũng được di chuyển
         this.layoutManager.updateLayout();
     }

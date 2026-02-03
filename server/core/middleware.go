@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"log"
 	"os/exec"
 	"strings"
 	"sync"
@@ -61,11 +60,12 @@ func (m *LoggingMiddleware) GetName() string {
 }
 
 func (m *LoggingMiddleware) Process(ctx context.Context, event *Event) (context.Context, error) {
-	icon := "🔴"
-	if strings.HasSuffix(string(event.Type), "_stop") {
-		icon = "⚫"
-	}
-	log.Printf("%s [%s] %s (PID: %d) - Meta: %v", icon, event.Type, event.AppName, event.PID, event.Metadata)
+	// Logging disabled
+	// icon := "🔴"
+	// if strings.HasSuffix(string(event.Type), "_stop") {
+	// 	icon = "⚫"
+	// }
+	// log.Printf("%s [%s] %s (PID: %d) - Meta: %v", icon, event.Type, event.AppName, event.PID, event.Metadata)
 	return ctx, nil
 }
 

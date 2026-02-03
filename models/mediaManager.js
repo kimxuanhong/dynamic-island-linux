@@ -59,7 +59,7 @@ var MediaManager = class MediaManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] MediaManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] MediaManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -83,7 +83,7 @@ var MediaManager = class MediaManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] MediaManager: Failed to connect methods proxy: ${error.message || error}`);
+                    // log(`[DynamicIsland] MediaManager: Failed to connect methods proxy: ${error.message || error}`);
                 } else {
                     // Fetch initial media state
                     this._methodsProxy.GetMediaInfoRemote((result, error) => {
@@ -140,7 +140,7 @@ var MediaManager = class MediaManager {
             try {
                 return JSON.parse(metadata);
             } catch (e) {
-                log(`[DynamicIsland] MediaManager: Failed to parse metadata JSON: ${e.message || e}`);
+                // log(`[DynamicIsland] MediaManager: Failed to parse metadata JSON: ${e.message || e}`);
                 return null;
             }
         }
@@ -155,7 +155,7 @@ var MediaManager = class MediaManager {
      */
     _createMetadataObject(metadataObj) {
         const artist = metadataObj.artist !== undefined ? metadataObj.artist : '';
-        
+
         return {
             'xesam:title': metadataObj.title || '',
             'xesam:artist': this._normalizeArtist(artist),
@@ -202,8 +202,8 @@ var MediaManager = class MediaManager {
         this._currentPlayer = player;
 
         // Notify callbacks
-        const isPlaying = metadataObj.isPlaying !== undefined 
-            ? Boolean(metadataObj.isPlaying) 
+        const isPlaying = metadataObj.isPlaying !== undefined
+            ? Boolean(metadataObj.isPlaying)
             : status === 'Playing';
 
         this._notifyCallbacks({
@@ -256,8 +256,8 @@ var MediaManager = class MediaManager {
      */
     _extractArtUrl(metadata) {
         return this._extractMetadataValue(metadata, [
-            'mpris:artUrl', 
-            'xesam:artUrl', 
+            'mpris:artUrl',
+            'xesam:artUrl',
             'mpris:arturl'
         ]);
     }
@@ -269,7 +269,7 @@ var MediaManager = class MediaManager {
      */
     _extractTitle(metadata) {
         return this._extractMetadataValue(metadata, [
-            'xesam:title', 
+            'xesam:title',
             'mpris:title'
         ]);
     }
@@ -283,7 +283,7 @@ var MediaManager = class MediaManager {
         if (!metadata) return null;
 
         const artist = this._extractMetadataValue(metadata, [
-            'xesam:artist', 
+            'xesam:artist',
             'xesam:albumArtist'
         ]);
 
@@ -341,24 +341,24 @@ var MediaManager = class MediaManager {
      */
     sendPlayerCommand(method) {
         if (!this._methodsProxy) {
-            log(`[DynamicIsland] MediaManager: Methods proxy not available`);
+            // log(`[DynamicIsland] MediaManager: Methods proxy not available`);
             return;
         }
 
         const methodName = this._commandMethods[method];
         if (!methodName) {
-            log(`[DynamicIsland] MediaManager: Unknown command method: ${method}`);
+            // log(`[DynamicIsland] MediaManager: Unknown command method: ${method}`);
             return;
         }
 
         try {
             this._methodsProxy[methodName]((result, error) => {
                 if (error) {
-                    log(`[DynamicIsland] MediaManager: Error sending ${method} command: ${error.message || error}`);
+                    // log(`[DynamicIsland] MediaManager: Error sending ${method} command: ${error.message || error}`);
                 }
             });
         } catch (e) {
-            log(`[DynamicIsland] MediaManager: Exception sending ${method} command: ${e.message || e}`);
+            // log(`[DynamicIsland] MediaManager: Exception sending ${method} command: ${e.message || e}`);
         }
     }
 
@@ -381,7 +381,7 @@ var MediaManager = class MediaManager {
             try {
                 callback(info);
             } catch (e) {
-                log(`[DynamicIsland] MediaManager: Callback error: ${e.message || e}`);
+                // log(`[DynamicIsland] MediaManager: Callback error: ${e.message || e}`);
             }
         });
     }

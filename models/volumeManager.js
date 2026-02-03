@@ -42,7 +42,7 @@ var VolumeManager = class VolumeManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] VolumeManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] VolumeManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -66,7 +66,7 @@ var VolumeManager = class VolumeManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] VolumeManager: Failed to connect methods proxy: ${error.message || error}`);
+                    // log(`[DynamicIsland] VolumeManager: Failed to connect methods proxy: ${error.message || error}`);
                 }
             }
         );
@@ -92,7 +92,7 @@ var VolumeManager = class VolumeManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] VolumeManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] VolumeManager: Failed to parse metadata: ${e.message || e}`);
             return;
         }
 
@@ -157,14 +157,14 @@ var VolumeManager = class VolumeManager {
             // Gọi method ToggleMute qua server
             this._methodsProxy.ToggleMuteRemote((result, error) => {
                 if (error) {
-                    log(`[DynamicIsland] VolumeManager: Error toggling mute: ${error.message || error}`);
+                    // log(`[DynamicIsland] VolumeManager: Error toggling mute: ${error.message || error}`);
                 }
             });
 
             // Dự đoán trạng thái mới (sẽ được cập nhật khi nhận event từ server)
             return !this._isMuted;
         } catch (e) {
-            log(`[DynamicIsland] VolumeManager: Error toggling mute: ${e.message || e}`);
+            // log(`[DynamicIsland] VolumeManager: Error toggling mute: ${e.message || e}`);
             return this._isMuted;
         }
     }
@@ -179,17 +179,17 @@ var VolumeManager = class VolumeManager {
 
         try {
             const targetVolume = Math.round(Math.max(0, Math.min(120, percentage)));
-            
+
             // Gọi method SetVolume qua server
             this._methodsProxy.SetVolumeRemote(targetVolume, (result, error) => {
                 if (error) {
-                    log(`[DynamicIsland] VolumeManager: Error setting volume: ${error.message || error}`);
+                    // log(`[DynamicIsland] VolumeManager: Error setting volume: ${error.message || error}`);
                 }
             });
-            
+
             return true;
         } catch (e) {
-            log(`[DynamicIsland] VolumeManager: Error setting volume: ${e.message || e}`);
+            // log(`[DynamicIsland] VolumeManager: Error setting volume: ${e.message || e}`);
             return false;
         }
     }

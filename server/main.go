@@ -131,22 +131,22 @@ func NewEventMonitor() (*EventMonitor, error) {
 
 func (m *EventMonitor) RegisterSource(source core.EventSource) {
 	m.sources = append(m.sources, source)
-	log.Printf("✓ Registered source: %s", source.GetName())
+	// log.Printf("✓ Registered source: %s", source.GetName())
 }
 
 func (m *EventMonitor) Start() {
-	log.Println("🚀 Starting Dynamic Island Server with EventBus...")
+	// log.Println("🚀 Starting Dynamic Island Server with EventBus...")
 
 	m.bus.Start()
 
 	for _, source := range m.sources {
 		if err := source.Start(m.bus, m.stopChan); err != nil {
-			log.Printf("Error starting source %s: %v", source.GetName(), err)
+			// log.Printf("Error starting source %s: %v", source.GetName(), err)
 		}
 	}
 
 	<-m.stopChan
-	log.Println("Server stopped")
+	// log.Println("Server stopped")
 }
 
 func (m *EventMonitor) Stop() {
@@ -161,7 +161,7 @@ func (m *EventMonitor) Close() {
 }
 
 func main() {
-	log.Println("Initializing...")
+	// log.Println("Initializing...")
 
 	monitor, err := NewEventMonitor()
 	if err != nil {
@@ -209,6 +209,6 @@ func main() {
 	monitor.RegisterSource(monitor.batterySource)
 	monitor.RegisterSource(monitor.mediaSource)
 
-	log.Printf("D-Bus service started at %s", serviceName)
+	// log.Printf("D-Bus service started at %s", serviceName)
 	monitor.Start()
 }

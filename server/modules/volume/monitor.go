@@ -3,7 +3,6 @@ package volume
 import (
 	"bufio"
 	"dynamic-island-server/core"
-	"log"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -36,7 +35,7 @@ func (s *VolumeSource) GetName() string {
 }
 
 func (s *VolumeSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
-	log.Println("🔊 Volume Monitor started")
+	// log.Println("🔊 Volume Monitor started (PulseAudio)")
 
 	s.fetchAndPublish(bus)
 
@@ -45,12 +44,12 @@ func (s *VolumeSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 		cmd := exec.Command("sh", "-c", "LANG=C pactl subscribe")
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			log.Printf("⚠️ Error creating stdout pipe for pactl: %v", err)
+			// log.Printf("⚠️ Error creating stdout pipe for pactl: %v", err)
 			return
 		}
 
 		if err := cmd.Start(); err != nil {
-			log.Printf("⚠️ Error starting pactl subscribe: %v", err)
+			// log.Printf("⚠️ Error starting pactl subscribe: %v", err)
 			return
 		}
 
@@ -66,9 +65,9 @@ func (s *VolumeSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 		go func() {
 			select {
 			case <-stopChan:
-				log.Println("🔊 Volume Monitor stopped (external stop)")
+				// log.Println("🔊 Volume Monitor stopped (external stop)")
 			case <-s.stopChan:
-				log.Println("🔊 Volume Monitor stopped (internal stop)")
+				// log.Println("🔊 Volume Monitor stopped (internal stop)")
 			}
 			if cmd.Process != nil {
 				cmd.Process.Kill()
@@ -86,7 +85,7 @@ func (s *VolumeSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 		}
 
 		if err := scanner.Err(); err != nil {
-			log.Printf("⚠️ pactl subscribe scanner error: %v", err)
+			// log.Printf("⚠️ pactl subscribe scanner error: %v", err)
 		}
 	}()
 
@@ -103,7 +102,7 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 		// No default sink available (e.g., all players are off)
 		// This is normal and shouldn't be treated as an error
 		if !s.initialized {
-			log.Printf("⚠️ No default sink available yet (this is normal when no audio is playing)")
+			// log.Printf("⚠️ No default sink available yet (this is normal when no audio is playing)")
 		}
 		return
 	}
@@ -112,7 +111,7 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 	// Check if sink name is empty (shouldn't happen, but be safe)
 	if currentSink == "" {
 		if !s.initialized {
-			log.Printf("⚠️ Default sink name is empty")
+			// log.Printf("⚠️ Default sink name is empty")
 		}
 		return
 	}
@@ -122,7 +121,7 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 	if err != nil {
 		// Sink might have disappeared between get-default-sink and this call
 		if !s.initialized {
-			log.Printf("⚠️ Unable to get mute status (sink may have disappeared)")
+			// log.Printf("⚠️ Unable to get mute status (sink may have disappeared)")
 		}
 		return
 	}
@@ -133,7 +132,7 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 	if err != nil {
 		// Sink might have disappeared between get-default-sink and this call
 		if !s.initialized {
-			log.Printf("⚠️ Unable to get volume level (sink may have disappeared)")
+			// log.Printf("⚠️ Unable to get volume level (sink may have disappeared)")
 		}
 		return
 	}
@@ -145,7 +144,7 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 		if parsedLevel, err := strconv.Atoi(matches[1]); err == nil {
 			level = parsedLevel
 		} else {
-			log.Printf("⚠️ Failed to parse volume level: %v", err)
+			// log.Printf("⚠️ Failed to parse volume level: %v", err)
 		}
 	}
 
@@ -158,12 +157,12 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 		s.lastMuted = isMuted
 		s.initialized = true
 
-		log.Printf("🔊 Initial Volume: %d%% (Muted: %v) Sink: %s", level, isMuted, currentSink)
+		// log.Printf("🔊 Current Volume: %d%% (Muted: %v) Sink: %s", level, isMuted, currentSink)
 		return
 	}
 
 	if s.lastSink != currentSink {
-		log.Printf("🔌 Sink Switched: %s -> %s (Ignored Volume Event)", s.lastSink, currentSink)
+		// log.Printf("🔌 Sink Switched: %s -> %s (Ignored Volume Event)", s.lastSink, currentSink)
 
 		s.lastSink = currentSink
 		s.lastLevel = level
@@ -177,18 +176,18 @@ func (s *VolumeSource) fetchAndPublish(bus core.Bus) {
 	if muteChanged {
 		if isMuted {
 			eventType = core.EventVolumeMuted
-			log.Printf("🔇 Volume Muted (was at %d%%)", s.lastLevel)
+			// log.Printf("🔇 Volume Muted (was at %d%%)", s.lastLevel)
 		} else {
 			eventType = core.EventVolumeUnmuted
-			log.Printf("🔊 Volume Unmuted (now at %d%%)", level)
+			// log.Printf("🔊 Volume Unmuted (now at %d%%)", level)
 		}
 	} else if levelChanged {
 		eventType = core.EventVolumeChanged
-		direction := "↑"
-		if level < s.lastLevel {
-			direction = "↓"
-		}
-		log.Printf("🔊 Volume Changed: %d%% %s %d%%", s.lastLevel, direction, level)
+		// direction := "↑"
+		// if level < s.lastLevel {
+		// 	direction = "↓"
+		// }
+		// log.Printf("🔊 Volume Changed: %d%% %s %d%%", s.lastLevel, direction, level)
 	} else {
 
 		return

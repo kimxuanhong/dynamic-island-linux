@@ -36,7 +36,7 @@ var RecordingManager = class RecordingManager {
             '/com/github/dynamic_island/Server',
             (proxy, error) => {
                 if (error) {
-                    log(`[DynamicIsland] RecordingManager: Failed to connect to server: ${error.message || error}`);
+                    // log(`[DynamicIsland] RecordingManager: Failed to connect to server: ${error.message || error}`);
                     return;
                 }
 
@@ -77,7 +77,7 @@ var RecordingManager = class RecordingManager {
                 metadataObj = JSON.parse(metadata);
             }
         } catch (e) {
-            log(`[DynamicIsland] RecordingManager: Failed to parse metadata: ${e.message || e}`);
+            // log(`[DynamicIsland] RecordingManager: Failed to parse metadata: ${e.message || e}`);
         }
 
         const isStarted = eventType === 'recording_started' || eventType === 'microphone_start';
@@ -102,7 +102,7 @@ var RecordingManager = class RecordingManager {
             try {
                 callback(info);
             } catch (e) {
-                log(`[DynamicIsland] RecordingManager: Callback error: ${e.message || e}`);
+                // log(`[DynamicIsland] RecordingManager: Callback error: ${e.message || e}`);
             }
         });
     }

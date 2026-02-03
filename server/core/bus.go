@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"log"
 	"sync"
 )
 
@@ -36,19 +35,19 @@ func (bus *EventBus) Subscribe(eventType EventType, handler EventHandler) {
 	defer bus.mu.Unlock()
 
 	bus.subscribers[eventType] = append(bus.subscribers[eventType], handler)
-	log.Printf("📌 Subscribed %s to %s", handler.GetName(), eventType)
+	// log.Printf("📌 Subscribed %s to %s", handler.GetName(), eventType)
 }
 
 func (bus *EventBus) Use(mw Middleware) {
 	bus.middleware = append(bus.middleware, mw)
-	log.Printf("🔗 Added middleware: %s", mw.GetName())
+	// log.Printf("🔗 Added middleware: %s", mw.GetName())
 }
 
 func (bus *EventBus) Publish(event *Event) {
 	select {
 	case bus.eventChan <- event:
 	default:
-		log.Printf("⚠️  EventBus buffer full, dropping event: %s", event.ID)
+		// log.Printf("⚠️  EventBus buffer full, dropping event: %s", event.ID)
 	}
 }
 
@@ -72,7 +71,7 @@ func (bus *EventBus) processEvent(event *Event) {
 		var err error
 		ctx, err = mw.Process(ctx, event)
 		if err != nil {
-			log.Printf("❌ Middleware %s blocked event %s: %v", mw.GetName(), event.ID, err)
+			// log.Printf("❌ Middleware %s blocked event %s: %v", mw.GetName(), event.ID, err)
 			return
 		}
 	}
@@ -85,7 +84,7 @@ func (bus *EventBus) processEvent(event *Event) {
 	for _, handler := range handlers {
 		go func(h EventHandler) {
 			if err := h.Handle(event); err != nil {
-				log.Printf("❌ Handler %s error: %v", h.GetName(), err)
+				// log.Printf("❌ Handler %s error: %v", h.GetName(), err)
 			}
 		}(handler)
 	}
