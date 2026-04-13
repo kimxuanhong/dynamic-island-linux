@@ -22,6 +22,7 @@ const NotificationManager = Me.imports.models.notificationManager.NotificationMa
 const WindowManager = Me.imports.models.windowManager.WindowManager;
 const RecordingManager = Me.imports.models.recordingManager.RecordingManager;
 const CameraManager = Me.imports.models.cameraManager.CameraManager;
+const UxplayManager = Me.imports.models.uxplayManager.UxplayManager;
 
 const BatteryView = Me.imports.views.batteryView.BatteryView;
 const BluetoothView = Me.imports.views.bluetoothView.BluetoothView;
@@ -32,6 +33,7 @@ const NotificationView = Me.imports.views.notificationView.NotificationView;
 const WindowView = Me.imports.views.windowView.WindowView;
 const RecordingView = Me.imports.views.recordingView.RecordingView;
 const CameraView = Me.imports.views.cameraView.CameraView;
+const UxplayView = Me.imports.views.uxplayView.UxplayView;
 
 var NotchController = class NotchController {
     constructor(settings = null) {
@@ -90,6 +92,7 @@ var NotchController = class NotchController {
         this.windowManager = new WindowManager();
         this.recordingManager = new RecordingManager();
         this.cameraManager = new CameraManager();
+        this.uxplayManager = new UxplayManager();
     }
 
     _initializeViews() {
@@ -102,6 +105,7 @@ var NotchController = class NotchController {
         this.windowView = new WindowView();
         this.recordingView = new RecordingView();
         this.cameraView = new CameraView();
+        this.uxplayView = new UxplayView();
 
         this.allViewsMap = new Map([
             ['battery', this.batteryView],
@@ -112,7 +116,8 @@ var NotchController = class NotchController {
             ['notification', this.notificationView],
             ['window', this.windowView],
             ['recording', this.recordingView],
-            ['camera', this.cameraView]
+            ['camera', this.cameraView],
+            ['uxplay', this.uxplayView]
         ]);
 
         this.mediaView._updateAllIcons();
@@ -147,6 +152,14 @@ var NotchController = class NotchController {
             getCompactContainer: () => this.recordingView.compactContainer,
             getExpandedContainer: () => this.recordingView.expandedContainer,
             getSecondaryContainer: () => this.recordingView.secondaryContainer,
+            onActivate: () => this.layoutManager.updateLayout()
+        });
+
+        // Uxplay Presenter
+        this.presenterRegistry.register('uxplay', {
+            getCompactContainer: () => this.uxplayView.compactContainer,
+            getExpandedContainer: () => this.uxplayView.expandedContainer,
+            getSecondaryContainer: () => this.uxplayView.secondaryContainer,
             onActivate: () => this.layoutManager.updateLayout()
         });
 
@@ -239,6 +252,7 @@ var NotchController = class NotchController {
         this.notch.add_child(this.bluetoothView.compactContainer);
         this.notch.add_child(this.mediaView.compactContainer);
         this.notch.add_child(this.recordingView.compactContainer);
+        this.notch.add_child(this.uxplayView.compactContainer);
 
         Main.layoutManager.addChrome(this.notch, {
             affectsInputRegion: true,
@@ -288,6 +302,7 @@ var NotchController = class NotchController {
         this.windowManager.addCallback((info) => this._onWindowLaunched(info));
         this.recordingManager.addCallback((info) => this._onRecordingChanged(info));
         this.cameraManager.addCallback((info) => this._onCameraChanged(info));
+        this.uxplayManager.addCallback((info) => this._onUxplayChanged(info));
     }
 
     _setupMouseEvents() {
@@ -602,6 +617,26 @@ var NotchController = class NotchController {
         }
     }
 
+    _onUxplayChanged(info) {
+        if (info && info.isSharing) {
+            this.uxplayView.updateUxplay(info);
+
+            this.cycleManager.activate('uxplay');
+            this.presenterRegistry.switchTo('uxplay', true);
+            if (this.stateMachine.isCompact()) {
+                this.expandNotch(true);
+                this._scheduleAutoCollapse('uxplay', NotchConstants.TIMEOUT_RECORDING); // Tạm dùng chung timeout với recording
+            }
+        } else {
+            this.cycleManager.deactivate('uxplay');
+            this.layoutManager.updateLayout();
+        }
+        
+        if (this.stateMachine.isCompact()) {
+            this.squeeze();
+        }
+    }
+
     _scheduleAutoCollapse(timeoutKey, delay) {
         this.timeoutManager.set(timeoutKey, delay, () => {
             if (this.stateMachine.isExpanded()) {
@@ -629,6 +664,7 @@ var NotchController = class NotchController {
         this.timeoutManager.clear('window');
         this.timeoutManager.clear('recording');
         this.timeoutManager.clear('camera');
+        this.timeoutManager.clear('uxplay');
     }
 
     _hideAllExpandedViews() {
@@ -640,6 +676,7 @@ var NotchController = class NotchController {
         this.windowView.expandedContainer.hide();
         this.recordingView.expandedContainer.hide();
         this.cameraView.expandedContainer.hide();
+        this.uxplayView.expandedContainer.hide();
     }
 
     _hideAllCompactViews() {
@@ -649,8 +686,7 @@ var NotchController = class NotchController {
         this.notificationView.compactContainer.hide();
         this.windowView.compactContainer.hide();
         this.recordingView.compactContainer.hide();
-        this.windowView.compactContainer.hide();
-        this.recordingView.compactContainer.hide();
+        this.uxplayView.compactContainer.hide();
     }
 
     _showExpandedView(presenter) {
@@ -826,6 +862,10 @@ var NotchController = class NotchController {
             this.cameraManager.destroy();
             this.cameraManager = null;
         }
+        if (this.uxplayManager) {
+            this.uxplayManager.destroy();
+            this.uxplayManager = null;
+        }
 
         this._cleanupAllAnimatedIcons();
 
@@ -865,6 +905,10 @@ var NotchController = class NotchController {
         if (this.cameraView) {
             this.cameraView.destroy();
             this.cameraView = null;
+        }
+        if (this.uxplayView) {
+            this.uxplayView.destroy();
+            this.uxplayView = null;
         }
 
         // Destroy actors

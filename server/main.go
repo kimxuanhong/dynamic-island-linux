@@ -10,6 +10,7 @@ import (
 	"dynamic-island-server/modules/media"
 	"dynamic-island-server/modules/microphone"
 	"dynamic-island-server/modules/notification"
+	"dynamic-island-server/modules/uxplay"
 	"dynamic-island-server/modules/volume"
 	"fmt"
 	"log"
@@ -199,6 +200,7 @@ func main() {
 	monitor.bus.Subscribe(core.EventBrightnessChanged, handler)
 	monitor.bus.Subscribe(core.EventMediaChanged, handler)
 	monitor.bus.Subscribe(core.EventBatteryChanged, handler)
+	monitor.bus.Subscribe(core.EventUxplaySharing, handler)
 
 	monitor.RegisterSource(microphone.NewMicrophoneSource())
 	monitor.RegisterSource(camera.NewCameraSource())
@@ -208,6 +210,7 @@ func main() {
 	monitor.RegisterSource(brightness.NewBrightnessSource())
 	monitor.RegisterSource(monitor.batterySource)
 	monitor.RegisterSource(monitor.mediaSource)
+	monitor.RegisterSource(uxplay.NewUxplaySource())
 
 	// log.Printf("D-Bus service started at %s", serviceName)
 	monitor.Start()

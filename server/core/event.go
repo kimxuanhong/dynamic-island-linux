@@ -22,6 +22,7 @@ const (
 	EventBrightnessChanged     EventType = "brightness_changed"
 	EventMediaChanged          EventType = "media_changed"
 	EventBatteryChanged        EventType = "battery_changed"
+	EventUxplaySharing         EventType = "uxplay_sharing"
 )
 
 type Event struct {

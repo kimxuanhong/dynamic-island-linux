@@ -4,7 +4,7 @@ PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
-ExecStart=/home/xuanhong/.local/bin/dynamic-island-server
+ExecStart= /home/xuanhong/app/dynamic-island-server
 Restart=always
 RestartSec=3
 WorkingDirectory=/home/xuanhong
