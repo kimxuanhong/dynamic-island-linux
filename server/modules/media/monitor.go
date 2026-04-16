@@ -139,7 +139,7 @@ func (s *MediaSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 				playerList := s.playerList
 				s.mu.Unlock()
 				if len(playerList) > 0 {
-					s.connectToPlayer(playerList[0], bus)
+					s.connectToPlayer(playerList[len(playerList)-1], bus)
 				}
 			}
 		}
