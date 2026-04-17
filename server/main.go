@@ -46,6 +46,8 @@ const introspectXML = `
 			<arg name="percentage" type="i" direction="out"/>
 			<arg name="isCharging" type="b" direction="out"/>
 			<arg name="isPresent" type="b" direction="out"/>
+			<arg name="timeToEmpty" type="x" direction="out"/>
+			<arg name="timeToFull" type="x" direction="out"/>
 		</method>
 		<method name="GetMediaInfo">
 			<arg name="player" type="s" direction="out"/>

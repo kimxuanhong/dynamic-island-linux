@@ -8,6 +8,10 @@ var BluetoothManager = class BluetoothManager {
         this._serverProxy = null;
         this._destroyed = false;
         this._isInitializing = true;
+        
+        // ✅ Debounce để tránh multiple events khi connect
+        this._pendingNotifications = new Map(); // deviceName -> timeoutId
+        this._debounceDelay = 300; // 300ms debounce
 
         this._initServerConnection();
     }
@@ -104,12 +108,38 @@ var BluetoothManager = class BluetoothManager {
             }
         }
 
-        // Gọi callback với format tương tự như trước
-        this._notifyCallbacks({
-            deviceName: deviceName,
-            isConnected: isConnected,
-            deviceType: deviceType
+        // ✅ Debounce notification để tránh spam khi connect
+        this._debouncedNotify(deviceName, isConnected, deviceType);
+    }
+
+    /**
+     * Debounce notifications để tránh multiple events
+     * @param {string} deviceName - Device name
+     * @param {boolean} isConnected - Connection state
+     * @param {string} deviceType - Device type
+     */
+    _debouncedNotify(deviceName, isConnected, deviceType) {
+        // Clear pending timeout cho device này
+        if (this._pendingNotifications.has(deviceName)) {
+            const timeoutId = this._pendingNotifications.get(deviceName);
+            imports.mainloop.source_remove(timeoutId);
+        }
+
+        // Set timeout mới
+        const timeoutId = imports.mainloop.timeout_add(this._debounceDelay, () => {
+            this._pendingNotifications.delete(deviceName);
+            
+            // Gọi callback với thông tin cuối cùng
+            this._notifyCallbacks({
+                deviceName: deviceName,
+                isConnected: isConnected,
+                deviceType: deviceType
+            });
+            
+            return false; // Don't repeat
         });
+
+        this._pendingNotifications.set(deviceName, timeoutId);
     }
 
     addCallback(callback) {
@@ -146,6 +176,12 @@ var BluetoothManager = class BluetoothManager {
 
     destroy() {
         this._destroyed = true;
+
+        // ✅ Clear all pending notifications
+        this._pendingNotifications.forEach((timeoutId) => {
+            imports.mainloop.source_remove(timeoutId);
+        });
+        this._pendingNotifications.clear();
 
         if (this._serverProxy) {
             this._serverProxy = null;

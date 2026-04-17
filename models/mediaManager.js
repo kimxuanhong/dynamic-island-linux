@@ -40,6 +40,9 @@ var MediaManager = class MediaManager {
                     </method>
                     <method name="MediaPlayPause">
                     </method>
+                    <method name="MediaSeek">
+                        <arg name="position" type="x" direction="in"/>
+                    </method>
                     <method name="GetMediaInfo">
                         <arg name="player" type="s" direction="out"/>
                         <arg name="status" type="s" direction="out"/>
@@ -160,7 +163,9 @@ var MediaManager = class MediaManager {
             'xesam:title': metadataObj.title || '',
             'xesam:artist': this._normalizeArtist(artist),
             'xesam:album': metadataObj.album || '',
-            'mpris:artUrl': metadataObj.artUrl || ''
+            'mpris:artUrl': metadataObj.artUrl || '',
+            'mpris:length': metadataObj.length || 0,
+            'mpris:position': metadataObj.position || 0
         };
     }
 
@@ -177,7 +182,9 @@ var MediaManager = class MediaManager {
             isPlaying: false,
             metadata: null,
             playbackStatus: null,
-            artPath: null
+            artPath: null,
+            position: 0,
+            length: 0
         });
     }
 
@@ -210,7 +217,9 @@ var MediaManager = class MediaManager {
             isPlaying,
             metadata: this._currentMetadata,
             playbackStatus: status,
-            artPath: this._currentArtPath
+            artPath: this._currentArtPath,
+            position: metadataObj.position || 0,
+            length: metadataObj.length || 0
         });
     }
 
@@ -359,6 +368,27 @@ var MediaManager = class MediaManager {
             });
         } catch (e) {
             // log(`[DynamicIsland] MediaManager: Exception sending ${method} command: ${e.message || e}`);
+        }
+    }
+
+    /**
+     * Seek to a specific position in the current media
+     * @param {number} position - Position in microseconds
+     */
+    seekTo(position) {
+        if (!this._methodsProxy) {
+            // log(`[DynamicIsland] MediaManager: Methods proxy not available`);
+            return;
+        }
+
+        try {
+            this._methodsProxy.MediaSeekRemote(position, (result, error) => {
+                if (error) {
+                    // log(`[DynamicIsland] MediaManager: Error seeking: ${error.message || error}`);
+                }
+            });
+        } catch (e) {
+            // log(`[DynamicIsland] MediaManager: Exception seeking: ${e.message || e}`);
         }
     }
 

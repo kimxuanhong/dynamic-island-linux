@@ -3,6 +3,10 @@ const Clutter = imports.gi.Clutter;
 const Gio = imports.gi.Gio;
 const Shell = imports.gi.Shell;
 
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const Visualizer = Me.imports.utils.visualizer;
+
 
 var MediaView = class MediaView {
     constructor(mediaManager, volumeManager, bluetoothManager) {
@@ -11,48 +15,40 @@ var MediaView = class MediaView {
         this._mediaManager = mediaManager;
         this._volumeManager = volumeManager;
         this._bluetoothManager = bluetoothManager;
+        this._progressUpdateInterval = null;
+        this._currentPosition = 0;
+        this._currentLength = 0;
+        this._lastUpdateTime = 0;
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
-        this._updateAllIcons();
     }
 
     _buildMinimalView() {
-        this._secondaryThumbnail = new St.Icon({
-            style_class: 'media-thumbnail-secondary',
-            icon_name: 'audio-x-generic-symbolic',
-            icon_size: 24,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+        // Sử dụng full pattern visualizer giống compact view
+        // 🎵 BPM presets: 90 = Hip-hop, 120 = Pop, 140 = EDM, 170 = DnB
+        this._secondaryVisualizer = new Visualizer.MirroredVisualizer({
+            barCount: 6,
+            pattern: [4, 6, 8, 6, 4, 2],
+            barWidth: 2,
+            barSpacing: 2,
+            rowHeight: 16,
+            maxOffset: 2,
+            animationSpeed: 80,
+            bpm: 140  // 🎧 Change this to test different BPMs
         });
 
-        this._secondaryThumbnailWrapper = new St.Bin({
-            child: this._secondaryThumbnail,
-            style_class: 'media-thumbnail-wrapper-secondary',
+        this.secondaryContainer = new St.Bin({
+            child: this._secondaryVisualizer.container,
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
-            clip_to_allocation: true
-        });
-
-        this.secondaryContainer = new St.Bin({
-            child: this._secondaryThumbnailWrapper,
-            x_expand: true,
-            y_expand: true,
             style_class: 'media-minimal-container'
         });
     }
 
     _buildCompactView() {
-        // Thumbnail on the left (album art)
-        this._thumbnail = new St.Icon({
-            style_class: 'media-thumbnail',
-            icon_name: 'audio-x-generic-symbolic',
-            icon_size: 24,
-        });
-
-        // Thumbnail on the left (giống battery iconWrapper)
         this._thumbnail = new St.Icon({
             style_class: 'media-thumbnail',
             icon_name: 'audio-x-generic-symbolic',
@@ -71,67 +67,54 @@ var MediaView = class MediaView {
         });
         this._thumbnailWrapper.set_child(this._thumbnail);
 
-        // Audio icon on the right
-        this._audioIcon = new St.Icon({
-            style_class: 'media-audio-icon',
-            icon_name: 'sound-wave-symbolic', // Mặc định là thanh nhạc
-            icon_size: 20,
-            x_align: Clutter.ActorAlign.END
+        // ===== VISUALIZER =====
+        // 🎵 BPM presets for testing:
+        // 90 = Hip-hop/Chill, 120 = Pop/House, 140 = EDM/Techno, 170 = Drum & Bass
+        this._visualizer = new Visualizer.MirroredVisualizer({
+            barCount: 6,
+            pattern: [4, 6, 8, 6, 4, 2],
+            barWidth: 3,
+            barSpacing: 3,
+            rowHeight: 16,
+            maxOffset: 2,
+            animationSpeed: 80,
+            bpm: 140  // 🎧 Change this to test: 90, 120, 140, 170
         });
 
         this._audioIconWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
+            style: 'padding-right: 3px;',
         });
-        this._audioIconWrapper.set_child(this._audioIcon);
+        this._audioIconWrapper.set_child(this._visualizer.container);
 
-        // Compact container giống hệt battery
         this.compactContainer = new St.BoxLayout({
             vertical: false,
             x_expand: true,
             y_expand: true,
             style_class: 'media-compact-container',
         });
+
         this.compactContainer.add_child(this._thumbnailWrapper);
         this.compactContainer.add_child(this._audioIconWrapper);
     }
-
     /**
-     * Tính icon name dựa trên trạng thái mute và headset
-     * @param {boolean} isMuted
-     * @param {boolean} hasHeadset
-     * @param {boolean} isCompact - true cho compact icon, false cho expanded icon
-     * @returns {string} Icon name
+     * Update visualizer state based on playback status
+     * @param {boolean} isPlaying - Whether media is playing
+     * @param {string} playbackStatus - Playback status ('Playing', 'Paused', 'Stopped')
      */
-    _getIconName(isMuted, hasHeadset, isCompact = false) {
-        if (isMuted) {
-            return 'audio-volume-muted-symbolic';
-        }
-
-        if (hasHeadset) {
-            return 'audio-headphones-symbolic';
-        }
-
-        // Speakers icon khác nhau giữa compact và expanded
-        return isCompact ? 'sound-wave-symbolic' : 'audio-speakers-symbolic';
-    }
-
-    /**
-     * Cập nhật tất cả icons dựa trên trạng thái hiện tại
-     */
-    _updateAllIcons() {
-        const isMuted = this._volumeManager.isMuted();
-        const hasHeadset = this._bluetoothManager.hasConnectedHeadset();
-
-        // Update compact icon
-        if (this._audioIcon) {
-            this._audioIcon.icon_name = this._getIconName(isMuted, hasHeadset, true);
-        }
-
-        // Update expanded audio device icon
-        if (this._audioDeviceIcon) {
-            this._audioDeviceIcon.icon_name = this._getIconName(isMuted, hasHeadset, false);
+    _updateVisualizerState(isPlaying, playbackStatus) {
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._visualizer.start();
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.start();
+            }
+        } else {
+            this._visualizer.stop();
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.stop();
+            }
         }
     }
 
@@ -197,6 +180,119 @@ var MediaView = class MediaView {
         });
         topTier.add_child(this._expandedThumbnailWrapper);
         topTier.add_child(this._titleWrapper);
+
+        // ============================================
+        // PROGRESS BAR: Position and Duration
+        // ============================================
+
+        // Progress bar background
+        this._progressBarBg = new St.Widget({
+            style_class: 'media-progress-bg',
+            style: 'background-color: rgba(255,255,255,0.2); height: 4px; border-radius: 2px;',
+            x_expand: true,
+            y_expand: false,
+        });
+
+        // Progress bar fill
+        this._progressBarFill = new St.Widget({
+            style_class: 'media-progress-fill',
+            style: 'background-color: rgba(255,255,255,0.8); height: 4px; border-radius: 2px;',
+            x_expand: false,
+            y_expand: false,
+        });
+
+        this._progressBarContainer = new St.Bin({
+            child: this._progressBarBg,
+            x_expand: true,
+            y_expand: false,
+            style: 'padding:  0;', // Increase clickable area
+            reactive: true,
+            track_hover: true,
+        });
+
+        // Add fill as overlay
+        this._progressBarBg.add_child(this._progressBarFill);
+
+        // Track dragging state
+        this._isDraggingProgress = false;
+        
+        // Hover effect
+        this._progressBarContainer.connect('enter-event', () => {
+            this._progressBarBg.style = 'background-color: rgba(255,255,255,0.3); height: 4px; border-radius: 2px;';
+            this._progressBarFill.style = 'background-color: rgba(255,255,255,1.0); height: 4px; border-radius: 2px;';
+        });
+        
+        this._progressBarContainer.connect('leave-event', () => {
+            if (!this._isDraggingProgress) {
+                this._progressBarBg.style = 'background-color: rgba(255,255,255,0.2); height: 4px; border-radius: 2px;';
+                this._progressBarFill.style = 'background-color: rgba(255,255,255,0.8); height: 4px; border-radius: 2px;';
+            }
+        });
+        
+        this._progressBarContainer.connect('button-press-event', (actor, event) => {
+            this._isDraggingProgress = true;
+            this._onProgressBarClick(actor, event);
+            return Clutter.EVENT_STOP;
+        });
+
+        this._progressBarContainer.connect('button-release-event', (actor, event) => {
+            if (this._isDraggingProgress) {
+                this._isDraggingProgress = false;
+                this._onProgressBarClick(actor, event);
+                // Reset style after drag
+                this._progressBarBg.style = 'background-color: rgba(255,255,255,0.2); height: 4px; border-radius: 2px;';
+                this._progressBarFill.style = 'background-color: rgba(255,255,255,0.8); height: 4px; border-radius: 2px;';
+            }
+            return Clutter.EVENT_STOP;
+        });
+
+        this._progressBarContainer.connect('motion-event', (actor, event) => {
+            if (this._isDraggingProgress) {
+                this._onProgressBarClick(actor, event);
+            }
+            return Clutter.EVENT_STOP;
+        });
+
+        // Prevent scroll events from bubbling
+        this._progressBarContainer.connect('scroll-event', () => Clutter.EVENT_STOP);
+
+        // Time labels (current / total)
+        this._currentTimeLabel = new St.Label({
+            style_class: 'media-time-label',
+            text: '0:00',
+            style: 'color: rgba(255,255,255,0.7); font-size: 11px;',
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        this._totalTimeLabel = new St.Label({
+            style_class: 'media-time-label',
+            text: '0:00',
+            style: 'color: rgba(255,255,255,0.7); font-size: 11px;',
+            x_align: Clutter.ActorAlign.END,
+        });
+
+        const timeLabelsBox = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: false,
+            style: 'margin-top: 4px;',
+        });
+        timeLabelsBox.add_child(this._currentTimeLabel);
+        timeLabelsBox.add_child(new St.Widget({ x_expand: true })); // Spacer
+        timeLabelsBox.add_child(this._totalTimeLabel);
+
+        const progressSection = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            y_expand: false,
+            style: 'margin: 10px 0;',
+            visible: true, // Hiện mặc định, sẽ show 0:00 / 0:00 nếu chưa có data
+        });
+        progressSection.add_child(this._progressBarContainer);
+        progressSection.add_child(timeLabelsBox);
+        
+        // Lưu reference để show/hide sau
+        this._progressSection = progressSection;
 
 
         // ============================================
@@ -303,12 +399,179 @@ var MediaView = class MediaView {
         });
 
         this.expandedContainer.add_child(topTier);
-        this.expandedContainer.add_child(separator);
+        this.expandedContainer.add_child(progressSection);
+        //this.expandedContainer.add_child(separator);
         this.expandedContainer.add_child(bottomBox);
     }
 
+    /**
+     * Handle click/drag on progress bar to seek
+     * @param {St.Widget} actor - The progress bar container
+     * @param {Clutter.Event} event - The click/motion event
+     */
+    _onProgressBarClick(actor, event) {
+        if (this._currentLength <= 0) return;
+
+        const [x, y] = event.get_coords();
+        const [actorX, actorY] = actor.get_transformed_position();
+        const actorWidth = actor.width;
+
+        // Calculate click position relative to progress bar
+        const clickX = x - actorX;
+        const percentage = Math.max(0, Math.min(1, clickX / actorWidth));
+        
+        // Calculate new position in microseconds
+        const newPosition = Math.floor(this._currentLength * percentage);
+
+        // Send seek command to media player
+        this._mediaManager.seekTo(newPosition);
+
+        // Update UI immediately for responsiveness
+        this._currentPosition = newPosition;
+        this._lastUpdateTime = Date.now();
+        this.updateProgress(newPosition, this._currentLength);
+    }
+
+    /**
+     * Update progress bar based on position and length
+     * @param {number} position - Current position in microseconds
+     * @param {number} length - Total length in microseconds
+     */
+    updateProgress(position, length) {
+        if (!this._progressBarFill || !this._progressBarBg) return;
+
+        // Store current values
+        this._currentPosition = position;
+        this._currentLength = length;
+        this._lastUpdateTime = Date.now();
+
+        // Always show progress section when expanded (even if no data yet)
+        if (this._progressSection && !this._progressSection.visible) {
+            this._progressSection.show();
+        }
+
+        if (length > 0 && position >= 0) {
+            const percentage = Math.min(100, (position / length) * 100);
+            const bgWidth = this._progressBarBg.width;
+            
+            if (bgWidth > 0) {
+                const newWidth = Math.floor(bgWidth * percentage / 100);
+                // Only update if width changed significantly (avoid micro-updates)
+                if (Math.abs(this._progressBarFill.width - newWidth) > 1) {
+                    this._progressBarFill.set_width(newWidth);
+                }
+            }
+
+            // Update time labels (cache to avoid unnecessary updates)
+            const currentTimeText = this._formatTime(position);
+            const totalTimeText = this._formatTime(length);
+            
+            if (this._currentTimeLabel.text !== currentTimeText) {
+                this._currentTimeLabel.text = currentTimeText;
+            }
+            if (this._totalTimeLabel.text !== totalTimeText) {
+                this._totalTimeLabel.text = totalTimeText;
+            }
+        } else {
+            // Show default state (0:00 / 0:00) instead of hiding
+            this._progressBarFill.set_width(0);
+            if (this._currentTimeLabel.text !== '0:00') {
+                this._currentTimeLabel.text = '0:00';
+            }
+            if (this._totalTimeLabel.text !== '0:00') {
+                this._totalTimeLabel.text = '0:00';
+            }
+        }
+    }
+
+    /**
+     * Start progress bar update interval
+     */
+    _startProgressUpdate() {
+        this._stopProgressUpdate();
+        
+        this._progressUpdateInterval = setInterval(() => {
+            // Chỉ update nếu expanded container đang visible
+            if (!this.expandedContainer || !this.expandedContainer.visible) {
+                return;
+            }
+            
+            if (this._currentLength > 0 && this._currentPosition >= 0) {
+                // Calculate elapsed time since last update
+                const now = Date.now();
+                const elapsed = (now - this._lastUpdateTime) * 1000; // Convert to microseconds
+                
+                // Update position
+                this._currentPosition = Math.min(this._currentPosition + elapsed, this._currentLength);
+                this._lastUpdateTime = now;
+                
+                // Update UI
+                this.updateProgress(this._currentPosition, this._currentLength);
+            }
+        }, 1000); // Update every second
+    }
+
+    /**
+     * Stop progress bar update interval
+     */
+    _stopProgressUpdate() {
+        if (this._progressUpdateInterval) {
+            clearInterval(this._progressUpdateInterval);
+            this._progressUpdateInterval = null;
+        }
+    }
+
+    /**
+     * Format microseconds to MM:SS or HH:MM:SS
+     * @param {number} microseconds
+     * @returns {string}
+     */
+    _formatTime(microseconds) {
+        const seconds = Math.floor(microseconds / 1000000);
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * Update only playback state (for pause/stop without full metadata update)
+     * @param {boolean} isPlaying - Whether media is playing
+     * @param {string} playbackStatus - Playback status
+     */
+    updatePlaybackState(isPlaying, playbackStatus) {
+        this._updateVisualizerState(isPlaying, playbackStatus);
+        this._updatePlayPauseIcon(playbackStatus);
+        
+        // Start or stop progress update based on playback state
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._startProgressUpdate();
+        } else {
+            this._stopProgressUpdate();
+        }
+    }
+
     updateMedia(mediaInfo) {
-        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+        const { isPlaying, metadata, playbackStatus, artPath, position, length } = mediaInfo;
+    
+        // Update visualizer based on playback status
+        this._updateVisualizerState(isPlaying, playbackStatus);
+
+        // Update progress bar chỉ khi có data hợp lệ
+        if (position !== undefined && length !== undefined && length > 0) {
+            this.updateProgress(position, length);
+        }
+
+        // Start or stop progress update based on playback state
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._startProgressUpdate();
+        } else {
+            this._stopProgressUpdate();
+        }
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -316,8 +579,23 @@ var MediaView = class MediaView {
             const currentTitle = this._mediaManager.getTitle(metadata);
             const lastTitle = this._mediaManager.getTitle(this._lastMetadata);
             metadataChanged = currentTitle !== lastTitle;
+            
+            // 🎨 Đổi màu visualizer khi chuyển bài
+            if (metadataChanged) {
+                const newColor = null; // Random color
+                this._visualizer.setColor(newColor);
+                if (this._secondaryVisualizer) {
+                    this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
+                }
+            }
         } else if (metadata && !this._lastMetadata) {
             metadataChanged = true; // Lần đầu có metadata
+            // Đổi màu cho lần đầu phát
+            const newColor = null; // Random color
+            this._visualizer.setColor(newColor);
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
+            }
         }
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
@@ -372,7 +650,6 @@ var MediaView = class MediaView {
         if (!currentMetadata && !currentArtPath) {
             // Reset to default
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
-            if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
             if (this._expandedThumbnailWrapper) {
                 this._expandedThumbnailWrapper.style = null;
@@ -385,13 +662,6 @@ var MediaView = class MediaView {
                 this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                 this._thumbnail.opacity = 255;
                 this._thumbnail.visible = true;
-            }
-            if (this._secondaryThumbnailWrapper) {
-                this._secondaryThumbnailWrapper.style = null;
-                if (this._secondaryThumbnail) {
-                    this._secondaryThumbnail.opacity = 255;
-                    this._secondaryThumbnail.visible = true;
-                }
             }
             return;
         }
@@ -422,7 +692,6 @@ var MediaView = class MediaView {
                 const file = Gio.File.new_for_path(path);
                 const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
-                if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
                 if (this._expandedThumbnailWrapper) {
                     this._expandedThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 8px;`;
@@ -434,19 +703,11 @@ var MediaView = class MediaView {
                     this._thumbnail.opacity = 0;
                     this._thumbnail.visible = true;
                 }
-                if (this._secondaryThumbnailWrapper) {
-                    this._secondaryThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 99px;`;
-                    if (this._secondaryThumbnail) {
-                        this._secondaryThumbnail.opacity = 0;
-                        this._secondaryThumbnail.visible = true;
-                    }
-                }
             } else {
                 try {
                     // Other URI
                     const gicon = Gio.icon_new_for_string(artUrl);
                     this._thumbnail.set_gicon(gicon);
-                    if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
                     if (this._expandedThumbnailWrapper) {
                         const cssUrl = artUrl.replace(/'/g, "\\'");
@@ -459,19 +720,11 @@ var MediaView = class MediaView {
                             this._thumbnail.opacity = 0;
                             this._thumbnail.visible = true;
                         }
-                        if (this._secondaryThumbnailWrapper) {
-                            this._secondaryThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 99px;`;
-                            if (this._secondaryThumbnail) {
-                                this._secondaryThumbnail.opacity = 0;
-                                this._secondaryThumbnail.visible = true;
-                            }
-                        }
                     }
                 } catch (e) {
                     // log(`[DynamicIsland] MediaView: Error setting album art icon: ${e.message || e}`);
                     // Fallback
                     this._thumbnail.icon_name = 'audio-x-generic-symbolic';
-                    if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
                     if (this._expandedArtWrapper) {
                         this._expandedArtWrapper.style = null;
@@ -485,19 +738,11 @@ var MediaView = class MediaView {
                         this._thumbnail.opacity = 255;
                         this._thumbnail.visible = true;
                     }
-                    if (this._secondaryThumbnailWrapper) {
-                        this._secondaryThumbnailWrapper.style = null;
-                        if (this._secondaryThumbnail) {
-                            this._secondaryThumbnail.opacity = 255;
-                            this._secondaryThumbnail.visible = true;
-                        }
-                    }
                 }
             }
         } else if (!isDownloading) {
             // Reset if no art
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
-            if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
             if (this._expandedThumbnailWrapper) {
                 this._expandedThumbnailWrapper.style = null;
@@ -510,13 +755,6 @@ var MediaView = class MediaView {
                 this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                 this._thumbnail.opacity = 255;
                 this._thumbnail.visible = true;
-            }
-            if (this._secondaryThumbnailWrapper) {
-                this._secondaryThumbnailWrapper.style = null;
-                if (this._secondaryThumbnail) {
-                    this._secondaryThumbnail.opacity = 255;
-                    this._secondaryThumbnail.visible = true;
-                }
             }
         }
 
@@ -541,10 +779,9 @@ var MediaView = class MediaView {
 
     _updatePlayPauseIcon(playbackStatus) {
         if (!this._playPauseIcon) return;
-        const iconName = playbackStatus === 'Playing'
+        this._playPauseIcon.icon_name = playbackStatus === 'Playing'
             ? 'media-playback-pause-symbolic'
             : 'media-playback-start-symbolic';
-        this._playPauseIcon.icon_name = iconName;
     }
 
     _onPrevious() {
@@ -676,6 +913,21 @@ var MediaView = class MediaView {
     }
 
     destroy() {
+        // Stop and destroy visualizer
+        if (this._visualizer) {
+            this._visualizer.destroy();
+            this._visualizer = null;
+        }
+        
+        // Stop and destroy secondary visualizer
+        if (this._secondaryVisualizer) {
+            this._secondaryVisualizer.destroy();
+            this._secondaryVisualizer = null;
+        }
+        
+        // Stop progress update
+        this._stopProgressUpdate();
+
         if (this.compactContainer) {
             this.compactContainer.destroy();
         }

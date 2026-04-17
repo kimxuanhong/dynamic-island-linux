@@ -68,15 +68,22 @@ func (m *ServerMethods) MediaPlayPause() *dbus.Error {
 	return nil
 }
 
-func (m *ServerMethods) GetBatteryInfo() (percentage int32, isCharging bool, isPresent bool, err *dbus.Error) {
+func (m *ServerMethods) MediaSeek(position int64) *dbus.Error {
+	if err := m.mediaService.Seek(position); err != nil {
+		return dbus.MakeFailedError(fmt.Errorf("failed to seek: %v", err))
+	}
+	return nil
+}
+
+func (m *ServerMethods) GetBatteryInfo() (percentage int32, isCharging bool, isPresent bool, timeToEmpty int64, timeToFull int64, err *dbus.Error) {
 	if m.batteryService == nil {
-		return 0, false, false, dbus.MakeFailedError(fmt.Errorf("battery service not available"))
+		return 0, false, false, 0, 0, dbus.MakeFailedError(fmt.Errorf("battery service not available"))
 	}
-	p, c, pr, e := m.batteryService.GetBatteryInfo()
+	p, c, pr, tte, ttf, e := m.batteryService.GetBatteryInfo()
 	if e != nil {
-		return 0, false, false, dbus.MakeFailedError(e)
+		return 0, false, false, 0, 0, dbus.MakeFailedError(e)
 	}
-	return p, c, pr, nil
+	return p, c, pr, tte, ttf, nil
 }
 func (m *ServerMethods) GetMediaInfo() (player string, status string, title string, artist string, artUrl string, err *dbus.Error) {
 	if m.mediaService == nil {

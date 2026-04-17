@@ -463,6 +463,8 @@ func (s *MediaSource) notifyCallbacks(bus core.Bus, playerName string, status st
 		event.Metadata["album"] = ""
 		event.Metadata["artUrl"] = ""
 		event.Metadata["player"] = ""
+		event.Metadata["position"] = int64(0)
+		event.Metadata["length"] = int64(0)
 		bus.Publish(event)
 		return
 	}
@@ -486,6 +488,28 @@ func (s *MediaSource) notifyCallbacks(bus core.Bus, playerName string, status st
 		}
 	}
 
+	// Extract position and length from metadata
+	var position int64 = 0
+	var length int64 = 0
+
+	if metadata != nil {
+		if lengthVar, ok := metadata["mpris:length"]; ok {
+			if l, ok := lengthVar.Value().(int64); ok {
+				length = l
+			}
+		}
+	}
+
+	// Get current position from player property
+	if s.conn != nil {
+		obj := s.conn.Object(playerName, dbus.ObjectPath(mprisPath))
+		if posVariant, err := obj.GetProperty(mprisPlayerInterface + ".Position"); err == nil {
+			if pos, ok := posVariant.Value().(int64); ok {
+				position = pos
+			}
+		}
+	}
+
 	artUrl := artPath
 
 	isPlaying := status == "Playing"
@@ -498,6 +522,8 @@ func (s *MediaSource) notifyCallbacks(bus core.Bus, playerName string, status st
 	event.Metadata["album"] = album
 	event.Metadata["artUrl"] = artUrl
 	event.Metadata["player"] = playerName
+	event.Metadata["position"] = position
+	event.Metadata["length"] = length
 
 	// log.Printf("🎵 Media: [%s] %s - %s (%s) PID: %d", appName, artist, title, status, pid)
 	bus.Publish(event)

@@ -84,6 +84,51 @@ func (s *MediaService) Pause() error {
 	return s.sendPlayerCommand("Pause")
 }
 
+func (s *MediaService) Seek(position int64) error {
+	playerName, err := s.getCurrentPlayer()
+	if err != nil {
+		return nil
+	}
+
+	obj := s.conn.Object(playerName, dbus.ObjectPath(mprisPath))
+
+	// Try to get current metadata to extract trackId
+	metadataVariant, err := obj.GetProperty(mprisPlayerInterface + ".Metadata")
+	if err == nil {
+		if metadata, ok := metadataVariant.Value().(map[string]dbus.Variant); ok {
+			// Try to get trackId from metadata
+			if trackIdVar, ok := metadata["mpris:trackid"]; ok {
+				if trackId, ok := trackIdVar.Value().(dbus.ObjectPath); ok {
+					// Use SetPosition with trackId (more accurate)
+					call := obj.Call(mprisPlayerInterface+".SetPosition", 0, trackId, position)
+					if call.Err == nil {
+						return nil
+					}
+					// If SetPosition fails, fall through to Seek method
+				}
+			}
+		}
+	}
+
+	// Fallback: Get current position and calculate offset for Seek
+	currentPos := int64(0)
+	if posVariant, err := obj.GetProperty(mprisPlayerInterface + ".Position"); err == nil {
+		if pos, ok := posVariant.Value().(int64); ok {
+			currentPos = pos
+		}
+	}
+
+	// Use Seek with offset (works with most players)
+	offset := position - currentPos
+	call := obj.Call(mprisPlayerInterface+".Seek", 0, offset)
+	if call.Err != nil {
+		// log.Printf("⚠️ MediaService: Seek failed: %v", call.Err)
+		return nil
+	}
+
+	return nil
+}
+
 func (s *MediaService) GetMediaInfo() (string, string, string, string, string, error) {
 	if s.mediaSource == nil {
 		return "", "", "", "", "", fmt.Errorf("media source not available")
