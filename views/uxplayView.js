@@ -1,5 +1,6 @@
 const St = imports.gi.St;
 const Clutter = imports.gi.Clutter;
+const Shell = imports.gi.Shell;
 
 var UxplayView = class UxplayView {
     constructor() {
@@ -84,8 +85,16 @@ var UxplayView = class UxplayView {
         this.expandedIconWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
+            visible: true,
+            reactive: true,
+            clip_to_allocation: true,
         });
         this.expandedIconWrapper.set_child(this.iconExpanded);
+        this.expandedIconWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+        this.expandedIconWrapper.connect('button-press-event', () => {
+            this._focusUxplayWindow();
+            return Clutter.EVENT_STOP;
+        });
 
         this.statusLabel = new St.Label({
             text: 'Screen Mirroring',
@@ -144,6 +153,47 @@ var UxplayView = class UxplayView {
         if (this.sharingDot) {
             this.sharingDot.show();
             this._startBlinking();
+        }
+    }
+
+    _focusUxplayWindow() {
+        const appSystem = Shell.AppSystem.get_default();
+        const runningApps = appSystem.get_running();
+        const windowActors = global.get_window_actors();
+
+        const focusWindow = (window) => {
+            const ws = window.get_workspace();
+            ws.activate_with_focus(window, global.get_current_time());
+        };
+
+        const searchTerms = ['uxplay', 'airplay', 'gstreamer'];
+
+        for (let app of runningApps) {
+            const appId = app.get_id().toLowerCase();
+            const appNameLower = app.get_name().toLowerCase();
+
+            if (searchTerms.some(term => appId.includes(term) || appNameLower.includes(term))) {
+                const windows = app.get_windows();
+
+                if (windows.length > 0) {
+                    focusWindow(windows[0]);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: Tìm qua mảng windows nếu app chưa được GNOME ghi nhận (thường xảy ra với app chạy dưới cmd)
+        for (let actor of windowActors) {
+            const w = actor.get_meta_window();
+            if (!w) continue;
+
+            const wmClass = w.get_wm_class() || '';
+            const wmClassLower = wmClass.toLowerCase();
+            
+            if (searchTerms.some(term => wmClassLower.includes(term))) {
+                focusWindow(w);
+                return;
+            }
         }
     }
 
