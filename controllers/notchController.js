@@ -304,17 +304,29 @@ var NotchController = class NotchController {
     }
 
     _setupMouseEvents() {
+        // Debounce expand để tránh trigger nhiều lần
+        let expandPending = false;
+        
         // Cancel tất cả timeouts ngay khi hover vào notch
         this._enterEventId = this.notch.connect('enter-event', () => {
             this._cancelTemporaryPresenterTimeouts();
+            
+            // Expand ngay lập tức nếu đang compact
+            if (this.stateMachine.isCompact() && !expandPending) {
+                expandPending = true;
+                this.expandNotch(false);
+                // Reset flag sau khi animation hoàn tất
+                imports.mainloop.timeout_add(NotchConstants.ANIMATION_EXPAND_DURATION, () => {
+                    expandPending = false;
+                    return false;
+                });
+            }
             return Clutter.EVENT_PROPAGATE;
         });
 
         this._motionEventId = this.notch.connect('motion-event', () => {
             this._cancelTemporaryPresenterTimeouts();
-            if (this.stateMachine.isCompact()) {
-                this.expandNotch(false);
-            }
+            // Không cần expand ở đây nữa vì đã expand trong enter-event
             return Clutter.EVENT_PROPAGATE;
         });
 
@@ -714,7 +726,14 @@ var NotchController = class NotchController {
         // Now safe to add - container should have no parent
         if (!container.get_parent()) {
             try {
+                // Disable animations temporarily for faster add
+                const oldTransitions = container.get_transition('opacity');
+                if (oldTransitions) {
+                    container.remove_all_transitions();
+                }
+                
                 this.notch.add_child(container);
+                container.set_opacity(255);
             } catch (e) {
                 // log(`[DynamicIsland] NotchController: Error adding expanded container: ${e.message || e}`);
                 return;

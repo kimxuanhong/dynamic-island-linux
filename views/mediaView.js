@@ -318,9 +318,13 @@ var MediaView = class MediaView {
             x_expand: true,
             y_expand: false,
             style: 'margin: 10px 0;',
+            visible: false, // Ẩn mặc định, chỉ hiện khi có data
         });
         progressSection.add_child(this._progressBarContainer);
         progressSection.add_child(timeLabelsBox);
+        
+        // Lưu reference để show/hide sau
+        this._progressSection = progressSection;
 
 
         // ============================================
@@ -446,21 +450,37 @@ var MediaView = class MediaView {
         this._lastUpdateTime = Date.now();
 
         if (length > 0 && position >= 0) {
+            // Show progress section nếu đang ẩn
+            if (this._progressSection && !this._progressSection.visible) {
+                this._progressSection.show();
+            }
+            
             const percentage = Math.min(100, (position / length) * 100);
             const bgWidth = this._progressBarBg.width;
             
             if (bgWidth > 0) {
-                this._progressBarFill.set_width(bgWidth * percentage / 100);
+                const newWidth = Math.floor(bgWidth * percentage / 100);
+                // Only update if width changed significantly (avoid micro-updates)
+                if (Math.abs(this._progressBarFill.width - newWidth) > 1) {
+                    this._progressBarFill.set_width(newWidth);
+                }
             }
 
-            // Update time labels
-            this._currentTimeLabel.text = this._formatTime(position);
-            this._totalTimeLabel.text = this._formatTime(length);
+            // Update time labels (cache to avoid unnecessary updates)
+            const currentTimeText = this._formatTime(position);
+            const totalTimeText = this._formatTime(length);
+            
+            if (this._currentTimeLabel.text !== currentTimeText) {
+                this._currentTimeLabel.text = currentTimeText;
+            }
+            if (this._totalTimeLabel.text !== totalTimeText) {
+                this._totalTimeLabel.text = totalTimeText;
+            }
         } else {
-            // Reset if no valid data
-            this._progressBarFill.set_width(0);
-            this._currentTimeLabel.text = '0:00';
-            this._totalTimeLabel.text = '0:00';
+            // Hide progress section nếu không có data
+            if (this._progressSection && this._progressSection.visible) {
+                this._progressSection.hide();
+            }
         }
     }
 
@@ -471,6 +491,11 @@ var MediaView = class MediaView {
         this._stopProgressUpdate();
         
         this._progressUpdateInterval = setInterval(() => {
+            // Chỉ update nếu expanded container đang visible
+            if (!this.expandedContainer || !this.expandedContainer.visible) {
+                return;
+            }
+            
             if (this._currentLength > 0 && this._currentPosition >= 0) {
                 // Calculate elapsed time since last update
                 const now = Date.now();
@@ -549,8 +574,8 @@ var MediaView = class MediaView {
         // Update visualizer based on playback status
         this._updateVisualizerState(isPlaying, playbackStatus);
 
-        // Update progress bar
-        if (position !== undefined && length !== undefined) {
+        // Update progress bar chỉ khi có data hợp lệ
+        if (position !== undefined && length !== undefined && length > 0) {
             this.updateProgress(position, length);
         }
 
