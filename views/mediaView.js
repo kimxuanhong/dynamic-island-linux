@@ -14,7 +14,6 @@ var MediaView = class MediaView {
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
-        this._updateAllIcons();
     }
 
     _buildMinimalView() {
@@ -45,14 +44,6 @@ var MediaView = class MediaView {
     }
 
     _buildCompactView() {
-        // Thumbnail on the left (album art)
-        this._thumbnail = new St.Icon({
-            style_class: 'media-thumbnail',
-            icon_name: 'audio-x-generic-symbolic',
-            icon_size: 24,
-        });
-
-        // Thumbnail on the left (giống battery iconWrapper)
         this._thumbnail = new St.Icon({
             style_class: 'media-thumbnail',
             icon_name: 'audio-x-generic-symbolic',
@@ -71,67 +62,132 @@ var MediaView = class MediaView {
         });
         this._thumbnailWrapper.set_child(this._thumbnail);
 
-        // Audio icon on the right
-        this._audioIcon = new St.Icon({
-            style_class: 'media-audio-icon',
-            icon_name: 'sound-wave-symbolic', // Mặc định là thanh nhạc
-            icon_size: 20,
-            x_align: Clutter.ActorAlign.END
+        // ===== VISUALIZER =====
+        this._visualizerBars = [];
+        const barCount = 6;
+        const pattern = [4, 6, 8, 6, 4, 2];
+
+        this._visualizerBox = new St.BoxLayout({
+            style_class: 'media-visualizer-box',
+            vertical: false,
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.END, // 🔥 quan trọng
+            style: 'spacing: 3px;',
         });
+
+        this._visualizerBox.set_height(16); // 🔥 tránh bị bó layout
+
+        for (let i = 0; i < barCount; i++) {
+            const height = pattern[i % pattern.length];
+
+            const bar = new St.Widget({
+                style_class: 'media-visualizer-bar',
+                style: `
+                width: 3px;
+                background-color: rgba(255,255,255,0.5);
+                border-radius: 1.5px;
+            `,
+            });
+
+            bar.set_height(height); // ✅ fix chuẩn
+            bar.set_y_align(Clutter.ActorAlign.END); // ✅ dính đáy
+
+            this._visualizerBars.push(bar);
+            this._visualizerBox.add_child(bar);
+        }
 
         this._audioIconWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
+            style: 'padding-right: 3px;',
         });
-        this._audioIconWrapper.set_child(this._audioIcon);
+        this._audioIconWrapper.set_child(this._visualizerBox);
 
-        // Compact container giống hệt battery
+        this._visualizerAnimation = null;
+
         this.compactContainer = new St.BoxLayout({
             vertical: false,
             x_expand: true,
             y_expand: true,
             style_class: 'media-compact-container',
         });
+
         this.compactContainer.add_child(this._thumbnailWrapper);
         this.compactContainer.add_child(this._audioIconWrapper);
     }
-
     /**
-     * Tính icon name dựa trên trạng thái mute và headset
-     * @param {boolean} isMuted
-     * @param {boolean} hasHeadset
-     * @param {boolean} isCompact - true cho compact icon, false cho expanded icon
-     * @returns {string} Icon name
+     * Start visualizer animation
      */
-    _getIconName(isMuted, hasHeadset, isCompact = false) {
-        if (isMuted) {
-            return 'audio-volume-muted-symbolic';
-        }
+    _startVisualizerAnimation() {
+        if (this._visualizerAnimation) return;
 
-        if (hasHeadset) {
-            return 'audio-headphones-symbolic';
-        }
+        const pattern = [4, 6, 8, 6, 4, 2];
 
-        // Speakers icon khác nhau giữa compact và expanded
-        return isCompact ? 'sound-wave-symbolic' : 'audio-speakers-symbolic';
+        const states = this._visualizerBars.map((_, i) => ({
+            base: pattern[i % pattern.length],
+            offset: 0,
+            dir: Math.random() > 0.5 ? 1 : -1
+        }));
+
+        const MAX_OFFSET = 2;
+
+        this._visualizerAnimation = setInterval(() => {
+            this._visualizerBars.forEach((bar, i) => {
+                const state = states[i];
+
+                const step = Math.random() > 0.7 ? 2 : 1;
+                state.offset += step * state.dir;
+
+                // clamp + đảo chiều
+                if (state.offset > MAX_OFFSET) {
+                    state.offset = MAX_OFFSET;
+                    state.dir = -1;
+                }
+                if (state.offset < -MAX_OFFSET) {
+                    state.offset = -MAX_OFFSET;
+                    state.dir = 1;
+                }
+
+                let height = state.base + state.offset;
+
+                // 🔥 giữ form: không cho phá shape
+                if (i > 0) {
+                    height = Math.max(height, this._visualizerBars[i - 1].height - 2);
+                }
+
+                const opacity = 0.7 + (height / 10) * 0.3;
+
+                bar.set_height(height); // ✅ FIX CHUẨN
+
+                bar.set_style(`
+                width: 3px;
+                background-color: rgba(255,255,255,${opacity});
+                border-radius: 1.5px;
+            `);
+            });
+        }, 80);
     }
 
     /**
-     * Cập nhật tất cả icons dựa trên trạng thái hiện tại
+     * Stop visualizer animation
      */
-    _updateAllIcons() {
-        const isMuted = this._volumeManager.isMuted();
-        const hasHeadset = this._bluetoothManager.hasConnectedHeadset();
+    _stopVisualizerAnimation() {
+        if (this._visualizerAnimation) {
+            clearInterval(this._visualizerAnimation);
+            this._visualizerAnimation = null;
 
-        // Update compact icon
-        if (this._audioIcon) {
-            this._audioIcon.icon_name = this._getIconName(isMuted, hasHeadset, true);
-        }
+            const idle = [4, 6, 8, 6, 4, 2];
 
-        // Update expanded audio device icon
-        if (this._audioDeviceIcon) {
-            this._audioDeviceIcon.icon_name = this._getIconName(isMuted, hasHeadset, false);
+            this._visualizerBars.forEach((bar, i) => {
+                bar.set_height(idle[i]);
+
+                bar.set_style(`
+                width: 3px;
+                background-color: rgba(255,255,255,0.4);
+                border-radius: 1.5px;
+            `);
+            });
         }
     }
 
@@ -307,8 +363,34 @@ var MediaView = class MediaView {
         this.expandedContainer.add_child(bottomBox);
     }
 
+    /**
+     * Update visualizer state based on playback status
+     * @param {boolean} isPlaying - Whether media is playing
+     * @param {string} playbackStatus - Playback status ('Playing', 'Paused', 'Stopped')
+     */
+    _updateVisualizerState(isPlaying, playbackStatus) {
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._startVisualizerAnimation();
+        } else {
+            this._stopVisualizerAnimation();
+        }
+    }
+
+    /**
+     * Update only playback state (for pause/stop without full metadata update)
+     * @param {boolean} isPlaying - Whether media is playing
+     * @param {string} playbackStatus - Playback status
+     */
+    updatePlaybackState(isPlaying, playbackStatus) {
+        this._updateVisualizerState(isPlaying, playbackStatus);
+        this._updatePlayPauseIcon(playbackStatus);
+    }
+
     updateMedia(mediaInfo) {
         const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+    
+        // Update visualizer based on playback status
+        this._updateVisualizerState(isPlaying, playbackStatus);
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -541,10 +623,9 @@ var MediaView = class MediaView {
 
     _updatePlayPauseIcon(playbackStatus) {
         if (!this._playPauseIcon) return;
-        const iconName = playbackStatus === 'Playing'
+        this._playPauseIcon.icon_name = playbackStatus === 'Playing'
             ? 'media-playback-pause-symbolic'
             : 'media-playback-start-symbolic';
-        this._playPauseIcon.icon_name = iconName;
     }
 
     _onPrevious() {
@@ -676,6 +757,9 @@ var MediaView = class MediaView {
     }
 
     destroy() {
+        // Stop visualizer animation
+        this._stopVisualizerAnimation();
+
         if (this.compactContainer) {
             this.compactContainer.destroy();
         }

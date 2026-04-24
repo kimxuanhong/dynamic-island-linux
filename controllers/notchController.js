@@ -120,8 +120,6 @@ var NotchController = class NotchController {
             ['uxplay', this.uxplayView]
         ]);
 
-        this.mediaView._updateAllIcons();
-
         this.mediaView.setVolumeRequestHandler(() => {
             this._cancelTemporaryPresenterTimeouts();
             this.presenterRegistry.switchTo('volume', true);
@@ -502,9 +500,6 @@ var NotchController = class NotchController {
     _onBluetoothChanged(info) {
         this.bluetoothView.updateBluetooth(info);
 
-        // Cập nhật icon dựa trên trạng thái bluetooth và mute
-        this.mediaView._updateAllIcons();
-
         // Cancel all temporary presenter timeouts before switching
         this._cancelTemporaryPresenterTimeouts();
 
@@ -548,7 +543,6 @@ var NotchController = class NotchController {
 
     _onVolumeChanged(info) {
         this.volumeView.updateVolume(info);
-        this.mediaView._updateAllIcons();
 
         this._cancelTemporaryPresenterTimeouts();
 
@@ -591,12 +585,10 @@ var NotchController = class NotchController {
     }
 
     _onMediaChanged(info) {
-        this.mediaView._updatePlayPauseIcon(info.isPlaying);
         this.timeoutManager.clear('media-switch');
 
         if (info.isPlaying) {
             this.mediaView.updateMedia(info);
-            this.mediaView._updateAllIcons();
 
             if (!this.cycleManager.has('media')) {
                 this.cycleManager.activate('media');
@@ -607,6 +599,9 @@ var NotchController = class NotchController {
                 this.squeeze();
             }
         } else {
+            // Update playback state only (stop visualizer without losing metadata)
+            this.mediaView.updatePlaybackState(info.isPlaying, info.playbackStatus);
+            
             this.timeoutManager.set('media-switch', NotchConstants.TIMEOUT_MEDIA_SWITCH, () => {
                 this.cycleManager.deactivate('media');
                 this.layoutManager.updateLayout();
