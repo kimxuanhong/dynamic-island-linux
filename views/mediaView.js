@@ -11,6 +11,10 @@ var MediaView = class MediaView {
         this._mediaManager = mediaManager;
         this._volumeManager = volumeManager;
         this._bluetoothManager = bluetoothManager;
+        this._progressUpdateInterval = null;
+        this._currentPosition = 0;
+        this._currentLength = 0;
+        this._lastUpdateTime = 0;
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
@@ -254,6 +258,70 @@ var MediaView = class MediaView {
         topTier.add_child(this._expandedThumbnailWrapper);
         topTier.add_child(this._titleWrapper);
 
+        // ============================================
+        // PROGRESS BAR: Position and Duration
+        // ============================================
+
+        // Progress bar background
+        this._progressBarBg = new St.Widget({
+            style_class: 'media-progress-bg',
+            style: 'background-color: rgba(255,255,255,0.2); height: 4px; border-radius: 2px;',
+            x_expand: true,
+            y_expand: false,
+        });
+
+        // Progress bar fill
+        this._progressBarFill = new St.Widget({
+            style_class: 'media-progress-fill',
+            style: 'background-color: rgba(255,255,255,0.8); height: 4px; border-radius: 2px;',
+            x_expand: false,
+            y_expand: false,
+        });
+
+        this._progressBarContainer = new St.Bin({
+            child: this._progressBarBg,
+            x_expand: true,
+            y_expand: false,
+            style: 'padding: 0;',
+        });
+
+        // Add fill as overlay
+        this._progressBarBg.add_child(this._progressBarFill);
+
+        // Time labels (current / total)
+        this._currentTimeLabel = new St.Label({
+            style_class: 'media-time-label',
+            text: '0:00',
+            style: 'color: rgba(255,255,255,0.7); font-size: 11px;',
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        this._totalTimeLabel = new St.Label({
+            style_class: 'media-time-label',
+            text: '0:00',
+            style: 'color: rgba(255,255,255,0.7); font-size: 11px;',
+            x_align: Clutter.ActorAlign.END,
+        });
+
+        const timeLabelsBox = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            y_expand: false,
+            style: 'margin-top: 4px;',
+        });
+        timeLabelsBox.add_child(this._currentTimeLabel);
+        timeLabelsBox.add_child(new St.Widget({ x_expand: true })); // Spacer
+        timeLabelsBox.add_child(this._totalTimeLabel);
+
+        const progressSection = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            y_expand: false,
+            style: 'margin: 10px 0;',
+        });
+        progressSection.add_child(this._progressBarContainer);
+        progressSection.add_child(timeLabelsBox);
+
 
         // ============================================
         // BOTTOM TIER: Control Buttons
@@ -359,8 +427,90 @@ var MediaView = class MediaView {
         });
 
         this.expandedContainer.add_child(topTier);
-        this.expandedContainer.add_child(separator);
+        this.expandedContainer.add_child(progressSection);
+        //this.expandedContainer.add_child(separator);
         this.expandedContainer.add_child(bottomBox);
+    }
+
+    /**
+     * Update progress bar based on position and length
+     * @param {number} position - Current position in microseconds
+     * @param {number} length - Total length in microseconds
+     */
+    updateProgress(position, length) {
+        if (!this._progressBarFill || !this._progressBarBg) return;
+
+        // Store current values
+        this._currentPosition = position;
+        this._currentLength = length;
+        this._lastUpdateTime = Date.now();
+
+        if (length > 0 && position >= 0) {
+            const percentage = Math.min(100, (position / length) * 100);
+            const bgWidth = this._progressBarBg.width;
+            
+            if (bgWidth > 0) {
+                this._progressBarFill.set_width(bgWidth * percentage / 100);
+            }
+
+            // Update time labels
+            this._currentTimeLabel.text = this._formatTime(position);
+            this._totalTimeLabel.text = this._formatTime(length);
+        } else {
+            // Reset if no valid data
+            this._progressBarFill.set_width(0);
+            this._currentTimeLabel.text = '0:00';
+            this._totalTimeLabel.text = '0:00';
+        }
+    }
+
+    /**
+     * Start progress bar update interval
+     */
+    _startProgressUpdate() {
+        this._stopProgressUpdate();
+        
+        this._progressUpdateInterval = setInterval(() => {
+            if (this._currentLength > 0 && this._currentPosition >= 0) {
+                // Calculate elapsed time since last update
+                const now = Date.now();
+                const elapsed = (now - this._lastUpdateTime) * 1000; // Convert to microseconds
+                
+                // Update position
+                this._currentPosition = Math.min(this._currentPosition + elapsed, this._currentLength);
+                this._lastUpdateTime = now;
+                
+                // Update UI
+                this.updateProgress(this._currentPosition, this._currentLength);
+            }
+        }, 1000); // Update every second
+    }
+
+    /**
+     * Stop progress bar update interval
+     */
+    _stopProgressUpdate() {
+        if (this._progressUpdateInterval) {
+            clearInterval(this._progressUpdateInterval);
+            this._progressUpdateInterval = null;
+        }
+    }
+
+    /**
+     * Format microseconds to MM:SS or HH:MM:SS
+     * @param {number} microseconds
+     * @returns {string}
+     */
+    _formatTime(microseconds) {
+        const seconds = Math.floor(microseconds / 1000000);
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
     }
 
     /**
@@ -384,13 +534,32 @@ var MediaView = class MediaView {
     updatePlaybackState(isPlaying, playbackStatus) {
         this._updateVisualizerState(isPlaying, playbackStatus);
         this._updatePlayPauseIcon(playbackStatus);
+        
+        // Start or stop progress update based on playback state
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._startProgressUpdate();
+        } else {
+            this._stopProgressUpdate();
+        }
     }
 
     updateMedia(mediaInfo) {
-        const { isPlaying, metadata, playbackStatus, artPath } = mediaInfo;
+        const { isPlaying, metadata, playbackStatus, artPath, position, length } = mediaInfo;
     
         // Update visualizer based on playback status
         this._updateVisualizerState(isPlaying, playbackStatus);
+
+        // Update progress bar
+        if (position !== undefined && length !== undefined) {
+            this.updateProgress(position, length);
+        }
+
+        // Start or stop progress update based on playback state
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._startProgressUpdate();
+        } else {
+            this._stopProgressUpdate();
+        }
 
         // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
         let metadataChanged = false;
@@ -759,6 +928,9 @@ var MediaView = class MediaView {
     destroy() {
         // Stop visualizer animation
         this._stopVisualizerAnimation();
+        
+        // Stop progress update
+        this._stopProgressUpdate();
 
         if (this.compactContainer) {
             this.compactContainer.destroy();

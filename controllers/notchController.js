@@ -590,6 +590,11 @@ var NotchController = class NotchController {
         if (info.isPlaying) {
             this.mediaView.updateMedia(info);
 
+            // Update progress bar if position and length are available
+            if (info.position !== undefined && info.length !== undefined) {
+                this.mediaView.updateProgress(info.position, info.length);
+            }
+
             if (!this.cycleManager.has('media')) {
                 this.cycleManager.activate('media');
                 this.presenterRegistry.switchTo('media', true);

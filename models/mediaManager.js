@@ -160,7 +160,9 @@ var MediaManager = class MediaManager {
             'xesam:title': metadataObj.title || '',
             'xesam:artist': this._normalizeArtist(artist),
             'xesam:album': metadataObj.album || '',
-            'mpris:artUrl': metadataObj.artUrl || ''
+            'mpris:artUrl': metadataObj.artUrl || '',
+            'mpris:length': metadataObj.length || 0,
+            'mpris:position': metadataObj.position || 0
         };
     }
 
@@ -177,7 +179,9 @@ var MediaManager = class MediaManager {
             isPlaying: false,
             metadata: null,
             playbackStatus: null,
-            artPath: null
+            artPath: null,
+            position: 0,
+            length: 0
         });
     }
 
@@ -210,7 +214,9 @@ var MediaManager = class MediaManager {
             isPlaying,
             metadata: this._currentMetadata,
             playbackStatus: status,
-            artPath: this._currentArtPath
+            artPath: this._currentArtPath,
+            position: metadataObj.position || 0,
+            length: metadataObj.length || 0
         });
     }
 
