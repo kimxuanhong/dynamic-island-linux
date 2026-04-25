@@ -15,9 +15,30 @@ var MediaView = class MediaView {
         this._currentPosition = 0;
         this._currentLength = 0;
         this._lastUpdateTime = 0;
+        this._currentVisualizerColor = this._generateRandomColor();
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
+    }
+
+    /**
+     * Generate a random vibrant color for visualizer
+     * @returns {string} RGB color string
+     */
+    _generateRandomColor() {
+        const colors = [
+            '255, 100, 100',   // Red
+            '100, 200, 255',   // Blue
+            '100, 255, 150',   // Green
+            '255, 200, 100',   // Orange
+            '255, 100, 200',   // Pink
+            '200, 100, 255',   // Purple
+            '100, 255, 255',   // Cyan
+            '255, 255, 100',   // Yellow
+            '255, 150, 100',   // Coral
+            '150, 255, 200',   // Mint
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
     }
 
     _buildMinimalView() {
@@ -166,7 +187,7 @@ var MediaView = class MediaView {
 
                 bar.set_style(`
                 width: 3px;
-                background-color: rgba(255,255,255,${opacity});
+                background-color: rgba(${this._currentVisualizerColor},${opacity});
                 border-radius: 1.5px;
             `);
             });
@@ -188,7 +209,7 @@ var MediaView = class MediaView {
 
                 bar.set_style(`
                 width: 3px;
-                background-color: rgba(255,255,255,0.4);
+                background-color: rgba(${this._currentVisualizerColor},0.4);
                 border-radius: 1.5px;
             `);
             });
@@ -592,8 +613,29 @@ var MediaView = class MediaView {
             const currentTitle = this._mediaManager.getTitle(metadata);
             const lastTitle = this._mediaManager.getTitle(this._lastMetadata);
             metadataChanged = currentTitle !== lastTitle;
+            
+            // 🎨 Đổi màu visualizer khi chuyển bài
+            if (metadataChanged) {
+                this._currentVisualizerColor = this._generateRandomColor();
+                // Cập nhật màu ngay lập tức cho các thanh visualizer
+                if (this._visualizerBars && this._visualizerBars.length > 0) {
+                    const idle = [4, 6, 8, 6, 4, 2];
+                    this._visualizerBars.forEach((bar, i) => {
+                        const currentHeight = bar.height || idle[i];
+                        const opacity = playbackStatus === 'Playing' ? 
+                            (0.7 + (currentHeight / 10) * 0.3) : 0.4;
+                        bar.set_style(`
+                            width: 3px;
+                            background-color: rgba(${this._currentVisualizerColor},${opacity});
+                            border-radius: 1.5px;
+                        `);
+                    });
+                }
+            }
         } else if (metadata && !this._lastMetadata) {
             metadataChanged = true; // Lần đầu có metadata
+            // Đổi màu cho lần đầu phát
+            this._currentVisualizerColor = this._generateRandomColor();
         }
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
