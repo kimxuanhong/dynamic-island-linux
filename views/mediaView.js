@@ -3,6 +3,10 @@ const Clutter = imports.gi.Clutter;
 const Gio = imports.gi.Gio;
 const Shell = imports.gi.Shell;
 
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const Visualizer = Me.imports.utils.visualizer;
+
 
 var MediaView = class MediaView {
     constructor(mediaManager, volumeManager, bluetoothManager) {
@@ -15,30 +19,9 @@ var MediaView = class MediaView {
         this._currentPosition = 0;
         this._currentLength = 0;
         this._lastUpdateTime = 0;
-        this._currentVisualizerColor = this._generateRandomColor();
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
-    }
-
-    /**
-     * Generate a random vibrant color for visualizer
-     * @returns {string} RGB color string
-     */
-    _generateRandomColor() {
-        const colors = [
-            '255, 100, 100',   // Red
-            '100, 200, 255',   // Blue
-            '100, 255, 150',   // Green
-            '255, 200, 100',   // Orange
-            '255, 100, 200',   // Pink
-            '200, 100, 255',   // Purple
-            '100, 255, 255',   // Cyan
-            '255, 255, 100',   // Yellow
-            '255, 150, 100',   // Coral
-            '150, 255, 200',   // Mint
-        ];
-        return colors[Math.floor(Math.random() * colors.length)];
     }
 
     _buildMinimalView() {
@@ -87,82 +70,16 @@ var MediaView = class MediaView {
         });
         this._thumbnailWrapper.set_child(this._thumbnail);
 
-        // ===== VISUALIZER (MIRRORED TOP-BOTTOM) =====
-        this._visualizerBars = [];
-        const barCount = 6;
-        const pattern = [4, 6, 8, 6, 4, 2];
-
-        // Container chính - vertical để chứa 2 hàng
-        this._visualizerBox = new St.BoxLayout({
-            style_class: 'media-visualizer-box',
-            vertical: true,
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 0px; padding: 0px; margin: 0px;',
+        // ===== VISUALIZER =====
+        this._visualizer = new Visualizer.MirroredVisualizer({
+            barCount: 6,
+            pattern: [4, 6, 8, 6, 4, 2],
+            barWidth: 3,
+            barSpacing: 3,
+            rowHeight: 16,
+            maxOffset: 2,
+            animationSpeed: 80
         });
-
-        // Hàng trên (lộn ngược - dính trần)
-        const topRow = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.END,
-            style: 'spacing: 3px; padding: 0px; margin: 0px;',
-        });
-        topRow.set_height(16);
-
-        for (let i = 0; i < barCount; i++) {
-            const height = pattern[i % pattern.length];
-
-            const bar = new St.Widget({
-                style_class: 'media-visualizer-bar',
-                style: `
-                width: 3px;
-                background-color: rgba(255,255,255,0.5);
-                border-radius: 1.5px 1.5px 0px 0px;
-                margin: 0px;
-                padding: 0px;
-            `,
-            });
-
-            bar.set_height(height);
-            bar.set_y_align(Clutter.ActorAlign.END);
-
-            this._visualizerBars.push(bar);
-            topRow.add_child(bar);
-        }
-
-        // Hàng dưới (bình thường - dính đáy)
-        const bottomRow = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.START,
-            style: 'spacing: 3px; padding: 0px; margin: 0px;',
-        });
-        bottomRow.set_height(16);
-
-        for (let i = 0; i < barCount; i++) {
-            const height = pattern[i % pattern.length];
-
-            const bar = new St.Widget({
-                style_class: 'media-visualizer-bar',
-                style: `
-                width: 3px;
-                background-color: rgba(255,255,255,0.5);
-                border-radius: 0px 0px 1.5px 1.5px;
-                margin: 0px;
-                padding: 0px;
-            `,
-            });
-
-            bar.set_height(height);
-            bar.set_y_align(Clutter.ActorAlign.START);
-
-            this._visualizerBars.push(bar);
-            bottomRow.add_child(bar);
-        }
-
-        this._visualizerBox.add_child(topRow);
-        this._visualizerBox.add_child(bottomRow);
 
         this._audioIconWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
@@ -170,9 +87,7 @@ var MediaView = class MediaView {
             x_expand: true,
             style: 'padding-right: 3px;',
         });
-        this._audioIconWrapper.set_child(this._visualizerBox);
-
-        this._visualizerAnimation = null;
+        this._audioIconWrapper.set_child(this._visualizer.container);
 
         this.compactContainer = new St.BoxLayout({
             vertical: false,
@@ -185,86 +100,15 @@ var MediaView = class MediaView {
         this.compactContainer.add_child(this._audioIconWrapper);
     }
     /**
-     * Start visualizer animation
+     * Update visualizer state based on playback status
+     * @param {boolean} isPlaying - Whether media is playing
+     * @param {string} playbackStatus - Playback status ('Playing', 'Paused', 'Stopped')
      */
-    _startVisualizerAnimation() {
-        if (this._visualizerAnimation) return;
-
-        const pattern = [4, 6, 8, 6, 4, 2];
-        const barCount = 6;
-
-        const states = this._visualizerBars.map((_, i) => ({
-            base: pattern[i % barCount],
-            offset: 0,
-            dir: Math.random() > 0.5 ? 1 : -1
-        }));
-
-        const MAX_OFFSET = 2;
-
-        this._visualizerAnimation = setInterval(() => {
-            this._visualizerBars.forEach((bar, i) => {
-                const state = states[i];
-
-                const step = Math.random() > 0.7 ? 2 : 1;
-                state.offset += step * state.dir;
-
-                if (state.offset > MAX_OFFSET) {
-                    state.offset = MAX_OFFSET;
-                    state.dir = -1;
-                }
-                if (state.offset < -MAX_OFFSET) {
-                    state.offset = -MAX_OFFSET;
-                    state.dir = 1;
-                }
-
-                let height = state.base + state.offset;
-
-                // Giữ form: chỉ check trong cùng hàng
-                const indexInRow = i % barCount;
-                if (indexInRow > 0) {
-                    const prevBar = this._visualizerBars[i - 1];
-                    height = Math.max(height, prevBar.height - 2);
-                }
-
-                const opacity = 0.7 + (height / 10) * 0.3;
-                const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
-
-                bar.set_height(height);
-                bar.set_style(`
-                width: 3px;
-                background-color: rgba(${this._currentVisualizerColor},${opacity});
-                border-radius: ${borderRadius};
-                margin: 0px;
-                padding: 0px;
-            `);
-            });
-        }, 80);
-    }
-
-    /**
-     * Stop visualizer animation
-     */
-    _stopVisualizerAnimation() {
-        if (this._visualizerAnimation) {
-            clearInterval(this._visualizerAnimation);
-            this._visualizerAnimation = null;
-
-            const idle = [4, 6, 8, 6, 4, 2];
-            const barCount = 6;
-
-            this._visualizerBars.forEach((bar, i) => {
-                const height = idle[i % barCount];
-                const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
-                
-                bar.set_height(height);
-                bar.set_style(`
-                width: 3px;
-                background-color: rgba(${this._currentVisualizerColor},0.4);
-                border-radius: ${borderRadius};
-                margin: 0px;
-                padding: 0px;
-            `);
-            });
+    _updateVisualizerState(isPlaying, playbackStatus) {
+        if (isPlaying && playbackStatus === 'Playing') {
+            this._visualizer.start();
+        } else {
+            this._visualizer.stop();
         }
     }
 
@@ -612,19 +456,6 @@ var MediaView = class MediaView {
     }
 
     /**
-     * Update visualizer state based on playback status
-     * @param {boolean} isPlaying - Whether media is playing
-     * @param {string} playbackStatus - Playback status ('Playing', 'Paused', 'Stopped')
-     */
-    _updateVisualizerState(isPlaying, playbackStatus) {
-        if (isPlaying && playbackStatus === 'Playing') {
-            this._startVisualizerAnimation();
-        } else {
-            this._stopVisualizerAnimation();
-        }
-    }
-
-    /**
      * Update only playback state (for pause/stop without full metadata update)
      * @param {boolean} isPlaying - Whether media is playing
      * @param {string} playbackStatus - Playback status
@@ -668,31 +499,12 @@ var MediaView = class MediaView {
             
             // 🎨 Đổi màu visualizer khi chuyển bài
             if (metadataChanged) {
-                this._currentVisualizerColor = this._generateRandomColor();
-                // Cập nhật màu ngay lập tức cho các thanh visualizer
-                if (this._visualizerBars && this._visualizerBars.length > 0) {
-                    const idle = [4, 6, 8, 6, 4, 2];
-                    const barCount = 6;
-                    this._visualizerBars.forEach((bar, i) => {
-                        const currentHeight = bar.height || idle[i % barCount];
-                        const opacity = playbackStatus === 'Playing' ? 
-                            (0.7 + (currentHeight / 10) * 0.3) : 0.4;
-                        const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
-                        
-                        bar.set_style(`
-                            width: 3px;
-                            background-color: rgba(${this._currentVisualizerColor},${opacity});
-                            border-radius: ${borderRadius};
-                            margin: 0px;
-                            padding: 0px;
-                        `);
-                    });
-                }
+                this._visualizer.setColor(); // Random color
             }
         } else if (metadata && !this._lastMetadata) {
             metadataChanged = true; // Lần đầu có metadata
             // Đổi màu cho lần đầu phát
-            this._currentVisualizerColor = this._generateRandomColor();
+            this._visualizer.setColor(); // Random color
         }
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
@@ -1050,8 +862,11 @@ var MediaView = class MediaView {
     }
 
     destroy() {
-        // Stop visualizer animation
-        this._stopVisualizerAnimation();
+        // Stop and destroy visualizer
+        if (this._visualizer) {
+            this._visualizer.destroy();
+            this._visualizer = null;
+        }
         
         // Stop progress update
         this._stopProgressUpdate();
