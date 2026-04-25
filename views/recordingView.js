@@ -1,14 +1,16 @@
 const St = imports.gi.St;
 const Clutter = imports.gi.Clutter;
 
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const Visualizer = Me.imports.utils.visualizer;
+
 var RecordingView = class RecordingView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
         this._timerId = null;
-        this._blinkTimerId = null;
-        this._isBlinking = false;
     }
 
     _buildMinimalView() {
@@ -47,23 +49,26 @@ var RecordingView = class RecordingView {
         });
         this.iconWrapper.set_child(this.iconLeft);
 
-        // Chấm xanh chớp tắt
-        this.recordingDot = new St.Bin({
-            width: 8,
-            height: 8,
-            style: 'background-color: #00ff00; border-radius: 4px;',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+        // ===== VISUALIZER (màu đỏ) =====
+        this._visualizer = new Visualizer.MirroredVisualizer({
+            barCount: 6,
+            pattern: [4, 6, 8, 6, 4, 2],
+            barWidth: 3,
+            barSpacing: 3,
+            rowHeight: 16,
+            maxOffset: 2,
+            animationSpeed: 80
         });
-        this.recordingDot.set_opacity(255);
+        // Set màu đỏ cho recording
+        this._visualizer.setColor('255, 85, 85'); // #ff5555 in RGB
 
-        this.dotWrapper = new St.Bin({
+        this._visualizerWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
-            style: 'padding-right: 16px;'
+            style: 'padding-right: 16px;',
         });
-        this.dotWrapper.set_child(this.recordingDot);
+        this._visualizerWrapper.set_child(this._visualizer.container);
 
         this.compactContainer = new St.BoxLayout({
             vertical: false,
@@ -72,7 +77,7 @@ var RecordingView = class RecordingView {
             visible: false
         });
         this.compactContainer.add_child(this.iconWrapper);
-        this.compactContainer.add_child(this.dotWrapper);
+        this.compactContainer.add_child(this._visualizerWrapper);
     }
 
     _buildExpandedView() {
@@ -128,7 +133,7 @@ var RecordingView = class RecordingView {
 
         if (!recordingInfo || !recordingInfo.isRecording) {
             this._stopTimer();
-            this._stopBlinking();
+            this._visualizer.stop();
             this.compactContainer.hide();
             this.expandedContainer.hide();
             return;
@@ -144,55 +149,12 @@ var RecordingView = class RecordingView {
         if (this.statusLabel) this.statusLabel.set_text('Recording');
         if (this.detailsLabel) this.detailsLabel.set_text(this._appName);
         
-        // Đảm bảo chấm xanh được hiển thị và bắt đầu chớp tắt
-        if (this.recordingDot) {
-            this.recordingDot.show();
-            this._startBlinking();
-        }
+        // Start visualizer animation
+        this._visualizer.start();
     }
 
     startTimer(startTime) {
         // Không còn sử dụng timer nữa
-    }
-
-    _startBlinking() {
-        this._stopBlinking();
-        this._isBlinking = true;
-        this._blinkState = true; // true = sáng, false = tối
-
-        const blink = () => {
-            if (!this._isBlinking || !this.recordingDot) {
-                return false;
-            }
-
-            // Toggle opacity: 255 (sáng) <-> 76 (tối, ~30%)
-            if (this._blinkState) {
-                this.recordingDot.set_opacity(76);
-                this._blinkState = false;
-            } else {
-                this.recordingDot.set_opacity(255);
-                this._blinkState = true;
-            }
-
-            return true; // Tiếp tục lặp
-        };
-
-        // Bắt đầu chớp tắt ngay lập tức
-        blink();
-        // Lặp lại mỗi 500ms (tổng chu kỳ 1 giây)
-        this._blinkTimerId = imports.mainloop.timeout_add(500, blink);
-    }
-
-    _stopBlinking() {
-        this._isBlinking = false;
-        if (this._blinkTimerId !== null) {
-            imports.mainloop.source_remove(this._blinkTimerId);
-            this._blinkTimerId = null;
-        }
-        // Đặt lại opacity về sáng khi dừng
-        if (this.recordingDot) {
-            this.recordingDot.set_opacity(255);
-        }
     }
 
     _stopTimer() {
@@ -211,12 +173,12 @@ var RecordingView = class RecordingView {
         this.compactContainer.hide();
         this.expandedContainer.hide();
         this._stopTimer();
-        this._stopBlinking();
+        this._visualizer.stop();
     }
 
     destroy() {
         this._stopTimer();
-        this._stopBlinking();
+        this._visualizer.destroy();
         if (this.compactContainer) {
             this.compactContainer.destroy();
         }
