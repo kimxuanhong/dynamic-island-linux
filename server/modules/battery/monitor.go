@@ -131,7 +131,25 @@ func (s *BatterySource) fetchInitialValue(bus core.Bus) error {
 		return fmt.Errorf("invalid IsPresent type")
 	}
 
-	s.publishEvent(bus, int(percentage), state, isPresent)
+	// Get time to empty/full
+	var timeToEmpty int64
+	var timeToFull int64
+
+	timeToEmptyVar, err := obj.GetProperty(upowerInterface + ".TimeToEmpty")
+	if err == nil {
+		if val, ok := timeToEmptyVar.Value().(int64); ok {
+			timeToEmpty = val
+		}
+	}
+
+	timeToFullVar, err := obj.GetProperty(upowerInterface + ".TimeToFull")
+	if err == nil {
+		if val, ok := timeToFullVar.Value().(int64); ok {
+			timeToFull = val
+		}
+	}
+
+	s.publishEvent(bus, int(percentage), state, isPresent, timeToEmpty, timeToFull)
 	return nil
 }
 
@@ -159,6 +177,8 @@ func (s *BatterySource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	var percentage float64
 	var state uint32
 	var isPresent bool
+	var timeToEmpty int64
+	var timeToFull int64
 
 	if percentageVar, ok := changedProps["Percentage"]; ok {
 		if p, ok := percentageVar.Value().(float64); ok {
@@ -199,10 +219,37 @@ func (s *BatterySource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 		}
 	}
 
-	s.publishEvent(bus, int(percentage), state, isPresent)
+	// Get time to empty/full
+	if timeToEmptyVar, ok := changedProps["TimeToEmpty"]; ok {
+		if val, ok := timeToEmptyVar.Value().(int64); ok {
+			timeToEmpty = val
+		}
+	} else {
+		timeToEmptyVar, err := obj.GetProperty(upowerInterface + ".TimeToEmpty")
+		if err == nil {
+			if val, ok := timeToEmptyVar.Value().(int64); ok {
+				timeToEmpty = val
+			}
+		}
+	}
+
+	if timeToFullVar, ok := changedProps["TimeToFull"]; ok {
+		if val, ok := timeToFullVar.Value().(int64); ok {
+			timeToFull = val
+		}
+	} else {
+		timeToFullVar, err := obj.GetProperty(upowerInterface + ".TimeToFull")
+		if err == nil {
+			if val, ok := timeToFullVar.Value().(int64); ok {
+				timeToFull = val
+			}
+		}
+	}
+
+	s.publishEvent(bus, int(percentage), state, isPresent, timeToEmpty, timeToFull)
 }
 
-func (s *BatterySource) publishEvent(bus core.Bus, percentage int, state uint32, isPresent bool) {
+func (s *BatterySource) publishEvent(bus core.Bus, percentage int, state uint32, isPresent bool, timeToEmpty int64, timeToFull int64) {
 	s.mu.Lock()
 	isCharging := (state == DeviceStateCharging || state == DeviceStateFullyCharged)
 
@@ -228,6 +275,8 @@ func (s *BatterySource) publishEvent(bus core.Bus, percentage int, state uint32,
 	event.Metadata["isCharging"] = isCharging
 	event.Metadata["isPresent"] = isPresent
 	event.Metadata["state"] = int(state)
+	event.Metadata["timeToEmpty"] = timeToEmpty
+	event.Metadata["timeToFull"] = timeToFull
 
 	// log.Printf("🔋 Battery: %d%% (%s, Present: %v)", percentage, map[bool]string{true: "Charging", false: "Discharging"}[isCharging], isPresent)
 	bus.Publish(event)

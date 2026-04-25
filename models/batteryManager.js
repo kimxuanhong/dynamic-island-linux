@@ -8,6 +8,8 @@ var BatteryManager = class BatteryManager {
         this._currentPercentage = 0;
         this._isCharging = false;
         this._isPresent = false;
+        this._timeToEmpty = 0;
+        this._timeToFull = 0;
         this._isInitializing = true;
         this._hasReceivedValue = false; // Flag để biết đã nhận được giá trị từ server chưa
 
@@ -30,6 +32,8 @@ var BatteryManager = class BatteryManager {
                         <arg name="percentage" type="i" direction="out"/>
                         <arg name="isCharging" type="b" direction="out"/>
                         <arg name="isPresent" type="b" direction="out"/>
+                        <arg name="timeToEmpty" type="x" direction="out"/>
+                        <arg name="timeToFull" type="x" direction="out"/>
                     </method>
                 </interface>
             </node>
@@ -73,15 +77,19 @@ var BatteryManager = class BatteryManager {
                     return;
                 }
 
-                // result là array [percentage, isCharging, isPresent]
+                // result là array [percentage, isCharging, isPresent, timeToEmpty, timeToFull]
                 const percentage = result[0] || 0;
                 const isCharging = Boolean(result[1]);
                 const isPresent = Boolean(result[2]);
+                const timeToEmpty = result[3] || 0;
+                const timeToFull = result[4] || 0;
 
                 // Cập nhật giá trị
                 this._currentPercentage = Math.round(percentage);
                 this._isCharging = isCharging;
                 this._isPresent = isPresent;
+                this._timeToEmpty = timeToEmpty;
+                this._timeToFull = timeToFull;
                 this._hasReceivedValue = true;
                 this._isInitializing = false;
 
@@ -119,6 +127,8 @@ var BatteryManager = class BatteryManager {
         const percentage = metadataObj.percentage !== undefined ? Math.round(metadataObj.percentage) : this._currentPercentage;
         const isCharging = metadataObj.isCharging !== undefined ? Boolean(metadataObj.isCharging) : this._isCharging;
         const isPresent = metadataObj.isPresent !== undefined ? Boolean(metadataObj.isPresent) : this._isPresent;
+        const timeToEmpty = metadataObj.timeToEmpty !== undefined ? metadataObj.timeToEmpty : (this._timeToEmpty || 0);
+        const timeToFull = metadataObj.timeToFull !== undefined ? metadataObj.timeToFull : (this._timeToFull || 0);
 
         // Kiểm tra xem có thay đổi không
         const hasChanged = this._currentPercentage !== percentage ||
@@ -129,6 +139,8 @@ var BatteryManager = class BatteryManager {
         this._currentPercentage = percentage;
         this._isCharging = isCharging;
         this._isPresent = isPresent;
+        this._timeToEmpty = timeToEmpty;
+        this._timeToFull = timeToFull;
 
         // Đánh dấu đã nhận được giá trị từ server
         this._hasReceivedValue = true;
@@ -174,7 +186,9 @@ var BatteryManager = class BatteryManager {
         return {
             percentage: this._currentPercentage,
             isCharging: this._isCharging,
-            isPresent: this._isPresent
+            isPresent: this._isPresent,
+            timeToEmpty: this._timeToEmpty || 0,
+            timeToFull: this._timeToFull || 0
         };
     }
 
