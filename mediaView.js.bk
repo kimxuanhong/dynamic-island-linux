@@ -87,29 +87,22 @@ var MediaView = class MediaView {
         });
         this._thumbnailWrapper.set_child(this._thumbnail);
 
-        // ===== VISUALIZER (MIRRORED TOP-BOTTOM) =====
+        // ===== VISUALIZER (SYMMETRIC) =====
         this._visualizerBars = [];
         const barCount = 6;
-        const pattern = [4, 6, 8, 6, 4, 2];
+        const pattern = [2, 4, 6, 8, 6, 4]; // Pattern cho nửa đầu
 
-        // Container chính - vertical để chứa 2 hàng
         this._visualizerBox = new St.BoxLayout({
             style_class: 'media-visualizer-box',
-            vertical: true, // 🔥 Đổi thành vertical
+            vertical: false,
             x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 0px; padding: 0px; margin: 0px;', // 🔥 Xóa hoàn toàn khoảng cách
+            y_align: Clutter.ActorAlign.END,
+            style: 'spacing: 3px;',
         });
 
-        // Hàng trên (lộn ngược - dính trần)
-        const topRow = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.END, // Dính đáy của hàng trên
-            style: 'spacing: 3px; padding: 0px; margin: 0px;', // 🔥 Xóa padding/margin
-        });
-        topRow.set_height(16);
+        this._visualizerBox.set_height(16);
 
+        // Tạo nửa đầu (trái sang phải)
         for (let i = 0; i < barCount; i++) {
             const height = pattern[i % pattern.length];
 
@@ -118,29 +111,19 @@ var MediaView = class MediaView {
                 style: `
                 width: 3px;
                 background-color: rgba(255,255,255,0.5);
-                border-radius: 1.5px 1.5px 0px 0px;
-                margin: 0px;
-                padding: 0px;
+                border-radius: 1.5px;
             `,
             });
 
             bar.set_height(height);
-            bar.set_y_align(Clutter.ActorAlign.END); // Dính đáy (hướng xuống)
+            bar.set_y_align(Clutter.ActorAlign.END);
 
             this._visualizerBars.push(bar);
-            topRow.add_child(bar);
+            this._visualizerBox.add_child(bar);
         }
 
-        // Hàng dưới (bình thường - dính đáy)
-        const bottomRow = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.START, // Dính trần của hàng dưới
-            style: 'spacing: 3px; padding: 0px; margin: 0px;', // 🔥 Xóa padding/margin
-        });
-        bottomRow.set_height(16);
-
-        for (let i = 0; i < barCount; i++) {
+        // Tạo nửa sau (đối xứng - lộn ngược pattern)
+        for (let i = barCount - 1; i >= 0; i--) {
             const height = pattern[i % pattern.length];
 
             const bar = new St.Widget({
@@ -148,21 +131,16 @@ var MediaView = class MediaView {
                 style: `
                 width: 3px;
                 background-color: rgba(255,255,255,0.5);
-                border-radius: 0px 0px 1.5px 1.5px;
-                margin: 0px;
-                padding: 0px;
+                border-radius: 1.5px;
             `,
             });
 
             bar.set_height(height);
-            bar.set_y_align(Clutter.ActorAlign.START); // Dính trần (hướng lên)
+            bar.set_y_align(Clutter.ActorAlign.END);
 
             this._visualizerBars.push(bar);
-            bottomRow.add_child(bar);
+            this._visualizerBox.add_child(bar);
         }
-
-        this._visualizerBox.add_child(topRow);
-        this._visualizerBox.add_child(bottomRow);
 
         this._audioIconWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
@@ -190,14 +168,18 @@ var MediaView = class MediaView {
     _startVisualizerAnimation() {
         if (this._visualizerAnimation) return;
 
-        const pattern = [4, 6, 8, 6, 4, 2];
-        const barCount = 6; // Số thanh mỗi hàng
+        const pattern = [2, 4, 6, 8, 6, 4];
+        const halfCount = 6; // Số thanh mỗi nửa
 
-        const states = this._visualizerBars.map((_, i) => ({
-            base: pattern[i % barCount],
-            offset: 0,
-            dir: Math.random() > 0.5 ? 1 : -1
-        }));
+        const states = this._visualizerBars.map((_, i) => {
+            // Xác định index trong pattern (đối xứng)
+            const patternIndex = i < halfCount ? i : (halfCount * 2 - 1 - i);
+            return {
+                base: pattern[patternIndex % pattern.length],
+                offset: 0,
+                dir: Math.random() > 0.5 ? 1 : -1
+            };
+        });
 
         const MAX_OFFSET = 2;
 
@@ -220,26 +202,21 @@ var MediaView = class MediaView {
 
                 let height = state.base + state.offset;
 
-                // Giữ form: chỉ check trong cùng hàng
-                const indexInRow = i % barCount;
-                if (indexInRow > 0) {
-                    const prevBar = this._visualizerBars[i - 1];
-                    height = Math.max(height, prevBar.height - 2);
+                // Giữ form đối xứng
+                if (i > 0 && i < halfCount) {
+                    height = Math.max(height, this._visualizerBars[i - 1].height - 2);
+                } else if (i >= halfCount && i < this._visualizerBars.length - 1) {
+                    height = Math.max(height, this._visualizerBars[i + 1].height - 2);
                 }
 
                 const opacity = 0.7 + (height / 10) * 0.3;
 
                 bar.set_height(height);
 
-                // Hàng trên: bo góc trên, hàng dưới: bo góc dưới
-                const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
-
                 bar.set_style(`
                 width: 3px;
                 background-color: rgba(${this._currentVisualizerColor},${opacity});
-                border-radius: ${borderRadius};
-                margin: 0px;
-                padding: 0px;
+                border-radius: 1.5px;
             `);
             });
         }, 80);
@@ -253,23 +230,20 @@ var MediaView = class MediaView {
             clearInterval(this._visualizerAnimation);
             this._visualizerAnimation = null;
 
-            const idle = [4, 6, 8, 6, 4, 2];
-            const barCount = 6;
+            const pattern = [2, 4, 6, 8, 6, 4];
+            const halfCount = 6;
 
             this._visualizerBars.forEach((bar, i) => {
-                const height = idle[i % barCount];
+                // Xác định height đối xứng
+                const patternIndex = i < halfCount ? i : (halfCount * 2 - 1 - i);
+                const height = pattern[patternIndex % pattern.length];
                 
                 bar.set_height(height);
-
-                // Hàng trên: bo góc trên, hàng dưới: bo góc dưới
-                const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
 
                 bar.set_style(`
                 width: 3px;
                 background-color: rgba(${this._currentVisualizerColor},0.4);
-                border-radius: ${borderRadius};
-                margin: 0px;
-                padding: 0px;
+                border-radius: 1.5px;
             `);
             });
         }
@@ -678,22 +652,17 @@ var MediaView = class MediaView {
                 this._currentVisualizerColor = this._generateRandomColor();
                 // Cập nhật màu ngay lập tức cho các thanh visualizer
                 if (this._visualizerBars && this._visualizerBars.length > 0) {
-                    const idle = [4, 6, 8, 6, 4, 2];
-                    const barCount = 6;
+                    const pattern = [2, 4, 6, 8, 6, 4];
+                    const halfCount = 6;
                     this._visualizerBars.forEach((bar, i) => {
-                        const currentHeight = bar.height || idle[i % barCount];
+                        const patternIndex = i < halfCount ? i : (halfCount * 2 - 1 - i);
+                        const currentHeight = bar.height || pattern[patternIndex % pattern.length];
                         const opacity = playbackStatus === 'Playing' ? 
                             (0.7 + (currentHeight / 10) * 0.3) : 0.4;
-                        
-                        // Hàng trên: bo góc trên, hàng dưới: bo góc dưới
-                        const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
-                        
                         bar.set_style(`
                             width: 3px;
                             background-color: rgba(${this._currentVisualizerColor},${opacity});
-                            border-radius: ${borderRadius};
-                            margin: 0px;
-                            padding: 0px;
+                            border-radius: 1.5px;
                         `);
                     });
                 }
