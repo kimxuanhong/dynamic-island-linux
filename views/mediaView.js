@@ -235,7 +235,7 @@ var MediaView = class MediaView {
             x_expand: true,
             y_expand: false,
             style: 'margin: 10px 0;',
-            visible: false, // Ẩn mặc định, chỉ hiện khi có data
+            visible: true, // Hiện mặc định, sẽ show 0:00 / 0:00 nếu chưa có data
         });
         progressSection.add_child(this._progressBarContainer);
         progressSection.add_child(timeLabelsBox);
@@ -366,12 +366,12 @@ var MediaView = class MediaView {
         this._currentLength = length;
         this._lastUpdateTime = Date.now();
 
+        // Always show progress section when expanded (even if no data yet)
+        if (this._progressSection && !this._progressSection.visible) {
+            this._progressSection.show();
+        }
+
         if (length > 0 && position >= 0) {
-            // Show progress section nếu đang ẩn
-            if (this._progressSection && !this._progressSection.visible) {
-                this._progressSection.show();
-            }
-            
             const percentage = Math.min(100, (position / length) * 100);
             const bgWidth = this._progressBarBg.width;
             
@@ -394,9 +394,13 @@ var MediaView = class MediaView {
                 this._totalTimeLabel.text = totalTimeText;
             }
         } else {
-            // Hide progress section nếu không có data
-            if (this._progressSection && this._progressSection.visible) {
-                this._progressSection.hide();
+            // Show default state (0:00 / 0:00) instead of hiding
+            this._progressBarFill.set_width(0);
+            if (this._currentTimeLabel.text !== '0:00') {
+                this._currentTimeLabel.text = '0:00';
+            }
+            if (this._totalTimeLabel.text !== '0:00') {
+                this._totalTimeLabel.text = '0:00';
             }
         }
     }
