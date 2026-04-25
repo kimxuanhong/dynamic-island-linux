@@ -95,18 +95,18 @@ var MediaView = class MediaView {
         // Container chính - vertical để chứa 2 hàng
         this._visualizerBox = new St.BoxLayout({
             style_class: 'media-visualizer-box',
-            vertical: true, // 🔥 Đổi thành vertical
+            vertical: true,
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
-            style: 'spacing: 0px; padding: 0px; margin: 0px;', // 🔥 Xóa hoàn toàn khoảng cách
+            style: 'spacing: 0px; padding: 0px; margin: 0px;',
         });
 
         // Hàng trên (lộn ngược - dính trần)
         const topRow = new St.BoxLayout({
             vertical: false,
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.END, // Dính đáy của hàng trên
-            style: 'spacing: 3px; padding: 0px; margin: 0px;', // 🔥 Xóa padding/margin
+            y_align: Clutter.ActorAlign.END,
+            style: 'spacing: 3px; padding: 0px; margin: 0px;',
         });
         topRow.set_height(16);
 
@@ -125,7 +125,7 @@ var MediaView = class MediaView {
             });
 
             bar.set_height(height);
-            bar.set_y_align(Clutter.ActorAlign.END); // Dính đáy (hướng xuống)
+            bar.set_y_align(Clutter.ActorAlign.END);
 
             this._visualizerBars.push(bar);
             topRow.add_child(bar);
@@ -135,8 +135,8 @@ var MediaView = class MediaView {
         const bottomRow = new St.BoxLayout({
             vertical: false,
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.START, // Dính trần của hàng dưới
-            style: 'spacing: 3px; padding: 0px; margin: 0px;', // 🔥 Xóa padding/margin
+            y_align: Clutter.ActorAlign.START,
+            style: 'spacing: 3px; padding: 0px; margin: 0px;',
         });
         bottomRow.set_height(16);
 
@@ -155,7 +155,7 @@ var MediaView = class MediaView {
             });
 
             bar.set_height(height);
-            bar.set_y_align(Clutter.ActorAlign.START); // Dính trần (hướng lên)
+            bar.set_y_align(Clutter.ActorAlign.START);
 
             this._visualizerBars.push(bar);
             bottomRow.add_child(bar);
@@ -191,7 +191,7 @@ var MediaView = class MediaView {
         if (this._visualizerAnimation) return;
 
         const pattern = [4, 6, 8, 6, 4, 2];
-        const barCount = 6; // Số thanh mỗi hàng
+        const barCount = 6;
 
         const states = this._visualizerBars.map((_, i) => ({
             base: pattern[i % barCount],
@@ -208,7 +208,6 @@ var MediaView = class MediaView {
                 const step = Math.random() > 0.7 ? 2 : 1;
                 state.offset += step * state.dir;
 
-                // clamp + đảo chiều
                 if (state.offset > MAX_OFFSET) {
                     state.offset = MAX_OFFSET;
                     state.dir = -1;
@@ -228,12 +227,9 @@ var MediaView = class MediaView {
                 }
 
                 const opacity = 0.7 + (height / 10) * 0.3;
-
-                bar.set_height(height);
-
-                // Hàng trên: bo góc trên, hàng dưới: bo góc dưới
                 const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
 
+                bar.set_height(height);
                 bar.set_style(`
                 width: 3px;
                 background-color: rgba(${this._currentVisualizerColor},${opacity});
@@ -258,12 +254,9 @@ var MediaView = class MediaView {
 
             this._visualizerBars.forEach((bar, i) => {
                 const height = idle[i % barCount];
+                const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
                 
                 bar.set_height(height);
-
-                // Hàng trên: bo góc trên, hàng dưới: bo góc dưới
-                const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
-
                 bar.set_style(`
                 width: 3px;
                 background-color: rgba(${this._currentVisualizerColor},0.4);
@@ -684,8 +677,6 @@ var MediaView = class MediaView {
                         const currentHeight = bar.height || idle[i % barCount];
                         const opacity = playbackStatus === 'Playing' ? 
                             (0.7 + (currentHeight / 10) * 0.3) : 0.4;
-                        
-                        // Hàng trên: bo góc trên, hàng dưới: bo góc dưới
                         const borderRadius = i < barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';
                         
                         bar.set_style(`
