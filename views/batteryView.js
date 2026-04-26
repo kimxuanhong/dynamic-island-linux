@@ -3,6 +3,8 @@ const Clutter = imports.gi.Clutter;
 
 var BatteryView = class BatteryView {
     constructor() {
+        this._chargingAnimationTimer = null;
+        this._currentAnimationFrame = 0;
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
@@ -134,6 +136,7 @@ var BatteryView = class BatteryView {
         let iconName;
 
         if (!isPresent) {
+            this._stopChargingAnimation();
             this.percentageLabel.set_text('AC');
             this.iconLeft.icon_name = 'battery-missing-symbolic';
             this.iconExpanded.icon_name = 'battery-missing-symbolic';
@@ -151,24 +154,29 @@ var BatteryView = class BatteryView {
         // Update expanded view - percentage
         this.percentageLabelExpanded.set_text(`${percentage}%`);
 
-        // Determine icon
+        // Handle charging animation
         if (isCharging) {
-            iconName = 'battery-charging-symbolic';
-        } else if (percentage === 100) {
-            iconName = 'battery-full-charged-symbolic';
-        } else if (percentage >= 90) {
-            iconName = 'battery-full-symbolic';
-        } else if (percentage >= 60) {
-            iconName = 'battery-good-symbolic';
-        } else if (percentage >= 30) {
-            iconName = 'battery-low-symbolic';
+            this._startChargingAnimation();
         } else {
-            iconName = 'battery-empty-symbolic';
-        }
+            this._stopChargingAnimation();
+            
+            // Determine icon when not charging
+            if (percentage === 100) {
+                iconName = 'battery-full-charged-symbolic';
+            } else if (percentage >= 90) {
+                iconName = 'battery-full-symbolic';
+            } else if (percentage >= 60) {
+                iconName = 'battery-good-symbolic';
+            } else if (percentage >= 30) {
+                iconName = 'battery-low-symbolic';
+            } else {
+                iconName = 'battery-empty-symbolic';
+            }
 
-        this.iconLeft.icon_name = iconName;
-        this.iconExpanded.icon_name = iconName;
-        if (this.secondaryIcon) this.secondaryIcon.icon_name = iconName;
+            this.iconLeft.icon_name = iconName;
+            this.iconExpanded.icon_name = iconName;
+            if (this.secondaryIcon) this.secondaryIcon.icon_name = iconName;
+        }
 
         const color = this._getBatteryColor(percentage);
         const statusClass = this._getBatteryStatusClass(percentage, isCharging);
@@ -242,6 +250,46 @@ var BatteryView = class BatteryView {
         return '';
     }
 
+    _startChargingAnimation() {
+        if (this._chargingAnimationTimer) {
+            return; // Already animating
+        }
+
+        // Icon sequence for charging animation with lightning bolt
+        const iconSequence = [
+            'battery-empty-charging-symbolic',
+            'battery-caution-charging-symbolic',
+            'battery-low-charging-symbolic',
+            'battery-good-charging-symbolic',
+            'battery-full-charging-symbolic'
+        ];
+
+        this._currentAnimationFrame = 0;
+
+        // Slow loop: 1.5 seconds per frame
+        this._chargingAnimationTimer = setInterval(() => {
+            const iconName = iconSequence[this._currentAnimationFrame];
+            
+            // Update all icons
+            this.iconLeft.icon_name = iconName;
+            this.iconExpanded.icon_name = iconName;
+            if (this.secondaryIcon) {
+                this.secondaryIcon.icon_name = iconName;
+            }
+
+            // Move to next frame
+            this._currentAnimationFrame = (this._currentAnimationFrame + 1) % iconSequence.length;
+        }, 1500); // 1.5 seconds per frame
+    }
+
+    _stopChargingAnimation() {
+        if (this._chargingAnimationTimer) {
+            clearInterval(this._chargingAnimationTimer);
+            this._chargingAnimationTimer = null;
+            this._currentAnimationFrame = 0;
+        }
+    }
+
    
     show() {
         this.compactContainer.show();
@@ -249,11 +297,13 @@ var BatteryView = class BatteryView {
     }
 
     hide() {
+        this._stopChargingAnimation();
         this.compactContainer.hide();
         this.expandedContainer.hide();
     }
 
     destroy() {
+        this._stopChargingAnimation();
         if (this.compactContainer) {
             this.compactContainer.destroy();
         }
