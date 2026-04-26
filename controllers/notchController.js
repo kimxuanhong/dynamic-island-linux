@@ -52,6 +52,10 @@ var NotchController = class NotchController {
 
         this._animatedIcons = new Map();
 
+        // Track media changes
+        this._lastMediaTitle = null;
+        this._lastMediaArtist = null;
+
         // Monitor info
         const monitor = Main.layoutManager.primaryMonitor;
         this.monitorWidth = monitor.width;
@@ -607,6 +611,17 @@ var NotchController = class NotchController {
         this.timeoutManager.clear('media-switch');
 
         if (info.isPlaying) {
+            // Detect track change by comparing title and artist
+            const currentTitle = this.mediaManager.getTitle(info.metadata);
+            const currentArtist = this.mediaManager.getArtist(info.metadata);
+            
+            const isTrackChanged = this._lastMediaTitle !== currentTitle || 
+                                   this._lastMediaArtist !== currentArtist;
+            
+            // Store current track info for next comparison
+            this._lastMediaTitle = currentTitle;
+            this._lastMediaArtist = currentArtist;
+
             this.mediaView.updateMedia(info);
 
             // Update progress bar if position and length are available
@@ -619,7 +634,13 @@ var NotchController = class NotchController {
                 this.presenterRegistry.switchTo('media', true);
             }
 
-            if (this.stateMachine.isCompact()) {
+            // Auto expand when track changes
+            if (isTrackChanged && this.stateMachine.isCompact()) {
+                this._cancelTemporaryPresenterTimeouts();
+                this.presenterRegistry.switchTo('media', true);
+                this.expandNotch(true);
+                this._scheduleAutoCollapse('media-track-change', 2500); // 2.5 giây
+            } else if (this.stateMachine.isCompact()) {
                 this.squeeze();
             }
         } else {
@@ -684,6 +705,7 @@ var NotchController = class NotchController {
         this.timeoutManager.clear('recording');
         this.timeoutManager.clear('camera');
         this.timeoutManager.clear('uxplay');
+        this.timeoutManager.clear('media-track-change');
     }
 
     _hideAllExpandedViews() {
