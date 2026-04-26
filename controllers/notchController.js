@@ -163,10 +163,10 @@ var NotchController = class NotchController {
 
         // Camera Presenter
         this.presenterRegistry.register('camera', {
-            getCompactContainer: () => null,
+            getCompactContainer: () => this.cameraView.compactContainer,
             getExpandedContainer: () => this.cameraView.expandedContainer,
-            getSecondaryContainer: () => null,
-            onActivate: () => this._showOnlyView('camera')
+            getSecondaryContainer: () => this.cameraView.secondaryContainer,
+            onActivate: () => this.layoutManager.updateLayout()
         });
 
         // Bluetooth Presenter
@@ -250,6 +250,7 @@ var NotchController = class NotchController {
         this.notch.add_child(this.bluetoothView.compactContainer);
         this.notch.add_child(this.mediaView.compactContainer);
         this.notch.add_child(this.recordingView.compactContainer);
+        this.notch.add_child(this.cameraView.compactContainer);
         this.notch.add_child(this.uxplayView.compactContainer);
 
         Main.layoutManager.addChrome(this.notch, {
@@ -544,12 +545,18 @@ var NotchController = class NotchController {
         if (info && info.isCameraInUse) {
             this.cameraView.updateCamera(info);
 
-            this._cancelTemporaryPresenterTimeouts();
-
+            this.cycleManager.activate('camera');
             this.presenterRegistry.switchTo('camera', true);
-            this.expandNotch(true);
-
-            this._scheduleAutoCollapse('camera', NotchConstants.TIMEOUT_NOTIFICATION || 3000);
+            if (this.stateMachine.isCompact()) {
+                this.expandNotch(true);
+                this._scheduleAutoCollapse('camera', NotchConstants.TIMEOUT_RECORDING);
+            }
+        } else {
+            this.cycleManager.deactivate('camera');
+            this.layoutManager.updateLayout();
+        }
+        if (this.stateMachine.isCompact()) {
+            this.squeeze();
         }
     }
 
@@ -698,6 +705,7 @@ var NotchController = class NotchController {
         this.notificationView.compactContainer.hide();
         this.windowView.compactContainer.hide();
         this.recordingView.compactContainer.hide();
+        this.cameraView.compactContainer.hide();
         this.uxplayView.compactContainer.hide();
     }
 
