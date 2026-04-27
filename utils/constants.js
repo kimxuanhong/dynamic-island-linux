@@ -7,7 +7,7 @@ var NotchConstants = {
     COMPACT_HEIGHT: 40,
     EXPANDED_WIDTH: 440,
     EXPANDED_HEIGHT: 180,
-    SECONDARY_WIDTH: 64,
+    SECONDARY_WIDTH: 56,
     SECONDARY_HEIGHT: 40,
 
     // Split mode dimensions
