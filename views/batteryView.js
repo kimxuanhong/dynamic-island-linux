@@ -11,21 +11,22 @@ var BatteryView = class BatteryView {
     }
 
     _buildMinimalView() {
-        this.secondaryIcon = new St.Icon({
-            icon_name: 'battery-good-symbolic',
-            icon_size: 24,
-            style_class: 'battery-icon-secondary',
+        // Chỉ hiển thị text % pin, không có icon
+        this.secondaryPercentageLabel = new St.Label({
+            text: '0%',
+            style: 'color: white; font-size: 14px; font-weight: bold; padding: 0px; margin: 0px;',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
 
         this.secondaryContainer = new St.Bin({
-            child: this.secondaryIcon,
+            child: this.secondaryPercentageLabel,
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
-            style_class: 'battery-minimal-container'
+            style_class: 'battery-minimal-container',
+            style: 'padding: 0px; margin: 0px;'
         });
     }
 
@@ -151,6 +152,11 @@ var BatteryView = class BatteryView {
         // Update compact view
         this.percentageLabel.set_text(`${percentage}%`);
         
+        // Update secondary view percentage
+        if (this.secondaryPercentageLabel) {
+            this.secondaryPercentageLabel.set_text(`${percentage}%`);
+        }
+        
         // Update expanded view - percentage
         this.percentageLabelExpanded.set_text(`${percentage}%`);
 
@@ -175,7 +181,6 @@ var BatteryView = class BatteryView {
 
             this.iconLeft.icon_name = iconName;
             this.iconExpanded.icon_name = iconName;
-            if (this.secondaryIcon) this.secondaryIcon.icon_name = iconName;
         }
 
         const color = this._getBatteryColor(percentage);
@@ -183,7 +188,11 @@ var BatteryView = class BatteryView {
 
         this.iconLeft.set_style(`color: ${color};`);
         this.iconExpanded.set_style(`color: ${color};`);
-        if (this.secondaryIcon) this.secondaryIcon.set_style(`color: ${color};`);
+        
+        // Update secondary text color
+        if (this.secondaryPercentageLabel) {
+            this.secondaryPercentageLabel.set_style(`color: ${color}; font-size: 14px; font-weight: bold; padding: 0px; margin: 0px;`);
+        }
 
         this.percentageLabel.style_class = `text-shadow ${statusClass}`;
 
@@ -238,9 +247,9 @@ var BatteryView = class BatteryView {
     }
 
     _getBatteryColor(percentage) {
-        if (percentage > 60) return '#00ff00';
-        if (percentage > 30) return '#ffff00';
-        return '#ff0000';
+        if (percentage > 60) return '#4cd964';  // Xanh lá iOS
+        if (percentage > 30) return '#ffcc00';  // Vàng amber
+        return '#ff3b30';  // Đỏ iOS
     }
 
     _getBatteryStatusClass(percentage, isCharging) {
@@ -273,9 +282,6 @@ var BatteryView = class BatteryView {
             // Update all icons
             this.iconLeft.icon_name = iconName;
             this.iconExpanded.icon_name = iconName;
-            if (this.secondaryIcon) {
-                this.secondaryIcon.icon_name = iconName;
-            }
 
             // Move to next frame
             this._currentAnimationFrame = (this._currentAnimationFrame + 1) % iconSequence.length;

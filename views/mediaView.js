@@ -25,28 +25,23 @@ var MediaView = class MediaView {
     }
 
     _buildMinimalView() {
-        this._secondaryThumbnail = new St.Icon({
-            style_class: 'media-thumbnail-secondary',
-            icon_name: 'audio-x-generic-symbolic',
-            icon_size: 24,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+        // Sử dụng full pattern visualizer giống compact view
+        this._secondaryVisualizer = new Visualizer.MirroredVisualizer({
+            barCount: 6,
+            pattern: [4, 6, 8, 6, 4, 2],
+            barWidth: 2,
+            barSpacing: 2,
+            rowHeight: 16,
+            maxOffset: 2,
+            animationSpeed: 80
         });
 
-        this._secondaryThumbnailWrapper = new St.Bin({
-            child: this._secondaryThumbnail,
-            style_class: 'media-thumbnail-wrapper-secondary',
+        this.secondaryContainer = new St.Bin({
+            child: this._secondaryVisualizer.container,
             x_expand: true,
             y_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
-            clip_to_allocation: true
-        });
-
-        this.secondaryContainer = new St.Bin({
-            child: this._secondaryThumbnailWrapper,
-            x_expand: true,
-            y_expand: true,
             style_class: 'media-minimal-container'
         });
     }
@@ -107,8 +102,14 @@ var MediaView = class MediaView {
     _updateVisualizerState(isPlaying, playbackStatus) {
         if (isPlaying && playbackStatus === 'Playing') {
             this._visualizer.start();
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.start();
+            }
         } else {
             this._visualizer.stop();
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.stop();
+            }
         }
     }
 
@@ -503,12 +504,20 @@ var MediaView = class MediaView {
             
             // 🎨 Đổi màu visualizer khi chuyển bài
             if (metadataChanged) {
-                this._visualizer.setColor(); // Random color
+                const newColor = null; // Random color
+                this._visualizer.setColor(newColor);
+                if (this._secondaryVisualizer) {
+                    this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
+                }
             }
         } else if (metadata && !this._lastMetadata) {
             metadataChanged = true; // Lần đầu có metadata
             // Đổi màu cho lần đầu phát
-            this._visualizer.setColor(); // Random color
+            const newColor = null; // Random color
+            this._visualizer.setColor(newColor);
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
+            }
         }
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
@@ -563,7 +572,6 @@ var MediaView = class MediaView {
         if (!currentMetadata && !currentArtPath) {
             // Reset to default
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
-            if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
             if (this._expandedThumbnailWrapper) {
                 this._expandedThumbnailWrapper.style = null;
@@ -576,13 +584,6 @@ var MediaView = class MediaView {
                 this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                 this._thumbnail.opacity = 255;
                 this._thumbnail.visible = true;
-            }
-            if (this._secondaryThumbnailWrapper) {
-                this._secondaryThumbnailWrapper.style = null;
-                if (this._secondaryThumbnail) {
-                    this._secondaryThumbnail.opacity = 255;
-                    this._secondaryThumbnail.visible = true;
-                }
             }
             return;
         }
@@ -613,7 +614,6 @@ var MediaView = class MediaView {
                 const file = Gio.File.new_for_path(path);
                 const gicon = new Gio.FileIcon({ file: file });
                 this._thumbnail.set_gicon(gicon);
-                if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
                 if (this._expandedThumbnailWrapper) {
                     this._expandedThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 8px;`;
@@ -625,19 +625,11 @@ var MediaView = class MediaView {
                     this._thumbnail.opacity = 0;
                     this._thumbnail.visible = true;
                 }
-                if (this._secondaryThumbnailWrapper) {
-                    this._secondaryThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 99px;`;
-                    if (this._secondaryThumbnail) {
-                        this._secondaryThumbnail.opacity = 0;
-                        this._secondaryThumbnail.visible = true;
-                    }
-                }
             } else {
                 try {
                     // Other URI
                     const gicon = Gio.icon_new_for_string(artUrl);
                     this._thumbnail.set_gicon(gicon);
-                    if (this._secondaryThumbnail) this._secondaryThumbnail.set_gicon(gicon);
 
                     if (this._expandedThumbnailWrapper) {
                         const cssUrl = artUrl.replace(/'/g, "\\'");
@@ -650,19 +642,11 @@ var MediaView = class MediaView {
                             this._thumbnail.opacity = 0;
                             this._thumbnail.visible = true;
                         }
-                        if (this._secondaryThumbnailWrapper) {
-                            this._secondaryThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 99px;`;
-                            if (this._secondaryThumbnail) {
-                                this._secondaryThumbnail.opacity = 0;
-                                this._secondaryThumbnail.visible = true;
-                            }
-                        }
                     }
                 } catch (e) {
                     // log(`[DynamicIsland] MediaView: Error setting album art icon: ${e.message || e}`);
                     // Fallback
                     this._thumbnail.icon_name = 'audio-x-generic-symbolic';
-                    if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
                     if (this._expandedArtWrapper) {
                         this._expandedArtWrapper.style = null;
@@ -676,19 +660,11 @@ var MediaView = class MediaView {
                         this._thumbnail.opacity = 255;
                         this._thumbnail.visible = true;
                     }
-                    if (this._secondaryThumbnailWrapper) {
-                        this._secondaryThumbnailWrapper.style = null;
-                        if (this._secondaryThumbnail) {
-                            this._secondaryThumbnail.opacity = 255;
-                            this._secondaryThumbnail.visible = true;
-                        }
-                    }
                 }
             }
         } else if (!isDownloading) {
             // Reset if no art
             this._thumbnail.icon_name = 'audio-x-generic-symbolic';
-            if (this._secondaryThumbnail) this._secondaryThumbnail.icon_name = 'audio-x-generic-symbolic';
 
             if (this._expandedThumbnailWrapper) {
                 this._expandedThumbnailWrapper.style = null;
@@ -701,13 +677,6 @@ var MediaView = class MediaView {
                 this._thumbnail.icon_name = 'audio-x-generic-symbolic';
                 this._thumbnail.opacity = 255;
                 this._thumbnail.visible = true;
-            }
-            if (this._secondaryThumbnailWrapper) {
-                this._secondaryThumbnailWrapper.style = null;
-                if (this._secondaryThumbnail) {
-                    this._secondaryThumbnail.opacity = 255;
-                    this._secondaryThumbnail.visible = true;
-                }
             }
         }
 
@@ -870,6 +839,12 @@ var MediaView = class MediaView {
         if (this._visualizer) {
             this._visualizer.destroy();
             this._visualizer = null;
+        }
+        
+        // Stop and destroy secondary visualizer
+        if (this._secondaryVisualizer) {
+            this._secondaryVisualizer.destroy();
+            this._secondaryVisualizer = null;
         }
         
         // Stop progress update
