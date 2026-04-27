@@ -11,6 +11,8 @@ var RecordingView = class RecordingView {
         this._buildExpandedView();
         this._buildMinimalView();
         this._timerId = null;
+        this._iconAnimationTimer = null;
+        this._currentIconFrame = 0;
     }
 
     _buildMinimalView() {
@@ -18,7 +20,7 @@ var RecordingView = class RecordingView {
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 24,
             style_class: 'battery-icon-secondary',
-            style: 'color: #ff5555;',
+            style: 'color: #af52de;',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
@@ -37,7 +39,7 @@ var RecordingView = class RecordingView {
         this.iconLeft = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 24,
-            style: 'color: #ff5555;',
+            style: 'color: #af52de;',
             x_align: Clutter.ActorAlign.START
         });
 
@@ -49,7 +51,7 @@ var RecordingView = class RecordingView {
         });
         this.iconWrapper.set_child(this.iconLeft);
 
-        // ===== VISUALIZER (màu đỏ) =====
+        // ===== VISUALIZER (màu tím) =====
         this._visualizer = new Visualizer.MirroredVisualizer({
             barCount: 6,
             pattern: [4, 6, 8, 6, 4, 2],
@@ -59,8 +61,8 @@ var RecordingView = class RecordingView {
             maxOffset: 2,
             animationSpeed: 80
         });
-        // Set màu đỏ cho recording
-        this._visualizer.setColor('255, 85, 85'); // #ff5555 in RGB
+        // Set màu tím cho recording
+        this._visualizer.setColor('175, 82, 222'); // #af52de in RGB
 
         this._visualizerWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
@@ -84,7 +86,7 @@ var RecordingView = class RecordingView {
         this.iconExpanded = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 64,
-            style: 'color: #ff5555;'
+            style: 'color: #af52de;'
         });
 
         this.expandedIconWrapper = new St.Bin({
@@ -133,6 +135,7 @@ var RecordingView = class RecordingView {
 
         if (!recordingInfo || !recordingInfo.isRecording) {
             this._stopTimer();
+            this._stopIconAnimation();
             this._visualizer.stop();
             this.compactContainer.hide();
             this.expandedContainer.hide();
@@ -151,6 +154,55 @@ var RecordingView = class RecordingView {
         
         // Start visualizer animation
         this._visualizer.start();
+        
+        // Start icon animation
+        this._startIconAnimation();
+    }
+
+    _startIconAnimation() {
+        if (this._iconAnimationTimer) {
+            return; // Already animating
+        }
+
+        // Icon sequence for microphone animation
+        const iconSequence = [
+            'audio-input-microphone-low-symbolic',
+            'audio-input-microphone-medium-symbolic',
+            'audio-input-microphone-high-symbolic',
+            'audio-input-microphone-symbolic'
+        ];
+
+        this._currentIconFrame = 0;
+
+        // Animation: 400ms per frame
+        this._iconAnimationTimer = setInterval(() => {
+            const iconName = iconSequence[this._currentIconFrame];
+            
+            // Update all icons
+            this.iconLeft.icon_name = iconName;
+            this.iconExpanded.icon_name = iconName;
+            if (this.secondaryIcon) {
+                this.secondaryIcon.icon_name = iconName;
+            }
+
+            // Move to next frame
+            this._currentIconFrame = (this._currentIconFrame + 1) % iconSequence.length;
+        }, 400); // 400ms per frame
+    }
+
+    _stopIconAnimation() {
+        if (this._iconAnimationTimer) {
+            clearInterval(this._iconAnimationTimer);
+            this._iconAnimationTimer = null;
+            this._currentIconFrame = 0;
+            
+            // Reset to default icon
+            this.iconLeft.icon_name = 'audio-input-microphone-symbolic';
+            this.iconExpanded.icon_name = 'audio-input-microphone-symbolic';
+            if (this.secondaryIcon) {
+                this.secondaryIcon.icon_name = 'audio-input-microphone-symbolic';
+            }
+        }
     }
 
     startTimer(startTime) {
@@ -173,11 +225,13 @@ var RecordingView = class RecordingView {
         this.compactContainer.hide();
         this.expandedContainer.hide();
         this._stopTimer();
+        this._stopIconAnimation();
         this._visualizer.stop();
     }
 
     destroy() {
         this._stopTimer();
+        this._stopIconAnimation();
         this._visualizer.destroy();
         if (this.compactContainer) {
             this.compactContainer.destroy();
