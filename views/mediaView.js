@@ -24,8 +24,6 @@ var MediaView = class MediaView {
         
         // Timers
         this._progressUpdateInterval = null;
-        this._trackChangeTimeout = null;
-        this._ignorePositionUntil = null;
         
         // Build UI
         this._buildCompactView();
@@ -496,8 +494,10 @@ var MediaView = class MediaView {
         const currentTitle = metadata ? this._mediaManager.getTitle(metadata) : null;
         const metadataChanged = this._handleTrackChange(currentTitle, length);
         
-        // Update progress
-        this._updateProgressIfNeeded(metadataChanged, position, length);
+        // Update progress - CHỈ dùng position từ server
+        if (position !== undefined && length !== undefined && length > 0) {
+            this.updateProgress(position, length);
+        }
 
         // Start/stop progress timer
         if (isPlaying && playbackStatus === 'Playing') {
@@ -537,18 +537,10 @@ var MediaView = class MediaView {
             }
             
             // Reset progress
-            if (this._trackChangeTimeout) {
-                imports.mainloop.source_remove(this._trackChangeTimeout);
-                this._trackChangeTimeout = null;
-            }
-            
             this._currentPosition = 0;
             this._currentLength = length || 0;
             this._lastUpdateTime = Date.now();
             this.updateProgress(0, length || 0);
-            
-            // Ignore position updates for 500ms (for browsers)
-            this._ignorePositionUntil = Date.now() + 500;
             
             this._lastTrackTitle = currentTitle;
             return true;
@@ -556,15 +548,6 @@ var MediaView = class MediaView {
 
         this._lastTrackTitle = currentTitle;
         return false;
-    }
-
-    _updateProgressIfNeeded(metadataChanged, position, length) {
-        const now = Date.now();
-        const shouldIgnore = this._ignorePositionUntil && now < this._ignorePositionUntil;
-        
-        if (!metadataChanged && !shouldIgnore && position !== undefined && length !== undefined && length > 0) {
-            this.updateProgress(position, length);
-        }
     }
 
     _updateArtPathCache(metadataChanged, artPath) {
@@ -820,10 +803,6 @@ var MediaView = class MediaView {
         this._visualizer?.destroy();
         this._secondaryVisualizer?.destroy();
         this._stopProgressUpdate();
-        
-        if (this._trackChangeTimeout) {
-            imports.mainloop.source_remove(this._trackChangeTimeout);
-        }
 
         this.compactContainer?.destroy();
         this.expandedContainer?.destroy();
