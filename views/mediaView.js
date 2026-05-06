@@ -19,6 +19,8 @@ var MediaView = class MediaView {
         this._currentPosition = 0;
         this._currentLength = 0;
         this._lastUpdateTime = 0;
+        this._lastTrackTitle = null; // Track để phát hiện chuyển bài
+        this._trackChangeTimeout = null; // Timeout để debounce track change
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
@@ -205,7 +207,7 @@ var MediaView = class MediaView {
             child: this._progressBarBg,
             x_expand: true,
             y_expand: false,
-            style: 'padding:  0;', // Increase clickable area
+            style: 'padding: 0;',
             reactive: true,
             track_hover: true,
         });
@@ -286,7 +288,7 @@ var MediaView = class MediaView {
             x_expand: true,
             y_expand: false,
             style: 'margin: 10px 0;',
-            visible: true, // Hiện mặc định, sẽ show 0:00 / 0:00 nếu chưa có data
+            visible: true,
         });
         progressSection.add_child(this._progressBarContainer);
         progressSection.add_child(timeLabelsBox);
@@ -561,8 +563,64 @@ var MediaView = class MediaView {
         // Update visualizer based on playback status
         this._updateVisualizerState(isPlaying, playbackStatus);
 
-        // Update progress bar chỉ khi có data hợp lệ
-        if (position !== undefined && length !== undefined && length > 0) {
+        // Kiểm tra xem có chuyển bài không bằng cách so sánh title
+        let metadataChanged = false;
+        const currentTitle = metadata ? this._mediaManager.getTitle(metadata) : null;
+        
+        if (currentTitle && this._lastTrackTitle && currentTitle !== this._lastTrackTitle) {
+            metadataChanged = true;
+            
+            // 🎨 Đổi màu visualizer khi chuyển bài
+            const newColor = null; // Random color
+            this._visualizer.setColor(newColor);
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
+            }
+            
+            // ✅ Reset progress về 0 khi chuyển bài mới
+            // Clear timeout cũ nếu có
+            if (this._trackChangeTimeout) {
+                imports.mainloop.source_remove(this._trackChangeTimeout);
+                this._trackChangeTimeout = null;
+            }
+            
+            // Reset ngay lập tức
+            this._currentPosition = 0;
+            this._currentLength = length || 0;
+            this._lastUpdateTime = Date.now();
+            this.updateProgress(0, length || 0);
+            
+            // Đặt flag để ignore position updates trong 500ms đầu (đặc biệt cho browser)
+            this._ignorePositionUntil = Date.now() + 500;
+            
+        } else if (currentTitle && !this._lastTrackTitle) {
+            // Lần đầu có metadata
+            metadataChanged = true;
+            const newColor = null;
+            this._visualizer.setColor(newColor);
+            if (this._secondaryVisualizer) {
+                this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
+            }
+            
+            this._currentPosition = 0;
+            this._currentLength = length || 0;
+            this._lastUpdateTime = Date.now();
+            this.updateProgress(0, length || 0);
+            this._ignorePositionUntil = Date.now() + 500;
+        }
+        
+        // Cập nhật last track title
+        if (currentTitle) {
+            this._lastTrackTitle = currentTitle;
+        }
+        
+        // ✅ Chỉ update progress nếu:
+        // 1. Không phải bài mới (metadataChanged = false)
+        // 2. Đã qua thời gian ignore (cho browser)
+        const now = Date.now();
+        const shouldIgnorePosition = this._ignorePositionUntil && now < this._ignorePositionUntil;
+        
+        if (!metadataChanged && !shouldIgnorePosition && position !== undefined && length !== undefined && length > 0) {
             this.updateProgress(position, length);
         }
 
@@ -571,31 +629,6 @@ var MediaView = class MediaView {
             this._startProgressUpdate();
         } else {
             this._stopProgressUpdate();
-        }
-
-        // Kiểm tra xem có chuyển nguồn phát không bằng cách so sánh title
-        let metadataChanged = false;
-        if (metadata && this._lastMetadata) {
-            const currentTitle = this._mediaManager.getTitle(metadata);
-            const lastTitle = this._mediaManager.getTitle(this._lastMetadata);
-            metadataChanged = currentTitle !== lastTitle;
-            
-            // 🎨 Đổi màu visualizer khi chuyển bài
-            if (metadataChanged) {
-                const newColor = null; // Random color
-                this._visualizer.setColor(newColor);
-                if (this._secondaryVisualizer) {
-                    this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
-                }
-            }
-        } else if (metadata && !this._lastMetadata) {
-            metadataChanged = true; // Lần đầu có metadata
-            // Đổi màu cho lần đầu phát
-            const newColor = null; // Random color
-            this._visualizer.setColor(newColor);
-            if (this._secondaryVisualizer) {
-                this._secondaryVisualizer.setColor(newColor || this._visualizer.getColor());
-            }
         }
 
         // Lưu lại metadata và artPath cuối cùng để restore khi play lại
@@ -927,6 +960,12 @@ var MediaView = class MediaView {
         
         // Stop progress update
         this._stopProgressUpdate();
+        
+        // Clear track change timeout
+        if (this._trackChangeTimeout) {
+            imports.mainloop.source_remove(this._trackChangeTimeout);
+            this._trackChangeTimeout = null;
+        }
 
         if (this.compactContainer) {
             this.compactContainer.destroy();
