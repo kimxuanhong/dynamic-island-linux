@@ -8,6 +8,13 @@ var WindowManager = class WindowManager {
         this._destroyed = false;
         this._isInitializing = true;
         this._trackedWindows = new Set(); // Theo dõi các window đã xử lý
+        
+        // Danh sách các app bị ignore (không hiển thị window events)
+        // Có thể ignore theo App ID hoặc App Name
+        this._ignoredApps = [
+            'com.example.MetroLauncher',
+            'metro_launcher.py'
+        ];
 
         this._initWindowTracker();
     }
@@ -60,19 +67,47 @@ var WindowManager = class WindowManager {
         if (!app) return;
 
         const appName = app.get_name();
+        const appId = app.get_id();
+        
+        // Kiểm tra xem app có trong danh sách ignore không
+        // Kiểm tra cả App ID và App Name
+        const shouldIgnore = this._ignoredApps.some(ignoredApp => {
+            // Match theo App Name
+            if (appName && appName.includes(ignoredApp)) return true;
+            // Match theo App ID
+            if (appId && (appId === ignoredApp || appId === `${ignoredApp}.desktop` || appId.includes(ignoredApp))) return true;
+            return false;
+        });
+        
+        if (shouldIgnore) {
+            return; // Bỏ qua window events từ app này
+        }
+
         const appIcon = app.get_icon();
         const windowTitle = metaWindow.get_title();
 
         // Cleanup khi window bị destroy
         metaWindow.connect('unmanaged', () => {
             this._trackedWindows.delete(metaWindow);
-            this._notifyCallbacks({
-                event: 'closed',
-                appName: appName || 'Unknown App',
-                windowTitle: windowTitle || '',
-                appIcon: appIcon,
-                metaWindow: metaWindow
+            
+            // Kiểm tra ignore list trước khi notify closed event
+            const shouldIgnoreClose = this._ignoredApps.some(ignoredApp => {
+                // Match theo App Name
+                if (appName && appName.includes(ignoredApp)) return true;
+                // Match theo App ID
+                if (appId && (appId === ignoredApp || appId === `${ignoredApp}.desktop` || appId.includes(ignoredApp))) return true;
+                return false;
             });
+            
+            if (!shouldIgnoreClose) {
+                this._notifyCallbacks({
+                    event: 'closed',
+                    appName: appName || 'Unknown App',
+                    windowTitle: windowTitle || '',
+                    appIcon: appIcon,
+                    metaWindow: metaWindow
+                });
+            }
         });
 
         // Notify callbacks
