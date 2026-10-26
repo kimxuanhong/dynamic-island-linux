@@ -1,10 +1,11 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import {connectMotion, connectSlider} from '../utils/input.js';
 
 export class BrightnessView {
     constructor(brightnessManager) {
         this._brightnessManager = brightnessManager;
-        this._signals = [];
+        this._inputDisconnectors = [];
         this._buildExpandedView();
     }
 
@@ -71,55 +72,23 @@ export class BrightnessView {
     }
 
     _connectProgressBarEvents() {
-        // Lưu các signal IDs để disconnect sau này
-        this._signals = [];
-
-        // Sự kiện click
-        this._signals.push(
-            this.expandedProgressBarBg.connect('button-press-event', (actor, event) => {
-                this._handleProgressBarClick(actor, event, true);
-                return Clutter.EVENT_STOP;
-            })
-        );
-
-        // Sự kiện kéo (drag)
-        this._signals.push(
-            this.expandedProgressBarBg.connect('motion-event', (actor, event) => {
-                if (event.get_state() & Clutter.ModifierType.BUTTON1_MASK) {
-                    // Không log khi drag để giảm spam
-                    this._handleProgressBarClick(actor, event, false);
-                    return Clutter.EVENT_STOP;
-                }
-                return Clutter.EVENT_PROPAGATE;
-            })
-        );
-
-        // Thêm hiệu ứng hover (tuỳ chọn)
-        this._signals.push(
-            this.expandedProgressBarBg.connect('enter-event', () => {
-                this.expandedProgressBarBg.style =
-                    'background-color: rgba(255,255,255,0.3); border-radius: 8px; height: 12px; width: 300px; cursor: pointer;';
-                return Clutter.EVENT_PROPAGATE;
-            })
-        );
-
-        this._signals.push(
-            this.expandedProgressBarBg.connect('leave-event', () => {
-                this.expandedProgressBarBg.style =
-                    'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;';
-                return Clutter.EVENT_PROPAGATE;
-            })
-        );
+        const bar = this.expandedProgressBarBg;
+        this._inputDisconnectors = [
+            connectSlider(bar, x => this._handleProgressBarClick(bar, x)),
+            connectMotion(bar, 'enter', () => {
+                bar.style = 'background-color: rgba(255,255,255,0.3); border-radius: 8px; height: 12px; width: 300px;';
+            }),
+            connectMotion(bar, 'leave', () => {
+                bar.style = 'background-color: rgba(255,255,255,0.2); border-radius: 8px; height: 12px; width: 300px;';
+            }),
+        ];
     }
 
-    _handleProgressBarClick(actor, event, shouldLog = true) {
-        // Lấy vị trí click
-        const [x, y] = event.get_coords();
-        const [actorX, actorY] = actor.get_transformed_position();
+    _handleProgressBarClick(actor, relativeX) {
         const actorWidth = actor.get_width();
+        if (actorWidth <= 0) return;
 
         // Tính toán brightness dựa trên vị trí click
-        const relativeX = x - actorX;
         const percentage = Math.max(0, Math.min(100, (relativeX / actorWidth) * 100));
 
         // Set brightness qua manager
@@ -165,11 +134,9 @@ export class BrightnessView {
 
     destroy() {
         // Disconnect tất cả signals
-        if (this._signals) {
-            this._signals.forEach(signalId => {
-                this.expandedProgressBarBg.disconnect(signalId);
-            });
-            this._signals = [];
+        if (this._inputDisconnectors) {
+            this._inputDisconnectors.forEach(disconnect => disconnect());
+            this._inputDisconnectors = [];
         }
 
         if (this.expandedContainer) {

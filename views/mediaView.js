@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import {blockScroll, connectClick, connectMotion, connectSlider} from '../utils/input.js';
 
 import {MirroredVisualizer} from '../utils/visualizer.js';
 
@@ -85,7 +86,7 @@ export class MediaView {
     // ==================== MINIMAL VIEW ====================
     
     _buildMinimalView() {
-        this._secondaryVisualizer = new Visualizer.MirroredVisualizer({
+        this._secondaryVisualizer = new MirroredVisualizer({
             barCount: 6,
             pattern: [4, 6, 8, 6, 4, 2],
             barWidth: 2,
@@ -144,8 +145,8 @@ export class MediaView {
             clip_to_allocation: true,
         });
         
-        this._expandedThumbnailWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
-        this._expandedThumbnailWrapper.connect('button-press-event', () => {
+        blockScroll(this._expandedThumbnailWrapper);
+        connectClick(this._expandedThumbnailWrapper, () => {
             this._onArtClick();
             return Clutter.EVENT_STOP;
         });
@@ -172,7 +173,7 @@ export class MediaView {
             visible: true,
             reactive: true,
         });
-        this._titleWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
+        blockScroll(this._titleWrapper);
         this._titleWrapper.add_child(this._titleLabel);
         this._titleWrapper.add_child(this._artistLabel);
 
@@ -266,34 +267,20 @@ export class MediaView {
             this._progressBarFill.style = 'background-color: rgba(255,255,255,1.0); height: 4px; border-radius: 2px;';
         };
 
-        this._progressBarContainer.connect('enter-event', hoverStyle);
-        this._progressBarContainer.connect('leave-event', () => {
+        connectMotion(this._progressBarContainer, 'enter', hoverStyle);
+        connectMotion(this._progressBarContainer, 'leave', () => {
             if (!this._isDraggingProgress) resetStyle();
         });
-        
-        this._progressBarContainer.connect('button-press-event', (actor, event) => {
-            this._isDraggingProgress = true;
-            this._onProgressBarClick(actor, event);
-            return Clutter.EVENT_STOP;
-        });
-
-        this._progressBarContainer.connect('button-release-event', (actor, event) => {
-            if (this._isDraggingProgress) {
+        this._disconnectProgressInput = connectSlider(
+            this._progressBarContainer,
+            x => this._onProgressBarClick(this._progressBarContainer, x),
+            () => { this._isDraggingProgress = true; },
+            () => {
                 this._isDraggingProgress = false;
-                this._onProgressBarClick(actor, event);
                 resetStyle();
             }
-            return Clutter.EVENT_STOP;
-        });
-
-        this._progressBarContainer.connect('motion-event', (actor, event) => {
-            if (this._isDraggingProgress) {
-                this._onProgressBarClick(actor, event);
-            }
-            return Clutter.EVENT_STOP;
-        });
-
-        this._progressBarContainer.connect('scroll-event', () => Clutter.EVENT_STOP);
+        );
+        blockScroll(this._progressBarContainer);
     }
 
     _createBottomTier() {
@@ -303,7 +290,7 @@ export class MediaView {
             visible: true,
             reactive: true,
         });
-        bottomBox.connect('scroll-event', () => Clutter.EVENT_STOP);
+        blockScroll(bottomBox);
 
         // Share button
         this._shareButton = this._createButton('emblem-shared-symbolic', () => this._onShare());
@@ -319,7 +306,7 @@ export class MediaView {
             visible: true,
             reactive: true,
         });
-        this._controlsBox.connect('scroll-event', () => Clutter.EVENT_STOP);
+        blockScroll(this._controlsBox);
 
         const controls = [
             { icon: 'media-skip-backward-symbolic', handler: () => this._onPrevious() },
@@ -339,7 +326,7 @@ export class MediaView {
             });
             button.set_child(icon);
             button.connect('clicked', config.handler);
-            button.connect('scroll-event', () => Clutter.EVENT_STOP);
+            blockScroll(button);
 
             if (config.isPlayPause) this._playPauseIcon = icon;
             this._controlsBox.add_child(button);
@@ -377,18 +364,16 @@ export class MediaView {
         }
         
         button.connect('clicked', handler);
-        button.connect('scroll-event', () => Clutter.EVENT_STOP);
+        blockScroll(button);
         return button;
     }
 
     // ==================== PROGRESS BAR ====================
     
-    _onProgressBarClick(actor, event) {
+    _onProgressBarClick(actor, clickX) {
         if (this._currentLength <= 0) return;
 
-        const [x] = event.get_coords();
-        const [actorX] = actor.get_transformed_position();
-        const clickX = x - actorX;
+        if (actor.width <= 0) return;
         const percentage = Math.max(0, Math.min(1, clickX / actor.width));
         const newPosition = Math.floor(this._currentLength * percentage);
 
@@ -798,6 +783,8 @@ export class MediaView {
     }
 
     destroy() {
+        this._disconnectProgressInput?.();
+        this._disconnectProgressInput = null;
         this._visualizer?.destroy();
         this._secondaryVisualizer?.destroy();
         this._stopProgressUpdate();

@@ -257,7 +257,10 @@ export class MirroredVisualizer {
         
         // Update all bars immediately
         this._visualizerBars.forEach((bar, i) => {
-            const currentHeight = bar.height || this._pattern[i % this._barCount];
+            // Reading height before attachment asks St for a theme node
+            // without a stage, which triggers critical warnings on GNOME 51.
+            const currentHeight = (bar.get_stage() ? bar.height : 0) ||
+                this._pattern[i % this._pattern.length];
             const isAnimating = this._visualizerAnimation !== null;
             const opacity = isAnimating ? (0.7 + (currentHeight / 10) * 0.3) : 0.4;
             const borderRadius = i < this._barCount ? '1.5px 1.5px 0px 0px' : '0px 0px 1.5px 1.5px';

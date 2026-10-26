@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
+import {connectClick, connectMotion} from '../utils/input.js';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -277,7 +278,6 @@ export class NotchController {
         this.notch.add_child(this.uxplayView.compactContainer);
 
         Main.layoutManager.addChrome(this.notch, {
-            affectsInputRegion: true,
             trackFullscreen: false
         });
 
@@ -299,7 +299,7 @@ export class NotchController {
         this.secondaryNotch.set_pivot_point(0.5, 0.5);
 
         // Click to swap
-        this.secondaryNotch.connect('button-press-event', () => {
+        connectClick(this.secondaryNotch, () => {
             this.cycleManager.next();
             this.layoutManager.updateLayout();
             if (this.stateMachine.isCompact()) {
@@ -309,7 +309,6 @@ export class NotchController {
         });
 
         Main.layoutManager.addChrome(this.secondaryNotch, {
-            affectsInputRegion: true,
             trackFullscreen: false
         });
     }
@@ -332,7 +331,7 @@ export class NotchController {
         let expandPending = false;
         
         // Cancel tất cả timeouts ngay khi hover vào notch
-        this._enterEventId = this.notch.connect('enter-event', () => {
+        this._disconnectEnter = connectMotion(this.notch, 'enter', () => {
             this._cancelTemporaryPresenterTimeouts();
             
             // Expand ngay lập tức nếu đang compact
@@ -348,13 +347,13 @@ export class NotchController {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        this._motionEventId = this.notch.connect('motion-event', () => {
+        this._disconnectMotion = connectMotion(this.notch, 'motion', () => {
             this._cancelTemporaryPresenterTimeouts();
-            // Không cần expand ở đây nữa vì đã expand trong enter-event
+            // Expansion is handled by the motion controller enter callback.
             return Clutter.EVENT_PROPAGATE;
         });
 
-        this._leaveEventId = this.notch.connect('leave-event', () => {
+        this._disconnectLeave = connectMotion(this.notch, 'leave', () => {
             if ((this.stateMachine.isExpanded() || this.stateMachine.isAnimating()) && !this.timeoutManager.has('collapse')) {
                 this.timeoutManager.set('collapse', NotchConstants.TIMEOUT_COLLAPSE, () => {
                     if (this.stateMachine.isExpanded()) {
@@ -908,17 +907,17 @@ export class NotchController {
 
         // Disconnect events
         if (this.notch) {
-            if (this._enterEventId) {
-                this.notch.disconnect(this._enterEventId);
-                this._enterEventId = null;
+            if (this._disconnectEnter) {
+                this._disconnectEnter();
+                this._disconnectEnter = null;
             }
-            if (this._motionEventId) {
-                this.notch.disconnect(this._motionEventId);
-                this._motionEventId = null;
+            if (this._disconnectMotion) {
+                this._disconnectMotion();
+                this._disconnectMotion = null;
             }
-            if (this._leaveEventId) {
-                this.notch.disconnect(this._leaveEventId);
-                this._leaveEventId = null;
+            if (this._disconnectLeave) {
+                this._disconnectLeave();
+                this._disconnectLeave = null;
             }
         }
 

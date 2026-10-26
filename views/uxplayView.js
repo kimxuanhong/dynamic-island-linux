@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import {blockScroll, connectClick} from '../utils/input.js';
 
 import {MirroredVisualizer} from '../utils/visualizer.js';
 
@@ -93,8 +94,8 @@ export class UxplayView {
             clip_to_allocation: true,
         });
         this.expandedIconWrapper.set_child(this.iconExpanded);
-        this.expandedIconWrapper.connect('scroll-event', () => Clutter.EVENT_STOP);
-        this.expandedIconWrapper.connect('button-press-event', () => {
+        blockScroll(this.expandedIconWrapper);
+        connectClick(this.expandedIconWrapper, () => {
             this._focusUxplayWindow();
             return Clutter.EVENT_STOP;
         });
