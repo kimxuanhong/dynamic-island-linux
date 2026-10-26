@@ -1,11 +1,9 @@
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const NotchConstants = Me.imports.utils.constants.NotchConstants;
+import {NotchConstants} from './constants.js';
 
 // ============================================
 // LAYOUT MANAGER - Quản lý layout logic
 // ============================================
-var LayoutManager = class LayoutManager {
+export class LayoutManager {
     constructor(controller) {
         this.controller = controller;
     }
@@ -197,4 +195,3 @@ var LayoutManager = class LayoutManager {
         this.controller.mediaView.compactContainer.remove_style_class_name('in-secondary');
     }
 }
-

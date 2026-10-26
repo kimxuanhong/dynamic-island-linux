@@ -1,6 +1,7 @@
-const Gio = imports.gi.Gio;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var RecordingManager = class RecordingManager {
+export class RecordingManager {
     constructor() {
         this._callbacks = [];
         this._isRecording = false;
@@ -46,7 +47,7 @@ var RecordingManager = class RecordingManager {
                 });
 
                 // Đánh dấu đã khởi tạo xong sau một khoảng thời gian ngắn
-                imports.mainloop.timeout_add(500, () => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                     this._isInitializing = false;
                     return false;
                 });

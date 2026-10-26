@@ -1,6 +1,7 @@
-const Gio = imports.gi.Gio;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var BatteryManager = class BatteryManager {
+export class BatteryManager {
     constructor() {
         this._serverProxy = null;
         this._callbacks = [];
@@ -70,7 +71,7 @@ var BatteryManager = class BatteryManager {
                 if (error) {
                     // log(`[DynamicIsland] BatteryManager: Failed to get initial battery info: ${error.message || error}`);
                     // Đánh dấu đã khởi tạo xong dù có lỗi
-                    imports.mainloop.timeout_add(500, () => {
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                         this._isInitializing = false;
                         return false;
                     });
@@ -99,7 +100,7 @@ var BatteryManager = class BatteryManager {
         } catch (e) {
             // log(`[DynamicIsland] BatteryManager: Error calling GetBatteryInfo: ${e.message || e}`);
             // Đánh dấu đã khởi tạo xong dù có lỗi
-            imports.mainloop.timeout_add(500, () => {
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                 this._isInitializing = false;
                 return false;
             });

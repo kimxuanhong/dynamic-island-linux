@@ -1,7 +1,7 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-var BluetoothView = class BluetoothView {
+export class BluetoothView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
@@ -48,7 +48,7 @@ var BluetoothView = class BluetoothView {
         });
 
         const textBox = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
@@ -63,7 +63,7 @@ var BluetoothView = class BluetoothView {
 
         // ✅ TẠO SẴN EXPANDED CONTAINER NGAY TẠY ĐÂY
         this.expandedContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 20px; padding: 20px;',

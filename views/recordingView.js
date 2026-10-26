@@ -1,11 +1,10 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
+import St from 'gi://St';
 
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const Visualizer = Me.imports.utils.visualizer;
+import {MirroredVisualizer} from '../utils/visualizer.js';
 
-var RecordingView = class RecordingView {
+export class RecordingView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
@@ -52,7 +51,7 @@ var RecordingView = class RecordingView {
         this.iconWrapper.set_child(this.iconLeft);
 
         // ===== VISUALIZER (màu tím) =====
-        this._visualizer = new Visualizer.MirroredVisualizer({
+        this._visualizer = new MirroredVisualizer({
             barCount: 6,
             pattern: [4, 6, 8, 6, 4, 2],
             barWidth: 3,
@@ -73,7 +72,7 @@ var RecordingView = class RecordingView {
         this._visualizerWrapper.set_child(this._visualizer.container);
 
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             visible: false
@@ -106,7 +105,7 @@ var RecordingView = class RecordingView {
         });
 
         const textBox = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
@@ -121,7 +120,7 @@ var RecordingView = class RecordingView {
         this.textWrapper.set_child(textBox);
 
         this.expandedContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 20px; padding: 20px;',
@@ -211,7 +210,7 @@ var RecordingView = class RecordingView {
 
     _stopTimer() {
         if (this._timerId !== null) {
-            imports.mainloop.source_remove(this._timerId);
+            GLib.Source.remove(this._timerId);
             this._timerId = null;
         }
     }

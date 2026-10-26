@@ -1,5 +1,25 @@
 # Dynamic Island for Linux
 
+## 🚀 CÀI ĐẶT TỰ ĐỘNG — CHỈ MỘT LỆNH
+
+> Dành cho GNOME Shell 48, 49, 50 và 51. Installer sẽ tự cài dependency và Go, clone source, build backend, thiết lập systemd user service, build extension, cài đặt và bật extension.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | bash
+```
+
+Chạy lại đúng lệnh trên để cập nhật lên phiên bản mới nhất. Installer không được chạy bằng `sudo`; nó chỉ yêu cầu mật khẩu `sudo` khi cần cài các gói hệ thống. Nếu muốn kiểm tra script trước khi chạy:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh -o install.sh
+less install.sh
+bash install.sh
+```
+
+Sau khi hoàn tất, nếu Dynamic Island chưa xuất hiện ngay, hãy đăng xuất rồi đăng nhập lại một lần.
+
+---
+
 <div align="center">
 
 ![Dynamic Island Linux](https://img.shields.io/badge/GNOME-Shell-4A86CF?style=for-the-badge&logo=gnome&logoColor=white)
@@ -86,11 +106,11 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ## 💻 Yêu cầu hệ thống
 
 ### Hệ điều hành
-- **GNOME Shell**: Phiên bản 42, 43, 44, 45, hoặc 46
+- **GNOME Shell**: Phiên bản 48, 49, 50, hoặc 51
 - **Linux Distribution**: Ubuntu, Fedora, Arch Linux, hoặc bất kỳ distro nào chạy GNOME
 
 ### Phần mềm cần thiết
-- **Go**: Phiên bản 1.18 trở lên (để build backend server)
+- **Go**: Phiên bản 1.23 trở lên (để build backend server)
 - **Git**: Để clone repository
 - **systemd**: Để chạy backend server như một service
 
@@ -100,6 +120,31 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ---
 
 ## 🚀 Cài đặt
+
+### Cài đặt tự động (khuyên dùng)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | bash
+```
+
+Lệnh này tự động:
+
+1. Kiểm tra GNOME Shell 48–51.
+2. Cài Git, curl, công cụ build và Go 1.23+ nếu máy chưa có.
+3. Clone hoặc cập nhật source tại `~/.local/share/dynamic-island/source`.
+4. Build backend vào `~/.local/bin/dynamic-island-server`.
+5. Cài và khởi động `dynamic-island-server.service` bằng systemd user.
+6. Compile schema, đóng gói, cài và bật GNOME Shell extension.
+
+Có thể đổi repository hoặc branch khi phát triển:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | \
+  DYNAMIC_ISLAND_REPO_URL=https://github.com/USER/FORK.git \
+  DYNAMIC_ISLAND_REPO_REF=my-branch bash
+```
+
+### Cài đặt thủ công
 
 ### Bước 1: Clone Repository
 
@@ -137,7 +182,7 @@ mkdir -p ~/.config/systemd/user
 cp dynamic-island-server.service ~/.config/systemd/user/
 ```
 
-**Lưu ý**: Mở file `~/.config/systemd/user/dynamic-island-server.service` và đảm bảo đường dẫn `ExecStart` và `WorkingDirectory` phù hợp với hệ thống của bạn:
+File service dùng `%h` nên hoạt động với mọi tên người dùng:
 
 ```ini
 [Unit]
@@ -146,16 +191,15 @@ PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
-ExecStart=/home/YOURUSERNAME/.local/bin/dynamic-island-server
+ExecStart=%h/.local/bin/dynamic-island-server
 Restart=always
 RestartSec=3
-WorkingDirectory=/home/YOURUSERNAME
 
 [Install]
 WantedBy=graphical-session.target
 ```
 
-Thay `YOURUSERNAME` bằng tên user của bạn.
+`%h` được systemd tự động thay bằng thư mục home của người dùng.
 
 ### Bước 5: Kích hoạt và Khởi động Service
 
@@ -217,8 +261,8 @@ gnome-extensions enable dynamic-island@xuanhong
 
 ### Bước 8: Khởi động lại GNOME Shell
 
-- **X11**: Nhấn `Alt + F2`, gõ `r`, nhấn Enter
-- **Wayland**: Đăng xuất và đăng nhập lại
+- **GNOME 48–49 trên X11**: Nhấn `Alt + F2`, gõ `r`, nhấn Enter
+- **Wayland / GNOME 50–51**: Đăng xuất và đăng nhập lại
 
 ---
 
@@ -255,7 +299,7 @@ gnome-extensions disable dynamic-island@xuanhong
 # Bật lại
 gnome-extensions enable dynamic-island@xuanhong
 
-# Khởi động lại GNOME Shell (chỉ trên X11)
+# Khởi động lại GNOME Shell (chỉ GNOME 48–49 trên X11)
 # Alt + F2 -> gõ 'r' -> Enter
 ```
 
@@ -292,8 +336,8 @@ rm ~/.local/bin/dynamic-island-server
 
 ### Khởi động lại GNOME Shell
 
-- **X11**: `Alt + F2` -> `r` -> Enter
-- **Wayland**: Đăng xuất và đăng nhập lại
+- **GNOME 48–49 trên X11**: `Alt + F2` -> `r` -> Enter
+- **Wayland / GNOME 50–51**: Đăng xuất và đăng nhập lại
 
 ---
 

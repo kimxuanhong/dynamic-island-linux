@@ -1,13 +1,11 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
-const Gio = imports.gi.Gio;
-const Shell = imports.gi.Shell;
+import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
+import Shell from 'gi://Shell';
+import St from 'gi://St';
 
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const Visualizer = Me.imports.utils.visualizer;
+import {MirroredVisualizer} from '../utils/visualizer.js';
 
-var MediaView = class MediaView {
+export class MediaView {
     constructor(mediaManager, volumeManager, bluetoothManager) {
         this._mediaManager = mediaManager;
         this._volumeManager = volumeManager;
@@ -54,7 +52,7 @@ var MediaView = class MediaView {
         });
 
         // Visualizer
-        this._visualizer = new Visualizer.MirroredVisualizer({
+        this._visualizer = new MirroredVisualizer({
             barCount: 6,
             pattern: [4, 6, 8, 6, 4, 2],
             barWidth: 3,
@@ -74,7 +72,7 @@ var MediaView = class MediaView {
         });
 
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style_class: 'media-compact-container',
@@ -116,7 +114,7 @@ var MediaView = class MediaView {
         const bottomTier = this._createBottomTier();
 
         this.expandedContainer = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 0px; padding: 24px;',
@@ -168,7 +166,7 @@ var MediaView = class MediaView {
 
         this._titleWrapper = new St.BoxLayout({
             style_class: 'media-title-wrapper',
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: false,
             visible: true,
@@ -179,7 +177,7 @@ var MediaView = class MediaView {
         this._titleWrapper.add_child(this._artistLabel);
 
         const topTier = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: false,
             style: 'spacing: 12px;',
@@ -235,7 +233,7 @@ var MediaView = class MediaView {
         });
 
         const timeLabelsBox = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: false,
             style: 'margin-top: 4px;',
@@ -245,7 +243,7 @@ var MediaView = class MediaView {
         timeLabelsBox.add_child(this._totalTimeLabel);
 
         this._progressSection = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: false,
             style: 'margin: 10px 0;',

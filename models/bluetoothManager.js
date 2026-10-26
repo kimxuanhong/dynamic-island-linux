@@ -1,6 +1,7 @@
-const Gio = imports.gi.Gio;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var BluetoothManager = class BluetoothManager {
+export class BluetoothManager {
     constructor() {
         this._callbacks = [];
         // Map để track các thiết bị đã kết nối: deviceName -> {isConnected, deviceType, address}
@@ -50,7 +51,7 @@ var BluetoothManager = class BluetoothManager {
                 });
 
                 // Đánh dấu đã khởi tạo xong sau một khoảng thời gian ngắn
-                imports.mainloop.timeout_add(500, () => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                     this._isInitializing = false;
                     return false;
                 });
@@ -122,11 +123,11 @@ var BluetoothManager = class BluetoothManager {
         // Clear pending timeout cho device này
         if (this._pendingNotifications.has(deviceName)) {
             const timeoutId = this._pendingNotifications.get(deviceName);
-            imports.mainloop.source_remove(timeoutId);
+            GLib.Source.remove(timeoutId);
         }
 
         // Set timeout mới
-        const timeoutId = imports.mainloop.timeout_add(this._debounceDelay, () => {
+        const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._debounceDelay, () => {
             this._pendingNotifications.delete(deviceName);
             
             // Gọi callback với thông tin cuối cùng
@@ -179,7 +180,7 @@ var BluetoothManager = class BluetoothManager {
 
         // ✅ Clear all pending notifications
         this._pendingNotifications.forEach((timeoutId) => {
-            imports.mainloop.source_remove(timeoutId);
+            GLib.Source.remove(timeoutId);
         });
         this._pendingNotifications.clear();
 

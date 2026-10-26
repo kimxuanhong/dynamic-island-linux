@@ -1,7 +1,7 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-var BrightnessView = class BrightnessView {
+export class BrightnessView {
     constructor(brightnessManager) {
         this._brightnessManager = brightnessManager;
         this._signals = [];
@@ -58,7 +58,7 @@ var BrightnessView = class BrightnessView {
         // Container expanded
         this.expandedContainer = new St.BoxLayout({
             style_class: 'brightness-expanded',
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,

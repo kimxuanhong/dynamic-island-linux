@@ -1,6 +1,7 @@
-const Shell = imports.gi.Shell;
+import GLib from 'gi://GLib';
+import Shell from 'gi://Shell';
 
-var WindowManager = class WindowManager {
+export class WindowManager {
     constructor() {
         this._callbacks = [];
         this._windowTracker = null;
@@ -8,6 +9,7 @@ var WindowManager = class WindowManager {
         this._destroyed = false;
         this._isInitializing = true;
         this._trackedWindows = new Set(); // Theo dõi các window đã xử lý
+        this._windowSignals = new Map();
         
         // Danh sách các app bị ignore (không hiển thị window events)
         // Có thể ignore theo App ID hoặc App Name
@@ -43,7 +45,7 @@ var WindowManager = class WindowManager {
         });
 
         // Đánh dấu đã khởi tạo xong sau 1 giây
-        imports.mainloop.timeout_add(1000, () => {
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
             this._isInitializing = false;
             return false;
         });
@@ -87,8 +89,9 @@ var WindowManager = class WindowManager {
         const windowTitle = metaWindow.get_title();
 
         // Cleanup khi window bị destroy
-        metaWindow.connect('unmanaged', () => {
+        const unmanagedId = metaWindow.connect('unmanaged', () => {
             this._trackedWindows.delete(metaWindow);
+            this._windowSignals.delete(metaWindow);
             
             // Kiểm tra ignore list trước khi notify closed event
             const shouldIgnoreClose = this._ignoredApps.some(ignoredApp => {
@@ -109,6 +112,7 @@ var WindowManager = class WindowManager {
                 });
             }
         });
+        this._windowSignals.set(metaWindow, unmanagedId);
 
         // Notify callbacks
         this._notifyCallbacks({
@@ -137,6 +141,14 @@ var WindowManager = class WindowManager {
         }
 
         this._windowTracker = null;
+        for (const [metaWindow, signalId] of this._windowSignals) {
+            try {
+                metaWindow.disconnect(signalId);
+            } catch (error) {
+                console.debug(`Failed to disconnect window signal: ${error.message}`);
+            }
+        }
+        this._windowSignals.clear();
         this._trackedWindows.clear();
         this._callbacks = [];
     }

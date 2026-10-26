@@ -1,12 +1,11 @@
-const Clutter = imports.gi.Clutter;
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const NotchConstants = Me.imports.utils.constants.NotchConstants;
+import Clutter from 'gi://Clutter';
+
+import {NotchConstants} from './constants.js';
 
 // ============================================
 // ANIMATION CONTROLLER - Quản lý animations
 // ============================================
-var AnimationController = class AnimationController {
+export class AnimationController {
     constructor(controller) {
         this.controller = controller;
     }
@@ -151,4 +150,3 @@ var AnimationController = class AnimationController {
         }
     }
 }
-

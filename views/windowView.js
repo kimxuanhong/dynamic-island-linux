@@ -1,7 +1,7 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-var WindowView = class WindowView {
+export class WindowView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
@@ -38,7 +38,7 @@ var WindowView = class WindowView {
         this.labelWrapper.set_child(this.appLabel);
 
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             visible: false
@@ -71,7 +71,7 @@ var WindowView = class WindowView {
         });
 
         const textBox = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
@@ -85,7 +85,7 @@ var WindowView = class WindowView {
         this.textWrapper.set_child(textBox);
 
         this.expandedContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 20px; padding: 20px;',

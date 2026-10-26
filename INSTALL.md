@@ -1,8 +1,18 @@
-# Tạo thư mục app nếu chưa có
-mkdir -p ~/app
+## Cài đặt tự động (khuyên dùng)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | bash
+```
+
+Installer tự cài dependency/Go, clone source, build backend, cấu hình systemd user service, build và bật extension. Phần dưới đây dành cho cài đặt hoặc debug thủ công.
+
+## Cài đặt thủ công
+
+# Tạo thư mục binary cục bộ nếu chưa có
+mkdir -p ~/.local/bin
 
 # Copy binary vào thư mục user
-cp dynamic-island-server ~/app/
+cp dynamic-island-server ~/.local/bin/
 
 # Cấp quyền thực thi
 chmod +x ~/app/dynamic-island-server
@@ -44,7 +54,7 @@ systemctl --user disable dynamic-island-server.service
 rm ~/.config/systemd/user/dynamic-island-server.service
 
 # Xóa binary
-rm ~/app/dynamic-island-server
+rm ~/.local/bin/dynamic-island-server
 
 # Reload systemd user
 systemctl --user daemon-reload
@@ -60,7 +70,7 @@ cd ~/Documents/dynamic-island-linux/server
 go build -o dynamic-island-server .
 
 # Copy binary mới
-cp dynamic-island-server ~/app/
+cp dynamic-island-server ~/.local/bin/
 
 # Restart service
 systemctl --user restart dynamic-island-server.service

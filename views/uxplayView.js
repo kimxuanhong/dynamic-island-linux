@@ -1,12 +1,10 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
-const Shell = imports.gi.Shell;
+import Clutter from 'gi://Clutter';
+import Shell from 'gi://Shell';
+import St from 'gi://St';
 
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const Visualizer = Me.imports.utils.visualizer;
+import {MirroredVisualizer} from '../utils/visualizer.js';
 
-var UxplayView = class UxplayView {
+export class UxplayView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
@@ -50,7 +48,7 @@ var UxplayView = class UxplayView {
         this.iconWrapper.set_child(this.iconLeft);
 
         // ===== VISUALIZER (màu xanh dương) =====
-        this._visualizer = new Visualizer.MirroredVisualizer({
+        this._visualizer = new MirroredVisualizer({
             barCount: 6,
             pattern: [4, 6, 8, 6, 4, 2],
             barWidth: 3,
@@ -71,7 +69,7 @@ var UxplayView = class UxplayView {
         this._visualizerWrapper.set_child(this._visualizer.container);
 
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             visible: false
@@ -112,7 +110,7 @@ var UxplayView = class UxplayView {
         });
 
         const textBox = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
@@ -127,7 +125,7 @@ var UxplayView = class UxplayView {
         this.textWrapper.set_child(textBox);
 
         this.expandedContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 20px; padding: 20px;',

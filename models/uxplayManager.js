@@ -1,6 +1,7 @@
-const Gio = imports.gi.Gio;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var UxplayManager = class UxplayManager {
+export class UxplayManager {
     constructor() {
         this._callbacks = [];
         this._isSharing = false;
@@ -39,7 +40,7 @@ var UxplayManager = class UxplayManager {
                     this._onServerEvent(eventType, appName, pid, timestamp, metadata);
                 });
 
-                imports.mainloop.timeout_add(500, () => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                     this._isInitializing = false;
                     return false;
                 });

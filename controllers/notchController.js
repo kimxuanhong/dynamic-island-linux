@@ -1,41 +1,40 @@
-const St = imports.gi.St;
-const Main = imports.ui.main;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
+import St from 'gi://St';
 
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-const NotchConstants = Me.imports.utils.constants.NotchConstants;
-const NotchStateMachine = Me.imports.utils.stateMachine.NotchStateMachine;
-const TimeoutManager = Me.imports.utils.timeoutManager.TimeoutManager;
-const PresenterRegistry = Me.imports.utils.presenterRegistry.PresenterRegistry;
-const CycleManager = Me.imports.utils.cycleManager.CycleManager;
-const LayoutManager = Me.imports.utils.layoutManager.LayoutManager;
-const AnimationController = Me.imports.utils.animationController.AnimationController;
+import {AnimationController} from '../utils/animationController.js';
+import {NotchConstants} from '../utils/constants.js';
+import {CycleManager} from '../utils/cycleManager.js';
+import {LayoutManager} from '../utils/layoutManager.js';
+import {PresenterRegistry} from '../utils/presenterRegistry.js';
+import {NotchStateMachine} from '../utils/stateMachine.js';
+import {TimeoutManager} from '../utils/timeoutManager.js';
 
-const BatteryManager = Me.imports.models.batteryManager.BatteryManager;
-const BluetoothManager = Me.imports.models.bluetoothManager.BluetoothManager;
-const MediaManager = Me.imports.models.mediaManager.MediaManager;
-const VolumeManager = Me.imports.models.volumeManager.VolumeManager;
-const BrightnessManager = Me.imports.models.brightnessManager.BrightnessManager;
-const NotificationManager = Me.imports.models.notificationManager.NotificationManager;
-const WindowManager = Me.imports.models.windowManager.WindowManager;
-const RecordingManager = Me.imports.models.recordingManager.RecordingManager;
-const CameraManager = Me.imports.models.cameraManager.CameraManager;
-const UxplayManager = Me.imports.models.uxplayManager.UxplayManager;
+import {BatteryManager} from '../models/batteryManager.js';
+import {BluetoothManager} from '../models/bluetoothManager.js';
+import {BrightnessManager} from '../models/brightnessManager.js';
+import {CameraManager} from '../models/cameraManager.js';
+import {MediaManager} from '../models/mediaManager.js';
+import {NotificationManager} from '../models/notificationManager.js';
+import {RecordingManager} from '../models/recordingManager.js';
+import {UxplayManager} from '../models/uxplayManager.js';
+import {VolumeManager} from '../models/volumeManager.js';
+import {WindowManager} from '../models/windowManager.js';
 
-const BatteryView = Me.imports.views.batteryView.BatteryView;
-const BluetoothView = Me.imports.views.bluetoothView.BluetoothView;
-const MediaView = Me.imports.views.mediaView.MediaView;
-const VolumeView = Me.imports.views.volumeView.VolumeView;
-const BrightnessView = Me.imports.views.brightnessView.BrightnessView;
-const NotificationView = Me.imports.views.notificationView.NotificationView;
-const WindowView = Me.imports.views.windowView.WindowView;
-const RecordingView = Me.imports.views.recordingView.RecordingView;
-const CameraView = Me.imports.views.cameraView.CameraView;
-const UxplayView = Me.imports.views.uxplayView.UxplayView;
+import {BatteryView} from '../views/batteryView.js';
+import {BluetoothView} from '../views/bluetoothView.js';
+import {BrightnessView} from '../views/brightnessView.js';
+import {CameraView} from '../views/cameraView.js';
+import {MediaView} from '../views/mediaView.js';
+import {NotificationView} from '../views/notificationView.js';
+import {RecordingView} from '../views/recordingView.js';
+import {UxplayView} from '../views/uxplayView.js';
+import {VolumeView} from '../views/volumeView.js';
+import {WindowView} from '../views/windowView.js';
 
-var NotchController = class NotchController {
+export class NotchController {
     constructor(settings = null) {
         this.width = NotchConstants.COMPACT_WIDTH;
         this.height = NotchConstants.COMPACT_HEIGHT;
@@ -59,7 +58,18 @@ var NotchController = class NotchController {
 
         // Monitor info
         const monitor = Main.layoutManager.primaryMonitor;
-        this.monitorWidth = monitor.width;
+        this.monitorWidth = monitor?.width ?? global.stage.width;
+        this._monitorsChangedId = Main.layoutManager.connect(
+            'monitors-changed',
+            () => {
+                const primaryMonitor = Main.layoutManager.primaryMonitor;
+                if (!primaryMonitor)
+                    return;
+
+                this.monitorWidth = primaryMonitor.width;
+                this.updatePosition();
+            }
+        );
 
         // Initialize core systems
         this.stateMachine = new NotchStateMachine();
@@ -241,7 +251,7 @@ var NotchController = class NotchController {
     _createNotchActor() {
         this.notch = new St.BoxLayout({
             style_class: 'notch compact-state',
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             reactive: true,
             track_hover: true,
             x_expand: false,
@@ -274,7 +284,7 @@ var NotchController = class NotchController {
         // Create Secondary Notch (Circular)
         this.secondaryNotch = new St.BoxLayout({
             style_class: 'notch-secondary',
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             reactive: true,
             track_hover: false,
             x_expand: false,
@@ -330,7 +340,7 @@ var NotchController = class NotchController {
                 expandPending = true;
                 this.expandNotch(false);
                 // Reset flag sau khi animation hoàn tất
-                imports.mainloop.timeout_add(NotchConstants.ANIMATION_EXPAND_DURATION, () => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, NotchConstants.ANIMATION_EXPAND_DURATION, () => {
                     expandPending = false;
                     return false;
                 });
@@ -525,7 +535,7 @@ var NotchController = class NotchController {
         this._cancelTemporaryPresenterTimeouts();
 
         // ✅ FIX: Đợi một frame để UI update xong trước khi expand
-        imports.mainloop.idle_add(() => {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             // Check if still valid (not destroyed during idle)
             if (!this.notch || this._destroyed) {
                 return false;
@@ -890,6 +900,11 @@ var NotchController = class NotchController {
 
         // Clear all timeouts
         this.timeoutManager.clearAll();
+
+        if (this._monitorsChangedId) {
+            Main.layoutManager.disconnect(this._monitorsChangedId);
+            this._monitorsChangedId = 0;
+        }
 
         // Disconnect events
         if (this.notch) {

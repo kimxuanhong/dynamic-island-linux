@@ -1,13 +1,14 @@
-const St = imports.gi.St;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-var NotificationView = class NotificationView {
+export class NotificationView {
     constructor() {
         this._buildExpandedView();
     }
 
     _buildExpandedView() {
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             visible: false

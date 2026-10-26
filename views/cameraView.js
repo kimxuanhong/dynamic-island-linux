@@ -1,11 +1,9 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const Visualizer = Me.imports.utils.visualizer;
+import {MirroredVisualizer} from '../utils/visualizer.js';
 
-var CameraView = class CameraView {
+export class CameraView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
@@ -49,7 +47,7 @@ var CameraView = class CameraView {
         this.iconWrapper.set_child(this.iconLeft);
 
         // ===== VISUALIZER (màu xanh lá) =====
-        this._visualizer = new Visualizer.MirroredVisualizer({
+        this._visualizer = new MirroredVisualizer({
             barCount: 6,
             pattern: [4, 6, 8, 6, 4, 2],
             barWidth: 3,
@@ -70,7 +68,7 @@ var CameraView = class CameraView {
         this._visualizerWrapper.set_child(this._visualizer.container);
 
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             visible: false
@@ -103,7 +101,7 @@ var CameraView = class CameraView {
         });
 
         const textBox = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
@@ -118,7 +116,7 @@ var CameraView = class CameraView {
         this.textWrapper.set_child(textBox);
 
         this.expandedContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 20px; padding: 20px;',

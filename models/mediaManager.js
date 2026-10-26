@@ -1,6 +1,7 @@
-const Gio = imports.gi.Gio;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var MediaManager = class MediaManager {
+export class MediaManager {
     constructor() {
         this._callbacks = [];
         this._serverProxy = null;
@@ -72,7 +73,7 @@ var MediaManager = class MediaManager {
                 });
 
                 // Đánh dấu đã khởi tạo xong sau một khoảng thời gian ngắn
-                imports.mainloop.timeout_add(500, () => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                     this._isInitializing = false;
                     return false;
                 });

@@ -1,17 +1,19 @@
+import GLib from 'gi://GLib';
+
 // ============================================
 // TIMEOUT MANAGER - Quản lý timeouts tập trung
 // ============================================
-var TimeoutManager = class TimeoutManager {
+export class TimeoutManager {
     constructor() {
         this._timeouts = new Map();
     }
 
     set(key, delay, callback) {
         this.clear(key);
-        const id = imports.mainloop.timeout_add(delay, () => {
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._timeouts.delete(key);
             callback();
-            return false;
+            return GLib.SOURCE_REMOVE;
         });
         this._timeouts.set(key, id);
         return id;
@@ -20,14 +22,14 @@ var TimeoutManager = class TimeoutManager {
     clear(key) {
         const id = this._timeouts.get(key);
         if (id) {
-            imports.mainloop.source_remove(id);
+            GLib.Source.remove(id);
             this._timeouts.delete(key);
         }
     }
 
     clearAll() {
         this._timeouts.forEach((id, key) => {
-            imports.mainloop.source_remove(id);
+            GLib.Source.remove(id);
         });
         this._timeouts.clear();
     }
@@ -36,4 +38,3 @@ var TimeoutManager = class TimeoutManager {
         return this._timeouts.has(key);
     }
 }
-

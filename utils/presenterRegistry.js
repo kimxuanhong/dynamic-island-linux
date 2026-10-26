@@ -1,4 +1,4 @@
-var PresenterRegistry = class PresenterRegistry {
+export class PresenterRegistry {
     constructor() {
         this._currentPresenter = null;
         this._items = new Map();

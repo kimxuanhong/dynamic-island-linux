@@ -1,7 +1,7 @@
 // ============================================
 // STATE MACHINE - Quản lý trạng thái
 // ============================================
-var NotchStateMachine = class NotchStateMachine {
+export class NotchStateMachine {
     constructor() {
         this._state = 'compact'; // compact, expanded, animating
         this._listeners = [];
@@ -35,4 +35,3 @@ var NotchStateMachine = class NotchStateMachine {
         this._listeners.forEach(cb => cb(oldState, newState));
     }
 }
-

@@ -1,7 +1,7 @@
 // ============================================
 // CONSTANTS - Các hằng số
 // ============================================
-var NotchConstants = {
+export const NotchConstants = {
     // Dimensions
     COMPACT_WIDTH: 180,
     COMPACT_HEIGHT: 40,
@@ -48,4 +48,3 @@ var NotchConstants = {
     // Window animation
     ANIMATION_WINDOW_MOVE: 800
 };
-

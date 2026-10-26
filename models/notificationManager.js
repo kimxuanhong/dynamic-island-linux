@@ -1,12 +1,13 @@
-const Main = imports.ui.main;
-const MessageTray = imports.ui.messageTray;
-const Gio = imports.gi.Gio;
-const GLib = imports.gi.GLib;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var NotificationManager = class NotificationManager {
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
+
+export class NotificationManager {
     constructor() {
         this._callbacks = [];
-        this._sources = new Map(); // Map<Source, SignalId>
+        this._sources = new Map(); // Map<Source, {notificationId, destroyId}>
         this._sourceAddedId = 0;
         this._serverProxy = null;
         this._dbusConnection = null;
@@ -72,16 +73,16 @@ var NotificationManager = class NotificationManager {
         if (this._sources.has(source)) return;
 
         // Lắng nghe khi nguồn này gửi thông báo
-        const signalId = source.connect('notification-added', (source, notification) => {
+        const notificationId = source.connect('notification-added', (source, notification) => {
             this._onNotificationAdded(source, notification);
         });
 
         // Lắng nghe khi nguồn bị xóa (để cleanup)
-        source.connect('destroy', () => {
+        const destroyId = source.connect('destroy', () => {
             this._onSourceRemoved(source);
         });
 
-        this._sources.set(source, signalId);
+        this._sources.set(source, {notificationId, destroyId});
     }
 
     _onSourceRemoved(source) {
@@ -97,12 +98,13 @@ var NotificationManager = class NotificationManager {
 
         // Lấy icon path từ GIcon
         let iconPath = '';
-        if (source.icon) {
+        const gicon = notification.gicon ?? source.icon ?? null;
+        if (gicon) {
             try {
-                if (source.icon.to_string) {
-                    iconPath = source.icon.to_string();
-                } else if (source.icon.get_names) {
-                    const names = source.icon.get_names();
+                if (gicon.to_string) {
+                    iconPath = gicon.to_string();
+                } else if (gicon.get_names) {
+                    const names = gicon.get_names();
                     if (names && names.length > 0) {
                         iconPath = names[0];
                     }
@@ -120,7 +122,7 @@ var NotificationManager = class NotificationManager {
             title: title,
             body: body,
             appName: appName,
-            gicon: source.icon, // GIcon object
+            gicon,
             isUrgent: notification.urgency === MessageTray.Urgency.CRITICAL
         };
 
@@ -188,9 +190,10 @@ var NotificationManager = class NotificationManager {
         }
 
         // Disconnect tất cả sources
-        this._sources.forEach((signalId, source) => {
+        this._sources.forEach(({notificationId, destroyId}, source) => {
             try {
-                source.disconnect(signalId);
+                source.disconnect(notificationId);
+                source.disconnect(destroyId);
             } catch (e) {
                 // log(`[DynamicIsland] NotificationManager: Error disconnecting signal: ${e.message || e}`);
             }

@@ -1,7 +1,7 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-var BatteryView = class BatteryView {
+export class BatteryView {
     constructor() {
         this._chargingAnimationTimer = null;
         this._currentAnimationFrame = 0;
@@ -62,7 +62,7 @@ var BatteryView = class BatteryView {
         this.percentageWrapper.set_child(this.percentageLabel);
 
         this.compactContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
         });
@@ -107,7 +107,7 @@ var BatteryView = class BatteryView {
         });
 
         const textBox = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
@@ -123,7 +123,7 @@ var BatteryView = class BatteryView {
 
         // Container chính theo layout bluetooth
         this.expandedContainer = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: true,
             style: 'spacing: 20px; padding: 20px;',

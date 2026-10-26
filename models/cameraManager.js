@@ -1,6 +1,7 @@
-const Gio = imports.gi.Gio;
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
-var CameraManager = class CameraManager {
+export class CameraManager {
     constructor() {
         this._callbacks = [];
         this._isCameraInUse = false;
@@ -46,7 +47,7 @@ var CameraManager = class CameraManager {
                 });
 
                 // Mark initialization complete after a short delay
-                imports.mainloop.timeout_add(500, () => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                     this._isInitializing = false;
                     return false;
                 });

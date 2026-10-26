@@ -1,7 +1,7 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
-var VolumeView = class VolumeView {
+export class VolumeView {
     constructor(volumeManager) {
         this._volumeManager = volumeManager;
         this._signals = [];
@@ -65,7 +65,7 @@ var VolumeView = class VolumeView {
         // Container expanded
         this.expandedContainer = new St.BoxLayout({
             style_class: 'volume-expanded',
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,

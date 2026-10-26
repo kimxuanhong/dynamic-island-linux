@@ -1,4 +1,4 @@
-var CycleManager = class CycleManager {
+export class CycleManager {
     constructor() {
         this._items = [];
         this._currentPos = -1;

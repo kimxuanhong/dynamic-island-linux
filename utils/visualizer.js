@@ -1,11 +1,11 @@
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 
 /**
  * MirroredVisualizer - A mirrored audio visualizer component
  * Creates a symmetric top-bottom visualizer with animated bars
  */
-var MirroredVisualizer = class MirroredVisualizer {
+export class MirroredVisualizer {
     constructor(config = {}) {
         this._barCount = config.barCount || 6;
         this._pattern = config.pattern || [4, 6, 8, 6, 4, 2];
@@ -52,7 +52,7 @@ var MirroredVisualizer = class MirroredVisualizer {
         // Container chính - vertical để chứa 2 hàng
         this.container = new St.BoxLayout({
             style_class: 'media-visualizer-box',
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
             style: 'spacing: 0px; padding: 0px; margin: 0px;',
@@ -60,7 +60,7 @@ var MirroredVisualizer = class MirroredVisualizer {
 
         // Hàng trên (lộn ngược - dính trần)
         const topRow = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.END,
             style: `spacing: ${this._barSpacing}px; padding: 0px; margin: 0px;`,
@@ -90,7 +90,7 @@ var MirroredVisualizer = class MirroredVisualizer {
 
         // Hàng dưới (bình thường - dính đáy)
         const bottomRow = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.START,
             style: `spacing: ${this._barSpacing}px; padding: 0px; margin: 0px;`,
