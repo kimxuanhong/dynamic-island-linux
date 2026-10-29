@@ -52,7 +52,7 @@
 .battery-charging, .battery-full { color: #00ff00; }
 
 /* Media player */
-.media-expanded { padding: 12px 16px; spacing: 0; }
+.media-expanded { padding: 14px 16px; spacing: 0; }
 .media-top-tier { spacing: 12px; }
 .media-title-wrapper { spacing: 2px; }
 .media-title-label { color: white; font-size: 15px; font-weight: 700; }
@@ -68,24 +68,25 @@
 .media-compact-container { spacing: 0; padding: 0 10px; }
 .media-thumbnail, .media-expanded-art { color: rgba(255, 255, 255, 0.8); }
 .media-expanded-thumbnail-wrapper {
-    width: 56px;
-    height: 56px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    width: 60px;
+    height: 60px;
+    padding: 0;
+    border-radius: 15px;
+    border: none;
     background-gradient-direction: vertical;
     background-gradient-start: rgba(255, 255, 255, 0.14);
     background-gradient-end: rgba(255, 255, 255, 0.05);
     background-size: cover;
 }
 .media-progress-section { margin: 8px 0 4px; }
-.media-progress-hit { padding: 6px 0; }
-.media-progress-bg { background-color: rgba(255, 255, 255, 0.2); height: 4px; border-radius: 2px; }
+.media-progress-hit { padding: 3px 0; }
+.media-progress-bg { background-color: rgba(255, 255, 255, 0.2); height: 10px; border-radius: 5px; }
 .media-progress-fill {
-    height: 4px;
-    border-radius: 2px;
+    height: 10px;
+    border-radius: 5px;
     background-gradient-direction: horizontal;
-    background-gradient-start: rgba(255, 255, 255, 0.8);
-    background-gradient-end: rgba(255, 255, 255, 0.8);
+    background-gradient-start: #ffffff;
+    background-gradient-end: #ffffff;
 }
 .media-progress-bg:active { background-color: rgba(255, 255, 255, 0.3); }
 .media-time-label { color: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 500; }

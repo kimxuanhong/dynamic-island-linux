@@ -5,6 +5,7 @@ import St from 'gi://St';
 import Pango from 'gi://Pango';
 import {blockScroll, connectClick, connectMotion, connectSlider} from '../utils/input.js';
 
+import {RoundedArtEffect} from '../utils/roundedArtEffect.js';
 import {MirroredVisualizer} from '../utils/visualizer.js';
 
 export class MediaView {
@@ -141,11 +142,14 @@ export class MediaView {
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER,
             style_class: 'media-expanded-thumbnail-wrapper',
+            x_expand: false,
+            y_expand: false,
             visible: true,
             reactive: true,
             clip_to_allocation: true,
         });
         
+        this._expandedThumbnailWrapper.add_effect(new RoundedArtEffect());
         blockScroll(this._expandedThumbnailWrapper);
         connectClick(this._expandedThumbnailWrapper, () => {
             this._onArtClick();
@@ -597,6 +601,7 @@ export class MediaView {
         this._thumbnailWrapper.style = null;
 
         if (this._expandedThumbnailWrapper) {
+            this._expandedThumbnail.icon_size = 32;
             this._expandedThumbnail.icon_name = 'audio-x-generic-symbolic';
             this._expandedThumbnail.opacity = 255;
             this._expandedThumbnail.visible = true;
@@ -606,39 +611,35 @@ export class MediaView {
 
     _setLocalAlbumArt(path) {
         const file = Gio.File.new_for_path(path);
+        const cssUri = file.get_uri().replace(/"/g, '%22');
         const gicon = new Gio.FileIcon({ file });
         this._thumbnail.set_gicon(gicon);
 
-        this._thumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 9px;`;
+        this._thumbnailWrapper.style = `background-image: url("${cssUri}"); background-size: cover; border-radius: 9px;`;
         this._thumbnail.opacity = 0;
         this._thumbnail.visible = true;
 
         if (this._expandedThumbnailWrapper) {
             this._expandedThumbnail.set_gicon(gicon);
-            this._expandedThumbnail.icon_size = 56;
-            this._expandedThumbnail.opacity = 255;
+            // The rounded background paints the artwork; an opaque child icon
+            // would cover it with square corners. Keep the icon for sizing.
+            this._expandedThumbnail.opacity = 0;
             this._expandedThumbnail.visible = true;
-            this._expandedThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 17px;`;
+            this._expandedThumbnailWrapper.style = `background-image: url("${cssUri}"); background-size: cover; background-gradient-direction: none;`;
         }
     }
 
     _setIconAlbumArt(artUrl) {
         try {
             const gicon = Gio.icon_new_for_string(artUrl);
-            this._thumbnail.set_gicon(gicon);
-
-            const cssUrl = artUrl.replace(/'/g, "\\'");
-            this._thumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 9px;`;
-            this._thumbnail.opacity = 0;
-            this._thumbnail.visible = true;
-
-            if (this._expandedThumbnailWrapper) {
-                this._expandedThumbnail.set_gicon(gicon);
-                this._expandedThumbnail.icon_size = 56;
-                this._expandedThumbnail.opacity = 255;
-                this._expandedThumbnail.visible = true;
-                this._expandedThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 17px;`;
+            if (gicon instanceof Gio.FileIcon) {
+                this._setLocalAlbumArt(gicon.get_file().get_path());
+                return;
             }
+
+            this._resetAlbumArt();
+            this._thumbnail.set_gicon(gicon);
+            this._expandedThumbnail.set_gicon(gicon);
         } catch (e) {
             this._resetAlbumArt();
         }
