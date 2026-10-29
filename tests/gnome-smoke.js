@@ -5,11 +5,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Scripting from 'resource:///org/gnome/shell/ui/scripting.js';
 export const METRICS = {};
 export async function run() {
-    await Scripting.sleep(1500);
     const extension = Main.extensionManager.lookup('dynamic-island@xuanhong');
+    for (let attempt = 0; attempt < 20 && !extension?.stateObj; attempt++)
+        await Scripting.sleep(250);
     if (!extension?.stateObj?._notchController)
         throw new Error(`Extension failed: ${JSON.stringify(extension?.errors)}`);
     const controller = extension.stateObj._notchController;
+    const {NotchConstants} = await import(`${extension.dir.get_uri()}/utils/constants.js`);
     Main.overview.hide();
     await Scripting.sleep(500);
     const {connectClick, connectMotion, connectSlider, blockScroll} =
@@ -80,13 +82,62 @@ export async function run() {
     actor.destroy();
     print('DYNAMIC_ISLAND_INPUT_PASS');
 
+    // Exercise the actual redesigned controls with fake managers, so no system
+    // volume or brightness is changed by this integration test.
+    const {VolumeView} = await import(`${extension.dir.get_uri()}/views/volumeView.js`);
+    const {BrightnessView} = await import(`${extension.dir.get_uri()}/views/brightnessView.js`);
+    for (const kind of ['volume', 'brightness']) {
+        let changed = null;
+        const manager = {
+            setVolume: value => { changed = value; return true; },
+            setBrightness: value => { changed = value; return true; },
+            isMuted: () => false,
+            toggleMute: () => {},
+        };
+        const view = kind === 'volume' ? new VolumeView(manager) : new BrightnessView(manager);
+        const card = new St.BoxLayout({style_class: 'notch expanded-state',
+            x: 100, y: 400, width: NotchConstants.EXPANDED_WIDTH,
+            height: NotchConstants.EXPANDED_HEIGHT});
+        card.add_child(view.expandedContainer);
+        Main.layoutManager.addTopChrome(card);
+        view.show();
+        await Scripting.sleep(300);
+        const track = view.expandedProgressBarBg;
+        const [x, y] = track.get_transformed_position();
+        await motion(x + track.width / 2, y + 9);
+        await motion(x + track.width * 0.75, y + 9);
+        await button(Clutter.ButtonState.PRESSED);
+        await button(Clutter.ButtonState.RELEASED);
+        if (changed === null || Math.abs(changed - 75) > 1 ||
+            Math.abs(view.expandedProgressBarFill.width - track.width * 0.75) > 2)
+            throw new Error(`${kind} control did not update correctly: ${changed}`);
+        view.destroy();
+        Main.layoutManager.removeChrome(card);
+        card.destroy();
+    }
+    print('DYNAMIC_ISLAND_LEVELS_PASS');
+
     controller.mediaView.updatePlaybackState(true, 'Playing');
     await Scripting.sleep(300);
     controller.mediaView.updatePlaybackState(false, 'Paused');
     controller.updatePosition();
     controller.animationController.squeeze();
     await Scripting.sleep(700);
+    // The secondary notch must stay hidden through expansion and layout updates.
+    controller.presenterRegistry.switchTo('battery', true);
+    controller.expandNotch(true);
+    await Scripting.sleep(500);
+    if (controller.secondaryNotch.visible)
+        throw new Error('Secondary notch remained visible after expansion');
+    controller.updatePosition();
+    if (controller.secondaryNotch.visible)
+        throw new Error('Position update showed the secondary notch while expanded');
+    controller.compactNotch();
+    await Scripting.sleep(900);
+    if (controller.cycleManager.count() > 1 && !controller.secondaryNotch.visible)
+        throw new Error('Secondary notch did not return after collapse');
     extension.stateObj.disable();
+    print('DYNAMIC_ISLAND_EXPANSION_PASS');
     await Scripting.sleep(700);
     extension.stateObj.enable();
     await Scripting.sleep(700);

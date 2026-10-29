@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+<defs>
+  <linearGradient id="sky" x2="1" y2="1"><stop stop-color="#163f65"/><stop offset=".55" stop-color="#577780"/><stop offset="1" stop-color="#a77770"/></linearGradient>
+  <linearGradient id="wave" x2=".6" y2="1"><stop stop-color="#73c9d1"/><stop offset=".6" stop-color="#295d8e"/><stop offset="1" stop-color="#203962"/></linearGradient>
+  <linearGradient id="warm" x2="1" y2="1"><stop stop-color="#f2c69e"/><stop offset=".6" stop-color="#c07b79"/><stop offset="1" stop-color="#685776"/></linearGradient>
+</defs>
+<path fill="url(#sky)" d="M0 0h1280v720H0z"/>
+<path fill="url(#warm)" d="M640-60C470 60 740 250 830 300s250 100 150 420h300V0z"/>
+<path fill="url(#wave)" d="M0 20C200 90 250 230 240 370S390 540 620 470s490 20 660 250H0z"/>
+<g fill="none" stroke="#c2eef2" stroke-width="2" opacity=".30">
+<path d="M0 70C210 110 300 270 245 405S470 560 700 480 1150 600 1280 700"/>
+<path d="M0 86C210 126 315 285 260 420S485 575 715 495 1165 615 1295 715"/>
+<path d="M0 102C210 142 330 300 275 435S500 590 730 510 1180 630 1310 730"/>
+<path d="M0 118C210 158 345 315 290 450S515 605 745 525 1195 645 1325 745"/>
+</g>
+</svg>

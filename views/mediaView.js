@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import Pango from 'gi://Pango';
 import {blockScroll, connectClick, connectMotion, connectSlider} from '../utils/input.js';
 
 import {MirroredVisualizer} from '../utils/visualizer.js';
@@ -118,7 +119,7 @@ export class MediaView {
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: true,
-            style: 'spacing: 0px; padding: 24px;',
+            style_class: 'media-expanded',
             visible: false,
         });
 
@@ -132,7 +133,7 @@ export class MediaView {
         this._expandedThumbnail = new St.Icon({
             style_class: 'media-expanded-art',
             icon_name: 'audio-x-generic-symbolic',
-            icon_size: 56,
+            icon_size: 32,
         });
 
         this._expandedThumbnailWrapper = new St.Bin({
@@ -155,14 +156,13 @@ export class MediaView {
         this._titleLabel = new St.Label({
             style_class: 'media-title-label',
             text: '',
-            x_align: Clutter.ActorAlign.START,
+            x_expand: true,
         });
 
         this._artistLabel = new St.Label({
             style_class: 'media-artist-label',
             text: '',
             x_align: Clutter.ActorAlign.START,
-            style: 'color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 3px;',
         });
 
         this._titleWrapper = new St.BoxLayout({
@@ -174,6 +174,11 @@ export class MediaView {
             reactive: true,
         });
         blockScroll(this._titleWrapper);
+        this._titleLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        this._artistLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        this._titleWrapper.y_align = Clutter.ActorAlign.CENTER;
+        this._playbackLabel = new St.Label({text: 'Now playing', style_class: 'media-eyebrow'});
+        this._titleWrapper.add_child(this._playbackLabel);
         this._titleWrapper.add_child(this._titleLabel);
         this._titleWrapper.add_child(this._artistLabel);
 
@@ -181,7 +186,7 @@ export class MediaView {
             orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_expand: false,
-            style: 'spacing: 12px;',
+            style_class: 'media-top-tier',
         });
         topTier.add_child(this._expandedThumbnailWrapper);
         topTier.add_child(this._titleWrapper);
@@ -193,14 +198,12 @@ export class MediaView {
         // Progress bar
         this._progressBarBg = new St.Widget({
             style_class: 'media-progress-bg',
-            style: 'background-color: rgba(255,255,255,0.2); height: 4px; border-radius: 2px;',
             x_expand: true,
             y_expand: false,
         });
 
         this._progressBarFill = new St.Widget({
             style_class: 'media-progress-fill',
-            style: 'background-color: rgba(255,255,255,0.8); height: 4px; border-radius: 2px;',
             x_expand: false,
             y_expand: false,
         });
@@ -211,7 +214,7 @@ export class MediaView {
             child: this._progressBarBg,
             x_expand: true,
             y_expand: false,
-            style: 'padding: 0;',
+            style_class: 'media-progress-hit',
             reactive: true,
             track_hover: true,
         });
@@ -222,14 +225,12 @@ export class MediaView {
         this._currentTimeLabel = new St.Label({
             style_class: 'media-time-label',
             text: '0:00',
-            style: 'color: rgba(255,255,255,0.7); font-size: 11px;',
             x_align: Clutter.ActorAlign.START,
         });
 
         this._totalTimeLabel = new St.Label({
             style_class: 'media-time-label',
             text: '0:00',
-            style: 'color: rgba(255,255,255,0.7); font-size: 11px;',
             x_align: Clutter.ActorAlign.END,
         });
 
@@ -247,7 +248,7 @@ export class MediaView {
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: false,
-            style: 'margin: 10px 0;',
+            style_class: 'media-progress-section',
             visible: true,
         });
         this._progressSection.add_child(this._progressBarContainer);
@@ -258,13 +259,11 @@ export class MediaView {
 
     _setupProgressBarEvents() {
         const resetStyle = () => {
-            this._progressBarBg.style = 'background-color: rgba(255,255,255,0.2); height: 4px; border-radius: 2px;';
-            this._progressBarFill.style = 'background-color: rgba(255,255,255,0.8); height: 4px; border-radius: 2px;';
+            this._progressBarBg.remove_style_pseudo_class('active');
         };
 
         const hoverStyle = () => {
-            this._progressBarBg.style = 'background-color: rgba(255,255,255,0.3); height: 4px; border-radius: 2px;';
-            this._progressBarFill.style = 'background-color: rgba(255,255,255,1.0); height: 4px; border-radius: 2px;';
+            this._progressBarBg.add_style_pseudo_class('active');
         };
 
         connectMotion(this._progressBarContainer, 'enter', hoverStyle);
@@ -294,6 +293,7 @@ export class MediaView {
 
         // Share button
         this._shareButton = this._createButton('emblem-shared-symbolic', () => this._onShare());
+        this._shareButton.accessible_name = 'Copy track link';
         bottomBox.add_child(this._shareButton);
 
         // Control buttons
@@ -316,7 +316,9 @@ export class MediaView {
 
         controls.forEach(config => {
             const button = new St.Button({
-                style_class: 'media-control-button',
+                style_class: config.isPlayPause ? 'media-control-button primary-control' : 'media-control-button',
+                accessible_name: config.isPlayPause ? 'Play or pause' : (config.icon.includes('backward') ? 'Previous track' : 'Next track'),
+                y_align: Clutter.ActorAlign.CENTER,
                 reactive: true,
                 can_focus: true,
             });
@@ -341,6 +343,7 @@ export class MediaView {
         });
         this._audioDeviceButton = this._createButton(null, () => this._onAudioDevice());
         this._audioDeviceButton.set_child(this._audioDeviceIcon);
+        this._audioDeviceButton.accessible_name = 'Sound controls';
         bottomBox.add_child(this._audioDeviceButton);
 
         return bottomBox;
@@ -606,14 +609,16 @@ export class MediaView {
         const gicon = new Gio.FileIcon({ file });
         this._thumbnail.set_gicon(gicon);
 
-        this._thumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 99px;`;
+        this._thumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 9px;`;
         this._thumbnail.opacity = 0;
         this._thumbnail.visible = true;
 
         if (this._expandedThumbnailWrapper) {
-            this._expandedThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 8px;`;
-            this._expandedThumbnail.opacity = 0;
+            this._expandedThumbnail.set_gicon(gicon);
+            this._expandedThumbnail.icon_size = 56;
+            this._expandedThumbnail.opacity = 255;
             this._expandedThumbnail.visible = true;
+            this._expandedThumbnailWrapper.style = `background-image: url("file://${path}"); background-size: cover; border-radius: 17px;`;
         }
     }
 
@@ -623,14 +628,16 @@ export class MediaView {
             this._thumbnail.set_gicon(gicon);
 
             const cssUrl = artUrl.replace(/'/g, "\\'");
-            this._thumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 99px;`;
+            this._thumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 9px;`;
             this._thumbnail.opacity = 0;
             this._thumbnail.visible = true;
 
             if (this._expandedThumbnailWrapper) {
-                this._expandedThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 8px;`;
-                this._expandedThumbnail.opacity = 0;
+                this._expandedThumbnail.set_gicon(gicon);
+                this._expandedThumbnail.icon_size = 56;
+                this._expandedThumbnail.opacity = 255;
                 this._expandedThumbnail.visible = true;
+                this._expandedThumbnailWrapper.style = `background-image: url("${cssUrl}"); background-size: cover; border-radius: 17px;`;
             }
         } catch (e) {
             this._resetAlbumArt();
@@ -665,6 +672,8 @@ export class MediaView {
     }
 
     _updatePlayPauseIcon(playbackStatus) {
+        this._playbackLabel.text = playbackStatus === 'Playing' ? 'Now playing'
+            : playbackStatus === 'Paused' ? 'Paused' : 'Ready to play';
         if (!this._playPauseIcon) return;
         this._playPauseIcon.icon_name = playbackStatus === 'Playing'
             ? 'media-playback-pause-symbolic'

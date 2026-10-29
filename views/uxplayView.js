@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import {styleStatusCard} from '../utils/viewStyle.js';
 import {blockScroll, connectClick} from '../utils/input.js';
 
 import {MirroredVisualizer} from '../utils/visualizer.js';
@@ -10,6 +11,7 @@ export class UxplayView {
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
+        styleStatusCard(this, 'blue', 'SCREEN MIRRORING');
     }
 
     _buildMinimalView() {
@@ -17,7 +19,7 @@ export class UxplayView {
             icon_name: 'video-display-symbolic', // Icon cast/màn hình
             icon_size: 24,
             style_class: 'battery-icon-secondary',
-            style: 'color: #3498db;', // Màu xanh dương cho sharing
+            style: 'color: #83c7ff;', // Màu xanh dương cho sharing
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
@@ -36,7 +38,7 @@ export class UxplayView {
         this.iconLeft = new St.Icon({
             icon_name: 'video-display-symbolic',
             icon_size: 24,
-            style: 'color: #3498db;',
+            style: 'color: #83c7ff;',
             x_align: Clutter.ActorAlign.START
         });
 
@@ -59,7 +61,7 @@ export class UxplayView {
             animationSpeed: 80
         });
         // Set màu xanh dương cho screen mirroring
-        this._visualizer.setColor('52, 152, 219'); // #3498db in RGB
+        this._visualizer.setColor('131, 199, 255'); // #83c7ff in RGB
 
         this._visualizerWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
@@ -83,7 +85,7 @@ export class UxplayView {
         this.iconExpanded = new St.Icon({
             icon_name: 'video-display-symbolic',
             icon_size: 64,
-            style: 'color: #3498db;'
+            style: 'color: #83c7ff;'
         });
 
         this.expandedIconWrapper = new St.Bin({

@@ -128,9 +128,9 @@ export class AnimationController {
     calculateCompactGeometry() {
         const isSingle = this.controller.cycleManager.count() <= 1;
         if (!isSingle) {
-            const mainWidth = NotchConstants.SPLIT_MAIN_WIDTH;
+            const mainWidth = NotchConstants.COMPACT_WIDTH;
             const gap = NotchConstants.SPLIT_GAP;
-            const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
+            const secWidth = NotchConstants.SECONDARY_WIDTH;
             const groupWidth = mainWidth + gap + secWidth;
             const x = this.controller._calculateNotchX ? 
                 this.controller._calculateNotchX(groupWidth) : 

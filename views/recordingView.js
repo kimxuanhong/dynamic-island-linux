@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
+import {styleStatusCard} from '../utils/viewStyle.js';
 
 import {MirroredVisualizer} from '../utils/visualizer.js';
 
@@ -12,6 +13,7 @@ export class RecordingView {
         this._timerId = null;
         this._iconAnimationTimer = null;
         this._currentIconFrame = 0;
+        styleStatusCard(this, 'violet', 'MICROPHONE');
     }
 
     _buildMinimalView() {
@@ -19,7 +21,7 @@ export class RecordingView {
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 24,
             style_class: 'battery-icon-secondary',
-            style: 'color: #af52de;',
+            style: 'color: #c4a5ff;',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
@@ -38,7 +40,7 @@ export class RecordingView {
         this.iconLeft = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 24,
-            style: 'color: #af52de;',
+            style: 'color: #c4a5ff;',
             x_align: Clutter.ActorAlign.START
         });
 
@@ -61,7 +63,7 @@ export class RecordingView {
             animationSpeed: 80
         });
         // Set màu tím cho recording
-        this._visualizer.setColor('175, 82, 222'); // #af52de in RGB
+        this._visualizer.setColor('196, 165, 255'); // #c4a5ff in RGB
 
         this._visualizerWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
@@ -85,7 +87,7 @@ export class RecordingView {
         this.iconExpanded = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 64,
-            style: 'color: #af52de;'
+            style: 'color: #c4a5ff;'
         });
 
         this.expandedIconWrapper = new St.Bin({

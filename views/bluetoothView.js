@@ -1,10 +1,12 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import {styleStatusCard} from '../utils/viewStyle.js';
 
 export class BluetoothView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
+        styleStatusCard(this, 'blue', 'BLUETOOTH');
     }
 
     _buildCompactView() {
@@ -85,13 +87,13 @@ export class BluetoothView {
 
         // FIX: Hiển thị rõ ràng cả trạng thái connected và disconnected
         if (isConnected) {
-            this.statusLabel.set_text('✓ Connected!');
+            this.statusLabel.set_text('Connected');
             this.expandedIcon.icon_name = iconName;
-            this.expandedIcon.set_style('color: #00aaff;'); // Xanh dương
+            this.expandedIcon.set_style('color: #83c7ff;'); // Xanh dương
             this.icon.icon_name = iconName;
-            this.icon.set_style('color: #00aaff;');
+            this.icon.set_style('color: #83c7ff;');
         } else {
-            this.statusLabel.set_text('✗ Disconnected!');
+            this.statusLabel.set_text('Disconnected');
             // Khi disconnect, vẫn giữ icon phù hợp nhưng chuyển sang disabled
             if (deviceType && deviceType.includes('audio')) {
                 iconName = 'audio-headphones-symbolic';
@@ -101,9 +103,9 @@ export class BluetoothView {
                 iconName = 'bluetooth-disabled-symbolic';
             }
             this.expandedIcon.icon_name = iconName;
-            this.expandedIcon.set_style('color: #ff6666;'); // Đỏ nhạt
+            this.expandedIcon.set_style('color: #ff8b93;'); // Đỏ nhạt
             this.icon.icon_name = iconName;
-            this.icon.set_style('color: #ff6666;');
+            this.icon.set_style('color: #ff8b93;');
         }
 
         this.deviceLabel.set_text(deviceName);

@@ -1,10 +1,12 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import {styleStatusCard} from '../utils/viewStyle.js';
 
 export class WindowView {
     constructor() {
         this._buildCompactView();
         this._buildExpandedView();
+        styleStatusCard(this, 'violet', 'APPLICATION');
     }
 
     _buildCompactView() {

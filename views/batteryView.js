@@ -1,5 +1,6 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import {styleStatusCard} from '../utils/viewStyle.js';
 
 export class BatteryView {
     constructor() {
@@ -11,6 +12,11 @@ export class BatteryView {
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
+        styleStatusCard(this, 'mint', 'POWER');
+        this._chargeTrack = new St.Widget({style_class: 'battery-charge-track', width: 160, height: 4});
+        this._chargeFill = new St.Widget({style_class: 'battery-charge-fill', width: 0, height: 4});
+        this._chargeTrack.add_child(this._chargeFill);
+        this.textWrapper.get_child().add_child(this._chargeTrack);
     }
 
     _buildMinimalView() {
@@ -50,7 +56,7 @@ export class BatteryView {
 
         this.percentageLabel = new St.Label({
             text: '0%',
-            style: 'color: white; font-size: 14px; font-weight: bold; padding-right: 16px;',
+            style: 'font-size: 14px; font-weight: bold; padding-right: 16px;',
             x_align: Clutter.ActorAlign.END
         });
 
@@ -98,7 +104,7 @@ export class BatteryView {
 
         this.statusLabel = new St.Label({
             text: 'Battery',
-            style: 'color: rgba(255, 255, 255, 0.8); font-size: 14px; margin-top: 5px;'
+            style: 'color: #b5c1d8; font-size: 14px; margin-top: 5px;'
         });
 
         this.timeRemainingLabel = new St.Label({
@@ -141,6 +147,7 @@ export class BatteryView {
 
         if (!isPresent) {
             this._stopChargingAnimation();
+            this._chargeTrack.hide();
             this.percentageLabel.set_text('AC');
             this.iconLeft.icon_name = 'battery-missing-symbolic';
             this.iconExpanded.icon_name = 'battery-missing-symbolic';
@@ -190,7 +197,10 @@ export class BatteryView {
             this.iconExpanded.icon_name = iconName;
         }
 
-        const color = this._getBatteryColor(percentage);
+        const color = isCharging ? '#7af0c5' : this._getBatteryColor(percentage);
+        this._chargeTrack.show();
+        this._chargeFill.set_width(Math.round(160 * Math.max(0, Math.min(100, percentage)) / 100));
+        this._chargeFill.set_style(`background-color: ${color};`);
         const statusClass = this._getBatteryStatusClass(percentage, isCharging);
 
         this.iconLeft.set_style(`color: ${color};`);
@@ -205,8 +215,8 @@ export class BatteryView {
 
         // Update expanded view - status and time
         if (isCharging) {
-            this.statusLabel.set_text('⚡ Charging');
-            this.statusLabel.set_style('color: rgba(100, 255, 100, 0.9); font-size: 14px; margin-top: 5px;');
+            this.statusLabel.set_text('Charging');
+            this.statusLabel.set_style('color: #7af0c5; font-size: 14px; margin-top: 5px;');
             
             if (timeToFull > 0) {
                 const timeStr = this._formatTime(timeToFull);
@@ -220,10 +230,10 @@ export class BatteryView {
         } else {
             if (percentage === 100) {
                 this.statusLabel.set_text('Fully Charged');
-                this.statusLabel.set_style('color: rgba(100, 255, 100, 0.9); font-size: 14px; margin-top: 5px;');
+                this.statusLabel.set_style('color: #7af0c5; font-size: 14px; margin-top: 5px;');
             } else {
                 this.statusLabel.set_text('On Battery');
-                this.statusLabel.set_style('color: rgba(255, 255, 255, 0.8); font-size: 14px; margin-top: 5px;');
+                this.statusLabel.set_style('color: #b5c1d8; font-size: 14px; margin-top: 5px;');
             }
             
             if (timeToEmpty > 0) {
@@ -319,9 +329,9 @@ export class BatteryView {
     }
 
     _getBatteryColor(percentage) {
-        if (percentage > 60) return '#4cd964';  // Xanh lá iOS
-        if (percentage > 30) return '#ffcc00';  // Vàng amber
-        return '#ff3b30';  // Đỏ iOS
+        if (percentage > 60) return '#7af0c5';  // Xanh lá iOS
+        if (percentage > 30) return '#ffce7a';  // Vàng amber
+        return '#ff8b93';  // Đỏ iOS
     }
 
     _getBatteryStatusClass(percentage, isCharging) {

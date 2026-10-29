@@ -880,7 +880,9 @@ export class NotchController {
     updatePosition() {
         if (!this.notch) return;
 
-        const currentWidth = this.stateMachine.isExpanded()
+        const expanding = this.stateMachine.isAnimating() &&
+            this.notch.has_style_class_name('expanded-state');
+        const currentWidth = this.stateMachine.isExpanded() || expanding
             ? this.expandedWidth
             : this.width;
 

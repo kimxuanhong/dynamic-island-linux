@@ -11,7 +11,9 @@ export class LayoutManager {
     updateLayout() {
         if (!this.controller.notch) return;
         const state = this.controller.stateMachine.getState();
-        if (state === 'expanded') {
+        const expanding = state === 'animating' &&
+            this.controller.notch.has_style_class_name('expanded-state');
+        if (state === 'expanded' || expanding) {
             this._updateExpandedLayout();
         } else {
             this._updateCompactLayout();
@@ -46,9 +48,9 @@ export class LayoutManager {
         }
 
         // Calculate positions using constants
-        const mainWidth = NotchConstants.SPLIT_MAIN_WIDTH;
+        const mainWidth = NotchConstants.COMPACT_WIDTH;
         const gap = NotchConstants.SPLIT_GAP;
-        const secWidth = NotchConstants.SPLIT_SECONDARY_WIDTH;
+        const secWidth = NotchConstants.SECONDARY_WIDTH;
         const groupWidth = mainWidth + gap + secWidth;
         const startX = this.controller._calculateNotchX ?
             this.controller._calculateNotchX(groupWidth) :

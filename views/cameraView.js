@@ -1,5 +1,6 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import {styleStatusCard} from '../utils/viewStyle.js';
 
 import {MirroredVisualizer} from '../utils/visualizer.js';
 
@@ -8,6 +9,7 @@ export class CameraView {
         this._buildCompactView();
         this._buildExpandedView();
         this._buildMinimalView();
+        styleStatusCard(this, 'mint', 'CAMERA');
     }
 
     _buildMinimalView() {
@@ -15,7 +17,7 @@ export class CameraView {
             icon_name: 'camera-web-symbolic',
             icon_size: 24,
             style_class: 'battery-icon-secondary',
-            style: 'color: #4cd964;',
+            style: 'color: #7af0c5;',
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER
         });
@@ -34,7 +36,7 @@ export class CameraView {
         this.iconLeft = new St.Icon({
             icon_name: 'camera-web-symbolic',
             icon_size: 24,
-            style: 'color: #4cd964;',
+            style: 'color: #7af0c5;',
             x_align: Clutter.ActorAlign.START
         });
 
@@ -57,7 +59,7 @@ export class CameraView {
             animationSpeed: 80
         });
         // Set màu xanh lá cho camera
-        this._visualizer.setColor('76, 217, 100'); // #4cd964 in RGB
+        this._visualizer.setColor('122, 240, 197'); // #7af0c5 in RGB
 
         this._visualizerWrapper = new St.Bin({
             x_align: Clutter.ActorAlign.END,
@@ -81,7 +83,7 @@ export class CameraView {
         this.iconExpanded = new St.Icon({
             icon_name: 'camera-web-symbolic',
             icon_size: 64,
-            style: 'color: #4cd964;'
+            style: 'color: #7af0c5;'
         });
 
         this.expandedIconWrapper = new St.Bin({
@@ -144,7 +146,7 @@ export class CameraView {
         }
 
         this._appName = cameraInfo.appName || 'Camera';
-        if (this.statusLabel) this.statusLabel.set_text('Camera');
+        if (this.statusLabel) this.statusLabel.set_text('In use');
         if (this.detailsLabel) this.detailsLabel.set_text(this._appName);
         
         // Start visualizer animation

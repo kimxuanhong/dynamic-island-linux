@@ -16,3 +16,13 @@ Success prints `DYNAMIC_ISLAND_INPUT_PASS` and `DYNAMIC_ISLAND_SMOKE_PASS`.
 
 GNOME 48–50 input compatibility uses feature detection in `utils/input.js`.
 Those older versions require separate runtime testing.
+
+The redesigned volume and brightness components are exercised with fake managers
+and a virtual pointer; success also prints `DYNAMIC_ISLAND_LEVELS_PASS`.
+
+To render the actual St widgets with sample data and check layout bounds, use
+`tests/gnome-preview.js` instead of `tests/gnome-smoke.js` in the command above.
+It saves `/tmp/dynamic-island-preview.png`,
+`/tmp/dynamic-island-preview-status.png`, and a long-title variant. It checks that
+labels and buttons stay inside their cards. Example renders are in
+`docs/previews/`. These are isolated previews, not screenshots of your desktop.

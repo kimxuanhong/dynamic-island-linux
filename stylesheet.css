@@ -1,134 +1,62 @@
-/* ============================================
-   NOTCH - Container chính (giữ nguyên thiết kế gốc)
-   ============================================ */
-
-.notch {
-    transition: all 200ms ease-out;
-    background-color: rgba(0, 0, 0, 0.85);
-}
-
-/* Trạng thái Nhỏ gọn */
-.notch.compact-state {
-    border-radius: 20px;
-    background-color: rgba(0, 0, 0, 0.85);
-}
-
-/* Trạng thái Mở rộng */
-.notch.expanded-state {
-    border-radius: 26px;
-    background-color: rgba(0, 0, 0, 0.85);
-}
-
-/* Hiệu ứng khi hover (subtle) */
-.notch:hover {
-    background-color: rgba(0, 0, 0, 0.85);
-}
-
-/* ============================================
-   BATTERY VIEW - Hiển thị pin
-   ============================================ */
-
-.battery-view {
-    spacing: 0;
-    padding: 0 10px;
-}
-
-/* Container expanded của battery */
-.battery-expanded {
-    spacing: 12px;
-    padding: 10px;
-}
-
-/* ============================================
-   BATTERY STATUS - Màu sắc theo trạng thái
-   ============================================ */
-
-/* Text chung */
-.notch-content {
+/* Original black notch palette with the redesigned view arrangements. */
+.notch, .notch-secondary {
     color: white;
-    font-weight: bold;
+    background-color: rgba(0, 0, 0, 0.85);
+    background-gradient-direction: none;
+    border: none;
+    box-shadow: none;
 }
+.notch, .notch.compact-state, .notch-secondary { border-radius: 20px; }
+.notch.expanded-state { border-radius: 26px; }
+.notch:hover, .notch-secondary:hover { background-color: rgba(0, 0, 0, 0.85); }
 
-/* Pin yếu - Đỏ nhấp nháy */
-.battery-low {
-    color: #ff0000 !important;
-    animation: blink-warning 1s ease-in-out infinite;
+/* Semantic accents shared by icon tiles and controls. */
+.accent-mint { color: #00ff00; }
+.accent-blue { color: #83c7ff; }
+.accent-violet { color: #c4a5ff; }
+.accent-amber { color: #ffce7a; }
+.glass-icon-tile {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(255, 255, 255, 0.12);
+    background-gradient-end: rgba(255, 255, 255, 0.04);
 }
-
-@keyframes blink-warning {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.4;
-    }
+.glass-icon-tile.accent-mint {
+    background-gradient-start: rgba(0, 255, 0, 0.18);
+    background-gradient-end: rgba(0, 255, 0, 0.04);
 }
-
-/* Đang sạc - Xanh lá */
-.battery-charging {
-    color: #00ff00 !important;
+.glass-icon-tile.accent-violet {
+    background-gradient-start: rgba(196, 165, 255, 0.18);
+    background-gradient-end: rgba(196, 165, 255, 0.04);
 }
-
-/* Pin đầy */
-.battery-full {
-    color: #00ff00 !important;
+.glass-icon-tile.accent-amber {
+    background-gradient-start: rgba(255, 206, 122, 0.18);
+    background-gradient-end: rgba(255, 206, 122, 0.04);
 }
-
-/* ============================================
-   CHARGING EFFECTS - Hiệu ứng khi sạc
-   ============================================ */
-
-/* Thêm glow effect khi đang sạc (optional) */
-.notch.charging {
-    border-radius: 20px;
+.glass-icon-tile:hover { border-color: rgba(255, 255, 255, 0.3); }
+.status-card { padding: 18px; spacing: 14px; }
+.status-eyebrow, .media-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.65);
+    margin-bottom: 3px;
 }
+.status-title { font-size: 18px; font-weight: 700; color: white; }
+.status-value { font-size: 36px; font-weight: 600; color: white; }
+.status-detail { font-size: 13px; color: rgba(255, 255, 255, 0.8); margin-top: 4px; }
+.status-caption { font-size: 12px; color: rgba(255, 255, 255, 0.65); margin-top: 3px; }
+.battery-low { color: #ff0000; }
+.battery-charging, .battery-full { color: #00ff00; }
 
-/* Pulse animation cho icon khi sạc */
-.notch.expanded-state .battery-expanded StLabel:first-child {
-    animation: pulse-charging 2s ease-in-out infinite;
-}
-
-@keyframes pulse-charging {
-
-    0%,
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-
-    50% {
-        opacity: 0.7;
-        transform: scale(1.1);
-    }
-}
-
-/* Icon glow effect */
-.icon-glow {
-    filter: drop-shadow(0 0 10px currentColor);
-}
-
-/* ============================================
-   TEXT STYLING
-   ============================================ */
-
-.text-shadow {
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-/* ============================================
-   MEDIA VIEW - Hiển thị media player
-   ============================================ */
-
-/* Media compact container - padding giống battery */
-.media-compact-container {
-    spacing: 0;
-    padding: 0 10px;
-}
-
-/* Compact thumbnail */
+/* Media player */
+.media-expanded { padding: 12px 16px; spacing: 0; }
+.media-top-tier { spacing: 12px; }
+.media-title-wrapper { spacing: 2px; }
+.media-title-label { color: white; font-size: 15px; font-weight: 700; }
+.media-artist-label { color: rgba(255, 255, 255, 0.7); font-size: 13px; }
+.media-eyebrow { color: rgba(255, 255, 255, 0.65); font-size: 10px; margin-bottom: 2px; }
 .media-thumbnail-wrapper {
     min-width: 24px;
     min-height: 24px;
@@ -136,206 +64,92 @@
     overflow: hidden;
     background-color: rgba(255, 255, 255, 0.1);
 }
-
-.media-thumbnail {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-/* Audio icon */
-.media-audio-icon {
-    padding-left: 16px;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-/* Expanded album art (old - kept for compatibility) */
-.media-expanded-art-wrapper {
-    min-width: 120px;
-    min-height: 120px;
-    border-radius: 16px;
-    overflow: hidden;
-    background-color: rgba(255, 255, 255, 0.1);
-    background-size: cover;
-    background-position: center;
-}
-
-.media-expanded-art {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-/* Expanded thumbnail (smaller, for top tier) */
+.media-compact-container { spacing: 0; padding: 0 10px; }
+.media-thumbnail, .media-expanded-art { color: rgba(255, 255, 255, 0.8); }
 .media-expanded-thumbnail-wrapper {
-    min-width: 56px;
-    min-height: 56px;
+    width: 56px;
+    height: 56px;
     border-radius: 8px;
-    overflow: hidden;
-    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(255, 255, 255, 0.14);
+    background-gradient-end: rgba(255, 255, 255, 0.05);
     background-size: cover;
-    background-position: center;
 }
-
-/* Media controls box */
-.media-controls-box {
-    spacing: 15px;
-    padding: 5px;
+.media-progress-section { margin: 8px 0 4px; }
+.media-progress-hit { padding: 6px 0; }
+.media-progress-bg { background-color: rgba(255, 255, 255, 0.2); height: 4px; border-radius: 2px; }
+.media-progress-fill {
+    height: 4px;
+    border-radius: 2px;
+    background-gradient-direction: horizontal;
+    background-gradient-start: rgba(255, 255, 255, 0.8);
+    background-gradient-end: rgba(255, 255, 255, 0.8);
 }
-
-.media-control-button {
-    min-width: 40px;
-    min-height: 40px;
+.media-progress-bg:active { background-color: rgba(255, 255, 255, 0.3); }
+.media-time-label { color: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 500; }
+.media-controls-box { spacing: 10px; }
+.media-control-button, .share-audio-button {
+    padding: 0;
+    width: 40px;
+    height: 40px;
     border-radius: 20px;
+    color: white;
     background-color: rgba(255, 255, 255, 0.1);
-    transition: all 200ms ease;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition-duration: 150ms;
 }
-
-.share-audio-button {
-    min-width: 40px;
-    min-height: 40px;
-    border-radius: 20px;
-    background-color: rgba(255, 255, 255, 0.1);
-    transition: all 200ms ease;
-}
-
-.share-audio-button:hover {
+.media-control-button:hover, .share-audio-button:hover {
     background-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.2);
 }
-
-.share-audio-button:active {
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: scale(0.95);
+.media-control-button:active, .share-audio-button:active { background-color: rgba(255, 255, 255, 0.3); }
+.media-control-button:focus, .share-audio-button:focus, .level-icon-button:focus {
+    border-color: white;
 }
-
-.share-audio-icon {
-    color: white;
-    icon-size: 20px;
+.media-control-button.primary-control {
+    width: 52px;
+    height: 42px;
+    border-radius: 21px;
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(255, 255, 255, 0.95);
+    background-gradient-end: rgba(255, 255, 255, 0.75);
+    border-color: rgba(255, 255, 255, 0.75);
+    color: #111111;
+    box-shadow: none;
 }
+.primary-control:hover { background-gradient-end: white; }
+.media-control-icon { icon-size: 18px; }
+.primary-control .media-control-icon { icon-size: 22px; }
+.share-audio-button { width: 32px; height: 32px; border-radius: 16px; }
+.share-audio-icon { icon-size: 16px; color: rgba(255, 255, 255, 0.8); }
 
-.media-control-button:hover {
+/* Control Center-style sound and display cards. */
+.level-card { padding: 18px; spacing: 14px; }
+.level-header { spacing: 12px; }
+.level-title { color: white; font-size: 18px; font-weight: 700; }
+.level-subtitle { color: rgba(255, 255, 255, 0.7); font-size: 12px; margin-top: 3px; }
+.level-value { font-size: 28px; font-weight: 600; }
+.level-icon-button { padding: 0; }
+.level-track {
+    height: 18px;
+    border-radius: 9px;
     background-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
+    box-shadow: none;
 }
-
-.media-control-button:active {
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: scale(0.95);
+.level-track:hover { background-color: rgba(255, 255, 255, 0.3); }
+.level-fill {
+    height: 18px;
+    border-radius: 9px;
+    background-gradient-direction: horizontal;
+    background-gradient-start: #ffffff;
+    background-gradient-end: #ffffff;
 }
-
-.media-control-icon {
-    color: white;
-    icon-size: 20px;
+.level-fill.accent-amber {
+    background-gradient-start: #ffffff;
+    background-gradient-end: #ffffff;
 }
-
-/* Play/Pause button - larger and more prominent */
-.media-control-button:nth-child(2) {
-    min-width: 48px;
-    min-height: 48px;
-    border-radius: 24px;
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.media-control-button:nth-child(2) .media-control-icon {
-    icon-size: 28px;
-}
-
-.media-control-button:nth-child(2):hover {
-    background-color: rgba(255, 255, 255, 0.25);
-}
-
-/* Title wrapper */
-.media-title-wrapper {
-    padding: 0;
-    x-expand: true;
-}
-
-.media-title-label {
-    color: white;
-    font-size: 15px;
-    font-weight: bold;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-    text-align: left;
-    ellipsize: true;
-}
-
-.media-artist-label {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 13px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    text-align: left;
-    ellipsize: true;
-}
-
-
-/* ============================================
-   SMOOTH TRANSITIONS
-   ============================================ */
-
-/* Chỉ áp dụng transition cho media view, không ảnh hưởng đến battery */
-.media-thumbnail-wrapper,
-.media-thumbnail,
-.media-audio-icon,
-.media-expanded-art-wrapper,
-.media-expanded-art,
-.media-expanded-thumbnail-wrapper,
-.media-control-button,
-.media-control-icon,
-.media-title-label,
-.media-artist-label {
-    transition: color 150ms ease, opacity 150ms ease;
-}
-
-/* ============================================
-   SECONDARY NOTCH STYLES
-   ============================================ */
-
-.notch-secondary {
-    transition: all 200ms ease-out;
-    border-radius: 20px;
-    background-color: rgba(0, 0, 0, 0.85);
-}
-
-/* Minimal View Styles */
-.battery-minimal-container,
-.media-minimal-container,
-.recording-minimal-container {
-    padding: 0;
-    margin: 0;
-}
-
-.battery-icon-secondary,
-.media-thumbnail-secondary,
-.recording-icon-secondary {
-    icon-size: 24px;
-    margin: 0;
-    padding: 0;
-}
-
-.media-thumbnail-wrapper-secondary {
-    border-radius: 99px;
-    overflow: hidden;
-    background-color: rgba(255, 255, 255, 0.1);
-    width: 24px;
-    height: 24px;
-    margin: 0 auto;
-    /* Center horizontally */
-}
-
-/* Restore padding for normal compact view (when NOT in secondary) */
-/* Removed as we reverted to inline styles in extension.js */
-
-/* ============================================
-   RECORDING DOT - Chấm xanh chớp tắt
-   ============================================ */
-
-.recording-dot {
-    animation: blink-recording 1s ease-in-out infinite;
-}
-
-@keyframes blink-recording {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.3;
-    }
-}
+.level-scale { margin-top: 5px; color: rgba(255, 255, 255, 0.6); font-size: 10px; }
+.level-footer { color: rgba(255, 255, 255, 0.7); font-size: 11px; }
+.battery-charge-track { margin-top: 8px; border-radius: 2px; background-color: rgba(255, 255, 255, 0.2); }
+.battery-charge-fill { border-radius: 2px; background-color: #00ff00; }
