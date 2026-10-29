@@ -42,8 +42,5 @@ export const NotchConstants = {
 
     // Notification animation
     NOTIFICATION_ICON_SIZE: 24,
-    NOTIFICATION_ICON_PADDING: 16,
-
-    // Window animation
-    ANIMATION_WINDOW_MOVE: 800
+    NOTIFICATION_ICON_PADDING: 16
 };

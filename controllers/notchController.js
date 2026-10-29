@@ -369,40 +369,6 @@ export class NotchController {
         });
     }
 
-    _animateWindowIcon(info) {
-        if (!this.notch) return;
-
-        this.presenterRegistry.switchTo('window', true);
-
-        const [notchX, notchY] = this.notch.get_transformed_position();
-        const notchWidth = this.notch.width;
-        const notchHeight = this.notch.height;
-        const iconSize = NotchConstants.NOTIFICATION_ICON_SIZE;
-        const padding = NotchConstants.NOTIFICATION_ICON_PADDING;
-
-        // Icon bay từ TRÁI sang PHẢI (ngược với notification)
-        const startX = notchX + padding;
-        const endX = notchX + notchWidth - padding - iconSize;
-        const iconY = notchY + (notchHeight / 2) - (iconSize / 2);
-
-        this._animateIconMove('window-launch', {
-            startX,
-            startY: iconY,
-            endX,
-            iconConfig: {
-                icon_name: 'application-x-executable-symbolic',
-                icon_size: iconSize,
-                style: 'color: #00aaff;',
-                gicon: info.appIcon
-            },
-            moveDuration: NotchConstants.ANIMATION_WINDOW_MOVE,
-            onComplete: () => {
-                this.layoutManager.updateLayout();
-                this.squeeze();
-            }
-        });
-    }
-
     _animateIconMove(animationId, config) {
         if (!this.notch || !config) return null;
 
@@ -608,7 +574,7 @@ export class NotchController {
         this.windowView.updateWindow(info);
 
         if (this.stateMachine.isCompact()) {
-            this._animateWindowIcon(info);
+            this.squeeze();
         }
     }
 
