@@ -3,7 +3,6 @@ package brightness
 import (
 	"dynamic-island-server/core"
 	"fmt"
-	"math"
 	"sync"
 
 	"github.com/godbus/dbus/v5"
@@ -13,8 +12,6 @@ const (
 	gsdPowerDest      = "org.gnome.SettingsDaemon.Power"
 	gsdPowerPath      = "/org/gnome/SettingsDaemon/Power"
 	gsdPowerInterface = "org.gnome.SettingsDaemon.Power.Screen"
-
-	maxBrightnessJump = 5
 )
 
 type BrightnessSource struct {
@@ -51,7 +48,7 @@ func (s *BrightnessSource) Start(bus core.Bus, stopChan <-chan struct{}) error {
 
 	}
 
-	matchRule := fmt.Sprintf("type='signal',path='%s',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'", gsdPowerPath)
+	matchRule := "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'"
 
 	call := s.conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, matchRule)
 	if call.Err != nil {
@@ -93,6 +90,11 @@ func (s *BrightnessSource) fetchInitialValue(bus core.Bus) error {
 		return fmt.Errorf("dbus connection not established")
 	}
 
+	if backlight, err := readBacklight(s.conn); err == nil {
+		s.updateLevel(backlight.percent(), bus)
+		return nil
+	}
+
 	obj := s.conn.Object(gsdPowerDest, dbus.ObjectPath(gsdPowerPath))
 
 	variant, err := obj.GetProperty(gsdPowerInterface + ".Brightness")
@@ -110,12 +112,7 @@ func (s *BrightnessSource) fetchInitialValue(bus core.Bus) error {
 		}
 	}
 
-	s.mu.Lock()
-	s.lastPercent = int(value)
-	s.initialized = true
-	s.mu.Unlock()
-
-	// log.Printf("☀️ Initial Brightness: %d%%", int(value))
+	s.updateLevel(int(value), bus)
 	return nil
 }
 
@@ -126,7 +123,16 @@ func (s *BrightnessSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 	}
 
 	ifaceName, ok := signal.Body[0].(string)
-	if !ok || ifaceName != gsdPowerInterface {
+	if !ok {
+		return
+	}
+	if ifaceName == mutterInterface && signal.Path == dbus.ObjectPath(mutterPath) {
+		if backlight, err := readBacklight(s.conn); err == nil {
+			s.updateLevel(backlight.percent(), bus)
+		}
+		return
+	}
+	if ifaceName != gsdPowerInterface || signal.Path != dbus.ObjectPath(gsdPowerPath) {
 		return
 	}
 
@@ -155,37 +161,22 @@ func (s *BrightnessSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 		return
 	}
 
-	percent := int(newLevel)
+	s.updateLevel(int(newLevel), bus)
+}
 
+func (s *BrightnessSource) updateLevel(percent int, bus core.Bus) {
+	if percent < 0 || percent > 100 {
+		return
+	}
 	s.mu.Lock()
+	oldPercent := s.lastPercent
 	wasInitialized := s.initialized
-	lastPercent := s.lastPercent
-
-	if !wasInitialized {
-		s.lastPercent = percent
-		s.initialized = true
-		s.mu.Unlock()
-		// log.Printf("☀️ Brightness initialized: %d%%", percent)
-		return
-	}
-
-	if percent == lastPercent {
-		s.mu.Unlock()
-		return
-	}
-
-	oldPercent := lastPercent
 	s.lastPercent = percent
+	s.initialized = true
 	s.mu.Unlock()
-
-	diff := int(math.Abs(float64(percent - oldPercent)))
-
-	if diff > maxBrightnessJump {
-		// log.Printf("☀️ Brightness jumped %d%% -> %d%% (Ignored > %d%% jump)", oldPercent, percent, maxBrightnessJump)
-		return
+	if !wasInitialized || percent != oldPercent {
+		s.emitEvent(bus, percent, oldPercent)
 	}
-
-	s.emitEvent(bus, percent, oldPercent)
 }
 
 func (s *BrightnessSource) emitEvent(bus core.Bus, percent, oldPercent int) {

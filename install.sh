@@ -154,6 +154,14 @@ check_gnome() {
 }
 
 clone_source() {
+    if [[ -n "${DYNAMIC_ISLAND_SOURCE_DIR:-}" ]]; then
+        SOURCE_DIR="$(cd "$DYNAMIC_ISLAND_SOURCE_DIR" && pwd)"
+        [[ -f "$SOURCE_DIR/extension.js" && -f "$SOURCE_DIR/server/go.mod" ]] || \
+            die "Source không hợp lệ: $SOURCE_DIR"
+        success "Dùng source cục bộ: $SOURCE_DIR"
+        return
+    fi
+
     mkdir -p "$(dirname "$SOURCE_DIR")"
     if [[ -d "$SOURCE_DIR/.git" ]]; then
         info "Cập nhật source hiện có"
@@ -177,12 +185,17 @@ build_and_install_server() {
     )
 
     mkdir -p "$BIN_HOME" "$SERVICE_DIR"
-    install -m 0755 "$BUILD_DIR/dynamic-island-server" "$BIN_HOME/dynamic-island-server"
+    # Replace the executable atomically, including when the old server is running.
+    local staged_binary
+    staged_binary="$(mktemp "$BIN_HOME/.dynamic-island-server.XXXXXX")"
+    install -m 0755 "$BUILD_DIR/dynamic-island-server" "$staged_binary"
+    mv -f "$staged_binary" "$BIN_HOME/dynamic-island-server"
     install -m 0644 "$SOURCE_DIR/server/dynamic-island-server.service" \
         "$SERVICE_DIR/dynamic-island-server.service"
 
     systemctl --user daemon-reload
     systemctl --user enable --now dynamic-island-server.service
+    systemctl --user restart dynamic-island-server.service
     systemctl --user is-active --quiet dynamic-island-server.service || \
         die "Backend không khởi động được. Kiểm tra: journalctl --user -u dynamic-island-server.service"
     success "Backend đã được build và chạy bằng systemd user"

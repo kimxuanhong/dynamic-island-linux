@@ -79,9 +79,7 @@ export class BrightnessManager {
         }
 
         // Bỏ qua notifications trong lúc khởi tạo (trừ lần đầu để có giá trị ban đầu)
-        if (this._isInitializing && this._currentBrightness > 0) {
-            return;
-        }
+
 
         // Parse metadata JSON
         let metadataObj = {};
@@ -96,11 +94,10 @@ export class BrightnessManager {
 
         // Cập nhật brightness
         const level = metadataObj.level !== undefined ? Math.round(metadataObj.level) : this._currentBrightness;
-        const oldLevel = metadataObj.old_level !== undefined ? Math.round(metadataObj.old_level) : this._currentBrightness;
 
-        // Chỉ notify nếu có thay đổi và diff <= 5 (giống logic cũ)
-        const diff = Math.abs(level - oldLevel);
-        if ((this._currentBrightness !== level || this._isInitializing) && diff <= 5) {
+
+        if (Number.isFinite(level) && level >= 0 && level <= 100 &&
+            (this._currentBrightness !== level || this._isInitializing)) {
             this._currentBrightness = level;
             this._notifyCallbacks({
                 brightness: level

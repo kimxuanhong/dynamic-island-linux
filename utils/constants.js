@@ -7,7 +7,7 @@ export const NotchConstants = {
     COMPACT_HEIGHT: 44,
     EXPANDED_WIDTH: 440,
     EXPANDED_HEIGHT: 180,
-    SECONDARY_WIDTH: 44,
+    SECONDARY_WIDTH: 56,
     SECONDARY_HEIGHT: 44,
 
     // Split mode dimensions

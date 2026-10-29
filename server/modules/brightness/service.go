@@ -2,6 +2,7 @@ package brightness
 
 import (
 	"fmt"
+	"math"
 	"os/exec"
 
 	"github.com/godbus/dbus/v5"
@@ -23,7 +24,13 @@ func (s *BrightnessService) SetBrightness(level int32) error {
 		level = 100
 	}
 
-	// log.Printf("☀️ SetBrightness called: %d%%", level)
+	if s.conn != nil {
+		if backlight, err := readBacklight(s.conn); err == nil {
+			value := backlight.Min + int32(math.Round(float64(backlight.Max-backlight.Min)*float64(level)/100))
+			return s.conn.Object(mutterInterface, dbus.ObjectPath(mutterPath)).Call(
+				mutterInterface+".SetBacklight", 0, backlight.Serial, backlight.Connector, value).Err
+		}
+	}
 
 	if s.conn == nil {
 

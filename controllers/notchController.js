@@ -281,7 +281,7 @@ export class NotchController {
             trackFullscreen: false
         });
 
-        // Create Secondary Notch (Circular)
+        // Create Secondary Notch (Horizontal pill)
         this.secondaryNotch = new St.BoxLayout({
             style_class: 'notch-secondary',
             orientation: Clutter.Orientation.HORIZONTAL,

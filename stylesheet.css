@@ -6,7 +6,8 @@
     border: none;
     box-shadow: none;
 }
-.notch, .notch.compact-state, .notch-secondary { border-radius: 20px; }
+.notch, .notch.compact-state { border-radius: 20px; }
+.notch-secondary { border-radius: 22px; }
 .notch.expanded-state { border-radius: 26px; }
 .notch:hover, .notch-secondary:hover { background-color: rgba(0, 0, 0, 0.85); }
 

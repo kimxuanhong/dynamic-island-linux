@@ -6,6 +6,16 @@ curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/ma
 
 Installer tự cài dependency/Go, clone source, build backend, cấu hình systemd user service, build và bật extension. Phần dưới đây dành cho cài đặt hoặc debug thủ công.
 
+## Cài lại từ source đang chỉnh trên máy
+
+Chạy trong thư mục repository, không dùng `sudo`:
+
+```bash
+DYNAMIC_ISLAND_SOURCE_DIR="$PWD" bash ./install.sh
+```
+
+Lệnh này build các thay đổi cục bộ thay vì tải source từ GitHub và khởi động lại backend sau khi cập nhật. Đăng xuất rồi đăng nhập lại để GNOME nạp code extension mới.
+
 ## Cài đặt thủ công
 
 # Tạo thư mục binary cục bộ nếu chưa có
