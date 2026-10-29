@@ -132,7 +132,13 @@ func (s *MediaSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 			} else if oldOwner != "" && newOwner == "" {
 
 				// log.Printf("🎵 MPRIS player disappeared: %s", name)
+				s.mu.Lock()
+				wasCurrent := s.currentPlayer == name
+				s.mu.Unlock()
 				s.removeFromPlayerList(name)
+				if !wasCurrent {
+					return
+				}
 
 				s.disconnectPlayer()
 				s.mu.Lock()
@@ -140,6 +146,8 @@ func (s *MediaSource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 				s.mu.Unlock()
 				if len(playerList) > 0 {
 					s.connectToPlayer(playerList[len(playerList)-1], bus)
+				} else {
+					s.notifyCallbacks(bus, "", "", nil, "")
 				}
 			}
 		}

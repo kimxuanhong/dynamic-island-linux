@@ -38,6 +38,9 @@ export class AnimationController {
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
                 this.controller.stateMachine.transitionTo('expanded');
+                if (this.controller.presenterRegistry.getCurrent() === 'media' &&
+                    !this.controller.cycleManager.has('media'))
+                    this.controller.compactNotch();
             }
         });
     }

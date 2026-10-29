@@ -612,8 +612,29 @@ export class NotchController {
         }
     }
 
-    _onMediaChanged(info) {
+    _dismissMedia() {
         this.timeoutManager.clear('media-switch');
+        this.timeoutManager.clear('media-ready');
+        this._pendingMediaInfo = null;
+        this.timeoutManager.clear('media-track-change');
+        this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'media');
+        this._lastMediaTitle = null;
+        this._lastMediaArtist = null;
+        this.mediaView.clearMedia();
+        this.cycleManager.deactivate('media');
+        if (this.presenterRegistry.getCurrent() === 'media' && this.stateMachine.isExpanded())
+            this.compactNotch();
+        else
+            this.layoutManager.updateLayout();
+    }
+
+    _onMediaChanged(info) {
+        if (info.isPlaying)
+            this.timeoutManager.clear('media-switch');
+        if (!info.metadata && !info.playbackStatus) {
+            this._dismissMedia();
+            return;
+        }
 
         if (info.isPlaying) {
             // Detect track change by comparing title and artist
@@ -638,23 +659,39 @@ export class NotchController {
                 this.cycleManager.activate('media');
             }
 
-            // Auto expand when track changes
+            this._pendingMediaInfo = info;
+            // Let metadata and artwork arrive before requesting an expanded view.
+            // Position/artwork updates for the same track do not restart the wait.
             if (isTrackChanged) {
-                this._requestAutoExpansion('media', 'media-track-change', 2500); // 2.5 giây
-            } else if (this.stateMachine.isCompact()) {
+                this.timeoutManager.clear('media-ready');
+                this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'media');
+                if (typeof currentTitle === 'string' && currentTitle.trim()) {
+                    this.timeoutManager.set('media-ready', NotchConstants.TIMEOUT_MEDIA_READY, () => {
+                        const latest = this._pendingMediaInfo;
+                        const title = this.mediaManager.getTitle(latest?.metadata);
+                        if (latest?.isPlaying && typeof title === 'string' && title.trim())
+                            this._requestAutoExpansion('media', 'media-track-change', 2500);
+                    });
+                }
+            } else if (this.stateMachine.isCompact() && !this.timeoutManager.has('media-ready')) {
                 this.squeeze();
             }
         } else {
+            if (this.timeoutManager.has('media-ready')) {
+                this.timeoutManager.clear('media-ready');
+                this._lastMediaTitle = null;
+                this._lastMediaArtist = null;
+            }
+            this._pendingMediaInfo = null;
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'media');
             // Update playback state only (stop visualizer without losing metadata)
             this.mediaView.updatePlaybackState(info.isPlaying, info.playbackStatus);
             
-            this.timeoutManager.set('media-switch', NotchConstants.TIMEOUT_MEDIA_SWITCH, () => {
-                this.cycleManager.deactivate('media');
-                this.layoutManager.updateLayout();
-                if (this.stateMachine.isCompact()) {
-                    this.squeeze();
-                }
-            });
+            if (!this.timeoutManager.has('media-switch')) {
+                this.timeoutManager.set('media-switch', NotchConstants.TIMEOUT_MEDIA_SWITCH, () => {
+                    this._dismissMedia();
+                });
+            }
         }
     }
 

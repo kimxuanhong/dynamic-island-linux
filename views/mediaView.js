@@ -464,6 +464,20 @@ export class MediaView {
 
     // ==================== UPDATE METHODS ====================
     
+    clearMedia() {
+        this.updatePlaybackState(false, null);
+        this._lastMetadata = null;
+        this._lastArtPath = null;
+        this._lastTrackTitle = null;
+        this._currentPosition = 0;
+        this._currentLength = 0;
+        this.updateProgress(0, 0);
+        this._titleLabel.text = '';
+        this._artistLabel.text = '';
+        this._resetAlbumArt();
+        this._updateVisibility(false);
+    }
+
     updatePlaybackState(isPlaying, playbackStatus) {
         this._updateVisualizerState(isPlaying, playbackStatus);
         this._updatePlayPauseIcon(playbackStatus);

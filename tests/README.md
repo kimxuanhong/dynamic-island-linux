@@ -36,3 +36,9 @@ Use either script in place of `tests/gnome-smoke.js` in the command above.
 `tests/gnome-interaction-queue.js` holds the volume slider while battery,
 brightness, and Bluetooth auto-expansions arrive. It checks that volume stays
 interactive and the next view opens only after release and full collapse.
+
+`tests/gnome-media-lifecycle.js` checks ten-second pause expiry, cancellation
+on resume, repeated paused updates, and cleanup when a browser disappears.
+
+`tests/gnome-media-ready.js` checks that automatic media expansion waits
+3 seconds for nonempty track metadata and is canceled on pause/player loss.
