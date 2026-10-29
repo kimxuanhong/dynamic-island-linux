@@ -1,22 +1,18 @@
 # Dynamic Island for Linux
 
-## 🚀 CÀI ĐẶT TỰ ĐỘNG — CHỈ MỘT LỆNH
+## Cài đặt — một lệnh
 
-> Dành cho GNOME Shell 48, 49, 50 và 51. Installer sẽ tự cài dependency và Go, clone source, build backend, thiết lập systemd user service, build extension, cài đặt và bật extension.
+Dành cho **Arch Linux / CachyOS, Fedora và Ubuntu chạy GNOME Shell 48–51**. Mở Terminal trong phiên GNOME rồi chạy:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | bash
 ```
 
-Chạy lại đúng lệnh trên để cập nhật lên phiên bản mới nhất. Installer không được chạy bằng `sudo`; nó chỉ yêu cầu mật khẩu `sudo` khi cần cài các gói hệ thống. Nếu muốn kiểm tra script trước khi chạy:
+Installer tự cài dependency bằng `pacman`, `dnf` hoặc `apt-get`, chuẩn bị Go, build backend và cài extension. **Không thêm `sudo` vào lệnh trên**; script sẽ tự yêu cầu quyền khi cần.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh -o install.sh
-less install.sh
-bash install.sh
-```
+Cài xong, **đăng xuất rồi đăng nhập lại**. Chạy lại lệnh trên để cập nhật bản GitHub.
 
-Sau khi hoàn tất, nếu Dynamic Island chưa xuất hiện ngay, hãy đăng xuất rồi đăng nhập lại một lần.
+Nếu đang sửa source trên máy, xem [cài từ source cục bộ](#cài-hoặc-cập-nhật-từ-source-cục-bộ).
 
 ---
 
@@ -121,148 +117,29 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 
 ## 🚀 Cài đặt
 
-### Cài đặt tự động (khuyên dùng)
+Làm theo [lệnh cài đặt](#cài-đặt--một-lệnh) ở đầu trang.
+
+### Cài hoặc cập nhật từ source cục bộ
+
+Nếu đã clone repository hoặc vừa sửa code, chạy trong thư mục chứa `install.sh`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | bash
+DYNAMIC_ISLAND_SOURCE_DIR="$PWD" bash ./install.sh
 ```
 
-Lệnh này tự động:
+Installer build chính source hiện tại, thay binary backend, restart service và cài extension. Sau đó đăng xuất rồi đăng nhập lại. Chạy `bash install.sh` không có biến này sẽ tải/cập nhật source GitHub vào thư mục riêng.
 
-1. Kiểm tra GNOME Shell 48–51.
-2. Cài Git, curl, công cụ build và Go 1.23+ nếu máy chưa có.
-3. Clone hoặc cập nhật source tại `~/.local/share/dynamic-island/source`.
-4. Build backend vào `~/.local/bin/dynamic-island-server`.
-5. Cài và khởi động `dynamic-island-server.service` bằng systemd user.
-6. Compile schema, đóng gói, cài và bật GNOME Shell extension.
+### Cập nhật bản trên GitHub
 
-Có thể đổi repository hoặc branch khi phát triển:
+Chạy lại lệnh cài đặt ở đầu trang, rồi đăng xuất/đăng nhập. Source GitHub được lưu tại `~/.local/share/dynamic-island/source` theo cấu hình mặc định.
+
+### Dùng repository hoặc branch khác
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/main/install.sh | \
   DYNAMIC_ISLAND_REPO_URL=https://github.com/USER/FORK.git \
   DYNAMIC_ISLAND_REPO_REF=my-branch bash
 ```
-
-### Cài đặt thủ công
-
-### Bước 1: Clone Repository
-
-```bash
-cd ~/Documents
-git clone https://github.com/kimxuanhong/dynamic-island-linux.git
-cd dynamic-island-linux
-```
-
-### Bước 2: Build Backend Server
-
-Backend server được viết bằng Go và cần được build trước:
-
-```bash
-cd server
-go build -o dynamic-island-server main.go
-```
-
-### Bước 3: Cài đặt Backend Server
-
-Di chuyển binary đã build vào thư mục local bin:
-
-```bash
-mkdir -p ~/.local/bin
-cp dynamic-island-server ~/.local/bin/
-chmod +x ~/.local/bin/dynamic-island-server
-```
-
-### Bước 4: Cài đặt Systemd Service
-
-Tạo file service để backend tự động chạy khi đăng nhập:
-
-```bash
-mkdir -p ~/.config/systemd/user
-cp dynamic-island-server.service ~/.config/systemd/user/
-```
-
-File service dùng `%h` nên hoạt động với mọi tên người dùng:
-
-```ini
-[Unit]
-Description=Dynamic Island Server
-PartOf=graphical-session.target
-After=graphical-session.target
-
-[Service]
-ExecStart=%h/.local/bin/dynamic-island-server
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=graphical-session.target
-```
-
-`%h` được systemd tự động thay bằng thư mục home của người dùng.
-
-### Bước 5: Kích hoạt và Khởi động Service
-
-```bash
-# Reload systemd để nhận service mới
-systemctl --user daemon-reload
-
-# Kích hoạt service để tự động chạy khi đăng nhập
-systemctl --user enable dynamic-island-server.service
-
-# Khởi động service ngay
-systemctl --user start dynamic-island-server.service
-
-# Kiểm tra trạng thái
-systemctl --user status dynamic-island-server.service
-```
-
-### Bước 6: Cài đặt GNOME Extension
-
-Quay lại thư mục gốc và cài đặt extension:
-
-```bash
-cd ~/Documents/dynamic-island-linux
-
-# Tạo thư mục extensions nếu chưa có
-mkdir -p ~/.local/share/gnome-shell/extensions
-
-# Copy extension vào thư mục extensions
-cp -r . ~/.local/share/gnome-shell/extensions/dynamic-island@xuanhong/
-```
-
-### Bước 7: Kích hoạt Extension
-
-Có 2 cách để kích hoạt extension:
-
-#### Cách 1: Sử dụng GNOME Extensions App (Khuyên dùng)
-
-1. Cài đặt GNOME Extensions app nếu chưa có:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt install gnome-shell-extension-prefs
-   
-   # Fedora
-   sudo dnf install gnome-extensions-app
-   
-   # Arch Linux
-   sudo pacman -S gnome-shell-extensions
-   ```
-
-2. Mở **Extensions** app từ menu ứng dụng
-3. Tìm **Dynamic Island** trong danh sách
-4. Bật extension lên
-
-#### Cách 2: Sử dụng Command Line
-
-```bash
-gnome-extensions enable dynamic-island@xuanhong
-```
-
-### Bước 8: Khởi động lại GNOME Shell
-
-- **GNOME 48–49 trên X11**: Nhấn `Alt + F2`, gõ `r`, nhấn Enter
-- **Wayland / GNOME 50–51**: Đăng xuất và đăng nhập lại
 
 ---
 
@@ -392,14 +269,15 @@ dynamic-island-linux/
 └── stylesheet.css       # Styles
 ```
 
-### Build lại Backend sau khi sửa code
+### Cài lại sau khi sửa code
+
+Từ thư mục gốc repository:
 
 ```bash
-cd ~/Documents/dynamic-island-linux/server
-go build -o dynamic-island-server main.go
-cp dynamic-island-server ~/.local/bin/
-systemctl --user restart dynamic-island-server.service
+DYNAMIC_ISLAND_SOURCE_DIR="$PWD" bash ./install.sh
 ```
+
+Đăng xuất/đăng nhập lại để GNOME nạp JavaScript và stylesheet mới.
 
 ### Debug Extension
 
