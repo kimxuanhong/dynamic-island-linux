@@ -26,3 +26,13 @@ It saves `/tmp/dynamic-island-preview.png`,
 `/tmp/dynamic-island-preview-status.png`, and a long-title variant. It checks that
 labels and buttons stay inside their cards. Example renders are in
 `docs/previews/`. These are isolated previews, not screenshots of your desktop.
+
+`tests/gnome-brightness.js` checks GNOME Shell brightness events and slider
+click/drag positions, including a resized and scaled notch.
+`tests/gnome-event-queue.js` checks that events arriving during collapse wait
+for compact geometry, then display in FIFO order using their own timers.
+Use either script in place of `tests/gnome-smoke.js` in the command above.
+
+`tests/gnome-interaction-queue.js` holds the volume slider while battery,
+brightness, and Bluetooth auto-expansions arrive. It checks that volume stays
+interactive and the next view opens only after release and full collapse.

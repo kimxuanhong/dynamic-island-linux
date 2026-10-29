@@ -64,8 +64,7 @@ export class AnimationController {
             duration: NotchConstants.ANIMATION_COMPACT_DURATION,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
-                this.controller.layoutManager.updateLayout();
-                this.squeeze();
+                this.controller._finishCollapse();
             }
         });
     }
@@ -92,7 +91,10 @@ export class AnimationController {
                     duration: NotchConstants.ANIMATION_SQUEEZE_RETURN_DURATION,
                     mode: Clutter.AnimationMode.EASE_OUT_BACK,
                     onComplete: () => {
-                        this.controller.stateMachine.transitionTo('compact');
+                        if (this.controller._expansionQueue.length)
+                            this.controller._finishCollapse();
+                        else
+                            this.controller.stateMachine.transitionTo('compact');
                     }
                 });
             }

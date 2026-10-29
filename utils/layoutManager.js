@@ -9,7 +9,7 @@ export class LayoutManager {
     }
 
     updateLayout() {
-        if (!this.controller.notch) return;
+        if (!this.controller.notch || this.controller._collapsing) return;
         const state = this.controller.stateMachine.getState();
         const expanding = state === 'animating' &&
             this.controller.notch.has_style_class_name('expanded-state');

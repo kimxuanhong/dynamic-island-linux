@@ -50,6 +50,8 @@ export class NotchController {
         this.notch = null;
         this.secondaryNotch = null;
 
+        this._expansionQueue = [];
+        this._collapsing = false;
         this._animatedIcons = new Map();
         this._destroyed = false; // ✅ Track destruction state
 
@@ -146,17 +148,11 @@ export class NotchController {
 
         // 🔋 Set battery expand callback
         this.batteryView.setExpandCallback(() => {
-            this._cancelTemporaryPresenterTimeouts();
-            this.presenterRegistry.switchTo('battery', true);
-            this.expandNotch(true);
-            this._scheduleAutoCollapse('battery-notification', NotchConstants.TIMEOUT_BATTERY_AUTO_COLLAPSE);
+            this._requestAutoExpansion('battery', 'battery-notification', NotchConstants.TIMEOUT_BATTERY_AUTO_COLLAPSE);
         });
 
         this.mediaView.setVolumeRequestHandler(() => {
-            this._cancelTemporaryPresenterTimeouts();
-            this.presenterRegistry.switchTo('volume', true);
-            this.expandNotch(true);
-            this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME);
+            this._requestAutoExpansion('volume', 'volume', NotchConstants.TIMEOUT_VOLUME);
         });
     }
 
@@ -246,6 +242,7 @@ export class NotchController {
 
 
     _showOnlyView(viewName) {
+        if (this._collapsing) return;
         for (const [name, view] of this.allViewsMap) {
             if (view) {
                 if (name === viewName) {
@@ -538,8 +535,6 @@ export class NotchController {
     _onBluetoothChanged(info) {
         this.bluetoothView.updateBluetooth(info);
 
-        // Cancel all temporary presenter timeouts before switching
-        this._cancelTemporaryPresenterTimeouts();
 
         // ✅ FIX: Đợi một frame để UI update xong trước khi expand
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
@@ -548,9 +543,7 @@ export class NotchController {
                 return false;
             }
 
-            this.presenterRegistry.switchTo('bluetooth', true);
-            this.expandNotch(true);
-            this._scheduleAutoCollapse('bluetooth', NotchConstants.TIMEOUT_BLUETOOTH);
+            this._requestAutoExpansion('bluetooth', 'bluetooth', NotchConstants.TIMEOUT_BLUETOOTH);
             
             return false; // Don't repeat
         });
@@ -561,11 +554,7 @@ export class NotchController {
             this.recordingView.updateRecording(info);
 
             this.cycleManager.activate('recording');
-            this.presenterRegistry.switchTo('recording', true);
-            if (this.stateMachine.isCompact()) {
-                this.expandNotch(true);
-                this._scheduleAutoCollapse('recording', NotchConstants.TIMEOUT_RECORDING);
-            }
+            this._requestAutoExpansion('recording', 'recording', NotchConstants.TIMEOUT_RECORDING);
         } else {
             this.cycleManager.deactivate('recording');
             this.layoutManager.updateLayout();
@@ -580,11 +569,7 @@ export class NotchController {
             this.cameraView.updateCamera(info);
 
             this.cycleManager.activate('camera');
-            this.presenterRegistry.switchTo('camera', true);
-            if (this.stateMachine.isCompact()) {
-                this.expandNotch(true);
-                this._scheduleAutoCollapse('camera', NotchConstants.TIMEOUT_RECORDING);
-            }
+            this._requestAutoExpansion('camera', 'camera', NotchConstants.TIMEOUT_RECORDING);
         } else {
             this.cycleManager.deactivate('camera');
             this.layoutManager.updateLayout();
@@ -597,23 +582,13 @@ export class NotchController {
     _onVolumeChanged(info) {
         this.volumeView.updateVolume(info);
 
-        this._cancelTemporaryPresenterTimeouts();
-
-        this.presenterRegistry.switchTo('volume', false);
-        this.expandNotch(true);
-
-        this._scheduleAutoCollapse('volume', NotchConstants.TIMEOUT_VOLUME);
+        this._requestAutoExpansion('volume', 'volume', NotchConstants.TIMEOUT_VOLUME);
     }
 
     _onBrightnessChanged(info) {
         this.brightnessView.updateBrightness(info);
 
-        this._cancelTemporaryPresenterTimeouts();
-
-        this.presenterRegistry.switchTo('brightness', false);
-        this.expandNotch(true);
-
-        this._scheduleAutoCollapse('brightness', NotchConstants.TIMEOUT_BRIGHTNESS);
+        this._requestAutoExpansion('brightness', 'brightness', NotchConstants.TIMEOUT_BRIGHTNESS);
     }
 
     _onNotificationReceived(info) {
@@ -661,15 +636,11 @@ export class NotchController {
 
             if (!this.cycleManager.has('media')) {
                 this.cycleManager.activate('media');
-                this.presenterRegistry.switchTo('media', true);
             }
 
             // Auto expand when track changes
-            if (isTrackChanged && this.stateMachine.isCompact()) {
-                this._cancelTemporaryPresenterTimeouts();
-                this.presenterRegistry.switchTo('media', true);
-                this.expandNotch(true);
-                this._scheduleAutoCollapse('media-track-change', 2500); // 2.5 giây
+            if (isTrackChanged) {
+                this._requestAutoExpansion('media', 'media-track-change', 2500); // 2.5 giây
             } else if (this.stateMachine.isCompact()) {
                 this.squeeze();
             }
@@ -692,11 +663,7 @@ export class NotchController {
             this.uxplayView.updateUxplay(info);
 
             this.cycleManager.activate('uxplay');
-            this.presenterRegistry.switchTo('uxplay', true);
-            if (this.stateMachine.isCompact()) {
-                this.expandNotch(true);
-                this._scheduleAutoCollapse('uxplay', NotchConstants.TIMEOUT_RECORDING); // Tạm dùng chung timeout với recording
-            }
+            this._requestAutoExpansion('uxplay', 'uxplay', NotchConstants.TIMEOUT_RECORDING);
         } else {
             this.cycleManager.deactivate('uxplay');
             this.layoutManager.updateLayout();
@@ -707,7 +674,41 @@ export class NotchController {
         }
     }
 
+    _requestAutoExpansion(presenterName, timeoutKey, delay) {
+        if (this._destroyed) return;
+        const current = this.presenterRegistry.getCurrent();
+        if (!this._collapsing && this.stateMachine.isAnimating() &&
+            this.notch?.has_style_class_name('expanded-state') && current === presenterName) {
+            this._scheduleAutoCollapse(timeoutKey, delay);
+            return;
+        }
+        const busy = this._collapsing || this.stateMachine.isAnimating() ||
+            (this.stateMachine.isExpanded() && current !== presenterName);
+        if (busy) {
+            const previous = this._expansionQueue[this._expansionQueue.length - 1];
+            // Consecutive updates of one view share its latest data and timer.
+            if (previous?.presenterName === presenterName) {
+                previous.collapse = {timeoutKey, delay};
+            } else {
+                this._expansionQueue.push({presenterName, collapse: {timeoutKey, delay}});
+            }
+            if (!this._collapsing && !this.volumeView?.isDragging && !this.brightnessView?.isDragging &&
+                !this.timeoutManager.has('queued-wait'))
+                this._scheduleAutoCollapse('queued-wait', NotchConstants.TIMEOUT_VOLUME);
+            return;
+        }
+        this._cancelTemporaryPresenterTimeouts();
+        this.presenterRegistry.switchTo(presenterName, false);
+        this.expandNotch(true);
+        if (!this.volumeView?.isDragging && !this.brightnessView?.isDragging)
+            this._scheduleAutoCollapse(timeoutKey, delay);
+    }
+
     _scheduleAutoCollapse(timeoutKey, delay) {
+        if (this._collapsing && this._expansionQueue.length) {
+            this._expansionQueue[this._expansionQueue.length - 1].collapse = {timeoutKey, delay};
+            return;
+        }
         this.timeoutManager.set(timeoutKey, delay, () => {
             if (this.stateMachine.isExpanded()) {
                 this.compactNotch();
@@ -725,6 +726,9 @@ export class NotchController {
 
     _cancelTemporaryPresenterTimeouts() {
         this.timeoutManager.clear('collapse');
+        this.timeoutManager.clear('queued-wait');
+        this.timeoutManager.clear('queued-expansion');
+        this.timeoutManager.clear('battery-notification');
         this.timeoutManager.clear('battery-auto-collapse');
 
         this.timeoutManager.clear('volume');
@@ -813,7 +817,13 @@ export class NotchController {
     }
 
     expandNotch(isAuto = false) {
-        if (!this.notch) return; // Notch chưa được tạo
+        if (!this.notch) return;
+        if (this._collapsing) {
+            this._expansionQueue.push({
+                presenterName: isAuto ? this.presenterRegistry.getCurrent() : this.cycleManager.current(),
+            });
+            return;
+        }
 
         // Hide secondary notch immediately
         if (this.secondaryNotch) {
@@ -870,6 +880,7 @@ export class NotchController {
         if (!this.stateMachine.isExpanded()) return;
         if (this.stateMachine.isAnimating()) return;
 
+        this._collapsing = true;
         // Transition to animating state
         this.stateMachine.transitionTo('animating');
 
@@ -878,6 +889,27 @@ export class NotchController {
 
         // Start animation
         this.animationController.compact();
+    }
+
+    _finishCollapse() {
+        if (this._destroyed) return;
+        this._collapsing = false;
+        this.stateMachine.transitionTo('compact');
+        this.layoutManager.updateLayout();
+        const event = this._expansionQueue.shift();
+        if (!event) {
+            this.animationController.squeeze();
+            return;
+        }
+        this.presenterRegistry.switchTo(event.presenterName, true);
+        this.expandNotch(true);
+        if (event.collapse) {
+            const {timeoutKey, delay} = event.collapse;
+            this._scheduleAutoCollapse(timeoutKey, delay + NotchConstants.ANIMATION_EXPAND_DURATION);
+        } else {
+            this._scheduleAutoCollapse('queued-expansion', NotchConstants.TIMEOUT_COLLAPSE +
+                NotchConstants.ANIMATION_EXPAND_DURATION);
+        }
     }
 
     squeeze() {
@@ -916,6 +948,7 @@ export class NotchController {
     destroy() {
         // ✅ Mark as destroyed to prevent race conditions
         this._destroyed = true;
+        this._expansionQueue.length = 0;
 
         // Clear all timeouts
         this.timeoutManager.clearAll();
