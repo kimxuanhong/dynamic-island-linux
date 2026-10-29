@@ -8,7 +8,7 @@
 }
 .notch, .notch.compact-state { border-radius: 20px; }
 .notch-secondary { border-radius: 22px; }
-.notch.expanded-state { border-radius: 26px; }
+.notch.expanded-state { border-radius: 34px; }
 .notch:hover, .notch-secondary:hover { background-color: rgba(0, 0, 0, 0.85); }
 
 /* Semantic accents shared by icon tiles and controls. */
