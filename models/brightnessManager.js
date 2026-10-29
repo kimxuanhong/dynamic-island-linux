@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export class BrightnessManager {
     constructor() {
@@ -9,6 +10,25 @@ export class BrightnessManager {
         this._methodsProxy = null;
         this._destroyed = false;
         this._isInitializing = true;
+        this._settingShellBrightness = false;
+
+        this._shellBrightnessManager = Main.brightnessManager ?? null;
+        this._shellBrightnessSignal = 0;
+        if (this._shellBrightnessManager) {
+            const initialScale = this._shellBrightnessManager.globalScale;
+            if (initialScale && Number.isFinite(initialScale.value))
+                this._currentBrightness = Math.round(initialScale.value * 100);
+            this._shellBrightnessSignal = this._shellBrightnessManager.connect('user-update', () => {
+                const scale = this._shellBrightnessManager.globalScale;
+                if (!this._destroyed && scale && Number.isFinite(scale.value)) {
+                    const level = Math.round(scale.value * 100);
+                    const jump = Math.abs(level - this._currentBrightness);
+                    this._currentBrightness = level;
+                    if (!this._settingShellBrightness && jump <= 5)
+                        this._notifyCallbacks({brightness: level});
+                }
+            });
+        }
 
         this._initServerConnection();
     }
@@ -74,6 +94,10 @@ export class BrightnessManager {
         if (this._destroyed) return;
 
         // Chỉ xử lý các events brightness
+        // Shell owns the user-facing brightness scale on newer GNOME.
+        // Do not overwrite it with a second stream of raw backlight updates.
+        if (this._shellBrightnessManager?.globalScale) return;
+
         if (eventType !== 'brightness_changed') {
             return;
         }
@@ -96,7 +120,10 @@ export class BrightnessManager {
         const level = metadataObj.level !== undefined ? Math.round(metadataObj.level) : this._currentBrightness;
 
 
+        const oldLevel = metadataObj.old_level !== undefined
+            ? Math.round(metadataObj.old_level) : this._currentBrightness;
         if (Number.isFinite(level) && level >= 0 && level <= 100 &&
+            Math.abs(level - oldLevel) <= 5 &&
             (this._currentBrightness !== level || this._isInitializing)) {
             this._currentBrightness = level;
             this._notifyCallbacks({
@@ -120,6 +147,20 @@ export class BrightnessManager {
      * @returns {boolean} True nếu thành công
      */
     setBrightness(percentage) {
+        if (this._destroyed || !Number.isFinite(percentage)) return false;
+        const scale = this._shellBrightnessManager?.globalScale;
+        if (scale) {
+            // The view updates optimistically, just like VolumeView. Shell emits
+            // user-update synchronously here; do not re-enter the presenter.
+            this._settingShellBrightness = true;
+            try {
+                scale.value = Math.max(0, Math.min(100, percentage)) / 100;
+                this._currentBrightness = Math.round(scale.value * 100);
+                return true;
+            } finally {
+                this._settingShellBrightness = false;
+            }
+        }
         if (!this._methodsProxy) return false;
 
         try {
@@ -141,6 +182,11 @@ export class BrightnessManager {
 
     destroy() {
         this._destroyed = true;
+        if (this._shellBrightnessSignal) {
+            this._shellBrightnessManager.disconnect(this._shellBrightnessSignal);
+            this._shellBrightnessSignal = 0;
+        }
+        this._shellBrightnessManager = null;
 
         if (this._serverProxy) {
             this._serverProxy = null;

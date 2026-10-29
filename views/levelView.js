@@ -6,6 +6,7 @@ import {connectSlider} from '../utils/input.js';
 export class LevelView {
     constructor({title, subtitle, icon, accent, footer, clickable = false}) {
         this._level = 0;
+        this.isDragging = false;
         this.expandedIcon = new St.Icon({icon_name: icon, icon_size: 25});
         const tileProps = {
             style_class: `glass-icon-tile level-icon-button accent-${accent}`,
@@ -40,11 +41,17 @@ export class LevelView {
             style_class: `level-fill accent-${accent}`, width: 0,
         });
         this.expandedProgressBarBg.add_child(this.expandedProgressBarFill);
-        this._widthId = this.expandedProgressBarBg.connect('notify::width', () => this._syncFill());
+        this._widthId = this.expandedProgressBarBg.connect('notify::allocation', () => this._syncFill());
         this._disconnectSlider = connectSlider(this.expandedProgressBarBg, x => {
-            const width = this.expandedProgressBarBg.width;
+            const width = this.expandedProgressBarBg.get_allocation_box().get_width();
             if (width > 0)
                 this._onLevelChanged(Math.max(0, Math.min(100, x / width * 100)));
+        }, () => {
+            this.isDragging = true;
+            this.onInteractionBegin?.();
+        }, () => {
+            this.isDragging = false;
+            this.onInteractionEnd?.();
         });
         const sliderSection = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL, x_expand: true,
@@ -72,7 +79,7 @@ export class LevelView {
     _syncFill() {
         // Wait for allocation; an unparented St widget has no theme node yet.
         if (!this.expandedProgressBarBg.get_stage()) return;
-        const width = this.expandedProgressBarBg.width;
+        const width = this.expandedProgressBarBg.get_allocation_box().get_width();
         this.expandedProgressBarFill.set_width(Math.round(width * this._level / 100));
     }
 

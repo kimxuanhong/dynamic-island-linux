@@ -174,7 +174,8 @@ func (s *BrightnessSource) updateLevel(percent int, bus core.Bus) {
 	s.lastPercent = percent
 	s.initialized = true
 	s.mu.Unlock()
-	if !wasInitialized || percent != oldPercent {
+	jump := percent - oldPercent
+	if !wasInitialized || (percent != oldPercent && jump >= -5 && jump <= 5) {
 		s.emitEvent(bus, percent, oldPercent)
 	}
 }

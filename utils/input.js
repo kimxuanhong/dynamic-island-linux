@@ -56,11 +56,16 @@ export function connectSlider(actor, onChange, onBegin = () => {}, onEnd = () =>
     if (Clutter.PanGesture) {
         const gesture = new Clutter.PanGesture();
         gesture.set_begin_threshold(0);
+        const update = () => {
+            const point = gesture.get_centroid_abs();
+            const [ok, x] = actor.transform_stage_point(point.x, point.y);
+            if (ok) onChange(x);
+        };
         gesture.connect('recognize', () => {
             begin();
-            onChange(gesture.get_centroid().x);
+            update();
         });
-        gesture.connect('pan-update', () => onChange(gesture.get_centroid().x));
+        gesture.connect('pan-update', update);
         gesture.connect('end', end);
         gesture.connect('cancel', end);
         actor.add_action(gesture);

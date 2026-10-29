@@ -117,6 +117,14 @@ export class NotchController {
         this.mediaView = new MediaView(this.mediaManager, this.volumeManager, this.bluetoothManager);
         this.volumeView = new VolumeView(this.volumeManager);
         this.brightnessView = new BrightnessView(this.brightnessManager);
+        for (const [name, view] of [['volume', this.volumeView], ['brightness', this.brightnessView]]) {
+            view.onInteractionBegin = () => this._cancelTemporaryPresenterTimeouts();
+            view.onInteractionEnd = () => {
+                if (!this._destroyed)
+                    this._scheduleAutoCollapse(name, name === 'volume'
+                        ? NotchConstants.TIMEOUT_VOLUME : NotchConstants.TIMEOUT_BRIGHTNESS);
+            };
+        }
         this.notificationView = new NotificationView();
         this.windowView = new WindowView();
         this.recordingView = new RecordingView();
@@ -730,16 +738,25 @@ export class NotchController {
         this.timeoutManager.clear('media-track-change');
     }
 
-    _hideAllExpandedViews() {
-        this.batteryView.expandedContainer.hide();
-        this.bluetoothView.expandedContainer.hide();
-        this.mediaView.expandedContainer.hide();
-        this.volumeView.expandedContainer.hide();
-        this.brightnessView.expandedContainer.hide();
-        this.windowView.expandedContainer.hide();
-        this.recordingView.expandedContainer.hide();
-        this.cameraView.expandedContainer.hide();
-        this.uxplayView.expandedContainer.hide();
+    _hideAllExpandedViews(except = null) {
+        if (this.batteryView.expandedContainer !== except)
+            this.batteryView.expandedContainer.hide();
+        if (this.bluetoothView.expandedContainer !== except)
+            this.bluetoothView.expandedContainer.hide();
+        if (this.mediaView.expandedContainer !== except)
+            this.mediaView.expandedContainer.hide();
+        if (this.volumeView.expandedContainer !== except)
+            this.volumeView.expandedContainer.hide();
+        if (this.brightnessView.expandedContainer !== except)
+            this.brightnessView.expandedContainer.hide();
+        if (this.windowView.expandedContainer !== except)
+            this.windowView.expandedContainer.hide();
+        if (this.recordingView.expandedContainer !== except)
+            this.recordingView.expandedContainer.hide();
+        if (this.cameraView.expandedContainer !== except)
+            this.cameraView.expandedContainer.hide();
+        if (this.uxplayView.expandedContainer !== except)
+            this.uxplayView.expandedContainer.hide();
     }
 
     _hideAllCompactViews() {
@@ -820,7 +837,7 @@ export class NotchController {
 
         // If already expanded and auto-expand, just update view
         if (this.stateMachine.isExpanded() && isAuto) {
-            this._hideAllExpandedViews();
+            this._hideAllExpandedViews(expandedContainer);
             this._showExpandedView(presenter);
             return;
         }
@@ -848,6 +865,7 @@ export class NotchController {
     }
 
     compactNotch() {
+        if (this.volumeView?.isDragging || this.brightnessView?.isDragging) return;
         if (!this.notch) return; // Notch chưa được tạo
         if (!this.stateMachine.isExpanded()) return;
         if (this.stateMachine.isAnimating()) return;
