@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import {styleStatusCard} from '../utils/viewStyle.js';
@@ -40,10 +41,12 @@ export class BatteryView {
     }
 
     _buildCompactView() {
-        this.iconLeft = new St.Icon({
+        this.iconLeft = new IslandIcon({
             icon_name: 'battery-good-symbolic',
             icon_size: 24,
-            x_align: Clutter.ActorAlign.START
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.CENTER,
+            rotation_angle_z: 0,
         });
 
         this.iconWrapper = new St.Bin({
@@ -78,7 +81,7 @@ export class BatteryView {
 
     _buildExpandedView() {
         // Icon lớn bên trái - xoay 90 độ để đứng thẳng
-        this.iconExpanded = new St.Icon({
+        this.iconExpanded = new IslandIcon({
             icon_name: 'battery-good-symbolic',
             icon_size: 64,
         });

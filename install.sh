@@ -210,7 +210,7 @@ build_and_install_extension() {
     install -m 0644 "$SOURCE_DIR/extension.js" "$SOURCE_DIR/prefs.js" \
         "$SOURCE_DIR/metadata.json" "$SOURCE_DIR/stylesheet.css" "$stage/"
     cp -a "$SOURCE_DIR/controllers" "$SOURCE_DIR/models" "$SOURCE_DIR/utils" \
-        "$SOURCE_DIR/views" "$SOURCE_DIR/schemas" "$stage/"
+        "$SOURCE_DIR/views" "$SOURCE_DIR/schemas" "$SOURCE_DIR/icons" "$stage/"
     glib-compile-schemas --strict "$stage/schemas"
     (cd "$stage" && zip -qr "$package" .)
 

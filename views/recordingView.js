@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
@@ -17,7 +18,7 @@ export class RecordingView {
     }
 
     _buildMinimalView() {
-        this.secondaryIcon = new St.Icon({
+        this.secondaryIcon = new IslandIcon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 24,
             style_class: 'battery-icon-secondary',
@@ -37,7 +38,7 @@ export class RecordingView {
     }
 
     _buildCompactView() {
-        this.iconLeft = new St.Icon({
+        this.iconLeft = new IslandIcon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 24,
             style: 'color: #c4a5ff;',
@@ -84,7 +85,7 @@ export class RecordingView {
     }
 
     _buildExpandedView() {
-        this.iconExpanded = new St.Icon({
+        this.iconExpanded = new IslandIcon({
             icon_name: 'audio-input-microphone-symbolic',
             icon_size: 64,
             style: 'color: #c4a5ff;'

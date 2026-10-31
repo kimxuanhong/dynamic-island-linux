@@ -1,10 +1,11 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 export class InputMethodView {
     constructor() {
-        this.expandedIcon = new St.Icon({
+        this.expandedIcon = new IslandIcon({
             icon_name: 'input-keyboard-symbolic',
             icon_size: 32,
             style: 'color: #8ecbff;',

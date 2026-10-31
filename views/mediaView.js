@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
@@ -36,7 +37,7 @@ export class MediaView {
     
     _buildCompactView() {
         // Thumbnail
-        this._thumbnail = new St.Icon({
+        this._thumbnail = new IslandIcon({
             style_class: 'media-thumbnail',
             icon_name: 'audio-x-generic-symbolic',
             icon_size: 24,
@@ -131,7 +132,7 @@ export class MediaView {
 
     _createTopTier() {
         // Thumbnail
-        this._expandedThumbnail = new St.Icon({
+        this._expandedThumbnail = new IslandIcon({
             style_class: 'media-expanded-art',
             icon_name: 'audio-x-generic-symbolic',
             icon_size: 32,
@@ -326,7 +327,7 @@ export class MediaView {
                 reactive: true,
                 can_focus: true,
             });
-            const icon = new St.Icon({
+            const icon = new IslandIcon({
                 style_class: 'media-control-icon',
                 icon_name: config.icon,
             });
@@ -341,7 +342,7 @@ export class MediaView {
         bottomBox.add_child(this._controlsBox);
 
         // Audio device button
-        this._audioDeviceIcon = new St.Icon({
+        this._audioDeviceIcon = new IslandIcon({
             style_class: 'share-audio-icon',
             icon_name: 'audio-speakers-symbolic',
         });
@@ -363,7 +364,7 @@ export class MediaView {
         });
         
         if (iconName) {
-            const icon = new St.Icon({
+            const icon = new IslandIcon({
                 style_class: 'share-audio-icon',
                 icon_name: iconName,
             });

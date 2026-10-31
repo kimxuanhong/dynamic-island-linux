@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
@@ -403,7 +404,7 @@ export class NotchController {
             fadeOut = true
         } = config;
 
-        const animatedIcon = new St.Icon({
+        const animatedIcon = new IslandIcon({
             icon_name: iconConfig.icon_name || 'mail-unread-symbolic',
             icon_size: iconConfig.icon_size || NotchConstants.NOTIFICATION_ICON_SIZE,
             style: iconConfig.style || 'color: white;'

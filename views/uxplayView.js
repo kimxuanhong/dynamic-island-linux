@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -15,7 +16,7 @@ export class UxplayView {
     }
 
     _buildMinimalView() {
-        this.secondaryIcon = new St.Icon({
+        this.secondaryIcon = new IslandIcon({
             icon_name: 'video-display-symbolic', // Icon cast/màn hình
             icon_size: 24,
             style_class: 'battery-icon-secondary',
@@ -35,7 +36,7 @@ export class UxplayView {
     }
 
     _buildCompactView() {
-        this.iconLeft = new St.Icon({
+        this.iconLeft = new IslandIcon({
             icon_name: 'video-display-symbolic',
             icon_size: 24,
             style: 'color: #83c7ff;',
@@ -82,7 +83,7 @@ export class UxplayView {
     }
 
     _buildExpandedView() {
-        this.iconExpanded = new St.Icon({
+        this.iconExpanded = new IslandIcon({
             icon_name: 'video-display-symbolic',
             icon_size: 64,
             style: 'color: #83c7ff;'

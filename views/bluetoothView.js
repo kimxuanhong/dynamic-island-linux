@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import {styleStatusCard} from '../utils/viewStyle.js';
@@ -10,7 +11,7 @@ export class BluetoothView {
     }
 
     _buildCompactView() {
-        this.icon = new St.Icon({
+        this.icon = new IslandIcon({
             icon_name: 'bluetooth-active-symbolic',
             icon_size: 20,
         });
@@ -27,7 +28,7 @@ export class BluetoothView {
 
     _buildExpandedView() {
         // Icon lớn
-        this.expandedIcon = new St.Icon({
+        this.expandedIcon = new IslandIcon({
             icon_name: 'bluetooth-active-symbolic',
             icon_size: 64,
         });

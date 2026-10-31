@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import {connectSlider} from '../utils/input.js';
@@ -7,7 +8,7 @@ export class LevelView {
     constructor({title, subtitle, icon, accent, footer, clickable = false}) {
         this._level = 0;
         this.isDragging = false;
-        this.expandedIcon = new St.Icon({icon_name: icon, icon_size: 25});
+        this.expandedIcon = new IslandIcon({icon_name: icon, icon_size: 25});
         const tileProps = {
             style_class: `glass-icon-tile level-icon-button accent-${accent}`,
             width: 52, height: 52, child: this.expandedIcon,

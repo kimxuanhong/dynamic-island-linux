@@ -3,7 +3,7 @@ Run the integration check on GNOME 51 with `gnome-shell-test-tool` installed:
 ```sh
 gnome-extensions pack --force --out-dir=/tmp \
   --extra-source=controllers --extra-source=models \
-  --extra-source=utils --extra-source=views .
+  --extra-source=utils --extra-source=views --extra-source=icons .
 dbus-run-session -- gnome-shell-test-tool --headless \
   --extension /tmp/dynamic-island@xuanhong.shell-extension.zip \
   "$PWD/tests/gnome-smoke.js"
@@ -42,3 +42,5 @@ on resume, repeated paused updates, and cleanup when a browser disappears.
 
 `tests/gnome-media-ready.js` checks that automatic media expansion waits
 3 seconds for nonempty track metadata and is canceled on pause/player loss.
+
+`tests/gnome-icons.js` verifies bundled SVG lookup, dynamic icon changes, and preservation of externally supplied artwork.

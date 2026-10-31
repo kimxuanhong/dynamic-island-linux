@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import {styleStatusCard} from '../utils/viewStyle.js';
@@ -11,7 +12,7 @@ export class WindowView {
 
     _buildCompactView() {
         // Icon app bên trái
-        this.appIcon = new St.Icon({
+        this.appIcon = new IslandIcon({
             icon_size: 24,
             x_align: Clutter.ActorAlign.START,
             y_align: Clutter.ActorAlign.CENTER
@@ -51,7 +52,7 @@ export class WindowView {
 
     _buildExpandedView() {
         // Icon lớn
-        this.expandedIcon = new St.Icon({
+        this.expandedIcon = new IslandIcon({
             icon_size: 64,
         });
 

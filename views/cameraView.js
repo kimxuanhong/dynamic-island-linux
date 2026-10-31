@@ -1,3 +1,4 @@
+import {IslandIcon} from '../utils/islandIcon.js';
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import {styleStatusCard} from '../utils/viewStyle.js';
@@ -13,7 +14,7 @@ export class CameraView {
     }
 
     _buildMinimalView() {
-        this.secondaryIcon = new St.Icon({
+        this.secondaryIcon = new IslandIcon({
             icon_name: 'camera-web-symbolic',
             icon_size: 24,
             style_class: 'battery-icon-secondary',
@@ -33,7 +34,7 @@ export class CameraView {
     }
 
     _buildCompactView() {
-        this.iconLeft = new St.Icon({
+        this.iconLeft = new IslandIcon({
             icon_name: 'camera-web-symbolic',
             icon_size: 24,
             style: 'color: #7af0c5;',
@@ -80,7 +81,7 @@ export class CameraView {
     }
 
     _buildExpandedView() {
-        this.iconExpanded = new St.Icon({
+        this.iconExpanded = new IslandIcon({
             icon_name: 'camera-web-symbolic',
             icon_size: 64,
             style: 'color: #7af0c5;'
