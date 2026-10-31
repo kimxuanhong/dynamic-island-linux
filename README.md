@@ -347,3 +347,24 @@ Dự án này được phát hành dưới giấy phép MIT. Xem file `LICENSE` 
 Made with ❤️ for the Linux community
 
 </div>
+
+
+### Input method announcement
+
+Cooperating input methods can broadcast a session D-Bus signal when selected.
+Island shows the name in an expanded card for two seconds, using its event queue.
+No server change is required. Send only on a user switch, not on every focus event.
+
+- Path: `/com/github/dynamic_island/InputMethod`
+- Interface: `com.github.dynamic_island.InputMethod`
+- Signal: `Activated`
+- Signature: `(sss)` — stable ID, display name, themed icon name
+
+```sh
+gdbus emit --session --object-path /com/github/dynamic_island/InputMethod \
+  --signal com.github.dynamic_island.InputMethod.Activated \
+  areca 'Bộ gõ ArecaIME' org.fcitx.Fcitx5.fcitx-areca
+```
+
+Areca implements this signal through its Fcitx5 addon. Other input methods can
+use the same interface without depending on Areca.

@@ -13,6 +13,9 @@ import {PresenterRegistry} from '../utils/presenterRegistry.js';
 import {NotchStateMachine} from '../utils/stateMachine.js';
 import {TimeoutManager} from '../utils/timeoutManager.js';
 
+import {InputMethodManager} from '../models/inputMethodManager.js';
+import {InputMethodView} from '../views/inputMethodView.js';
+
 import {BatteryManager} from '../models/batteryManager.js';
 import {BluetoothManager} from '../models/bluetoothManager.js';
 import {BrightnessManager} from '../models/brightnessManager.js';
@@ -101,6 +104,7 @@ export class NotchController {
     }
 
     _initializeManagers() {
+        this.inputMethodManager = new InputMethodManager();
         this.batteryManager = new BatteryManager();
         this.bluetoothManager = new BluetoothManager();
         this.mediaManager = new MediaManager();
@@ -114,6 +118,7 @@ export class NotchController {
     }
 
     _initializeViews() {
+        this.inputMethodView = new InputMethodView();
         this.batteryView = new BatteryView();
         this.bluetoothView = new BluetoothView();
         this.mediaView = new MediaView(this.mediaManager, this.volumeManager, this.bluetoothManager);
@@ -134,6 +139,7 @@ export class NotchController {
         this.uxplayView = new UxplayView();
 
         this.allViewsMap = new Map([
+            ['input-method', this.inputMethodView],
             ['battery', this.batteryView],
             ['bluetooth', this.bluetoothView],
             ['media', this.mediaView],
@@ -157,6 +163,12 @@ export class NotchController {
     }
 
     _registerPresenters() {
+        this.presenterRegistry.register('input-method', {
+            getCompactContainer: () => null,
+            getExpandedContainer: () => this.inputMethodView.expandedContainer,
+            getSecondaryContainer: () => null,
+            onActivate: () => this._showOnlyView('input-method'),
+        });
         // Battery Presenter
         this.presenterRegistry.register('battery', {
             getCompactContainer: () => this.batteryView.compactContainer,
@@ -319,6 +331,11 @@ export class NotchController {
     }
 
     _setupMonitoring() {
+        this.inputMethodManager.addCallback(info => {
+            if (this._destroyed) return;
+            this.inputMethodView.update(info);
+            this._requestAutoExpansion('input-method', 'input-method', 2000);
+        });
         this.batteryManager.addCallback((info) => this._onBatteryChanged(info));
         this.bluetoothManager.addCallback((info) => this._onBluetoothChanged(info));
         this.mediaManager.addCallback((info) => this._onMediaChanged(info));
@@ -728,6 +745,7 @@ export class NotchController {
     }
 
     _cancelTemporaryPresenterTimeouts() {
+        this.timeoutManager.clear('input-method');
         this.timeoutManager.clear('collapse');
         this.timeoutManager.clear('queued-wait');
         this.timeoutManager.clear('queued-expansion');
@@ -746,6 +764,8 @@ export class NotchController {
     }
 
     _hideAllExpandedViews(except = null) {
+        if (this.inputMethodView.expandedContainer !== except)
+            this.inputMethodView.expandedContainer.hide();
         if (this.batteryView.expandedContainer !== except)
             this.batteryView.expandedContainer.hide();
         if (this.bluetoothView.expandedContainer !== except)
@@ -976,6 +996,9 @@ export class NotchController {
                 this._disconnectLeave = null;
             }
         }
+
+        this.inputMethodManager.destroy();
+        this.inputMethodView.destroy();
 
         // Destroy managers
         if (this.batteryManager) {
