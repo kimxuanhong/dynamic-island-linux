@@ -56,6 +56,7 @@ export class NotchController {
 
         this._expansionQueue = [];
         this._collapsing = false;
+        this._hoverExpansionPending = false;
         this._animatedIcons = new Map();
         this._destroyed = false; // ✅ Track destruction state
 
@@ -356,6 +357,7 @@ export class NotchController {
         // Cancel tất cả timeouts ngay khi hover vào notch
         this._disconnectEnter = connectMotion(this.notch, 'enter', () => {
             this._cancelTemporaryPresenterTimeouts();
+            this._hoverExpansionPending = this.stateMachine.isAnimating();
             
             // Expand ngay lập tức nếu đang compact
             if (this.stateMachine.isCompact() && !expandPending) {
@@ -377,6 +379,7 @@ export class NotchController {
         });
 
         this._disconnectLeave = connectMotion(this.notch, 'leave', () => {
+            this._hoverExpansionPending = false;
             if ((this.stateMachine.isExpanded() || this.stateMachine.isAnimating()) && !this.timeoutManager.has('collapse')) {
                 this.timeoutManager.set('collapse', NotchConstants.TIMEOUT_COLLAPSE, () => {
                     if (this.stateMachine.isExpanded()) {
@@ -597,6 +600,9 @@ export class NotchController {
     }
 
     _dismissMedia() {
+        const hadMedia = this.cycleManager.has('media');
+        if (this.notch?.hover && this.presenterRegistry.getCurrent() === 'media')
+            this._hoverExpansionPending = true;
         this.timeoutManager.clear('media-switch');
         this.timeoutManager.clear('media-ready');
         this._pendingMediaInfo = null;
@@ -607,8 +613,16 @@ export class NotchController {
         this.mediaView.clearMedia();
         this.cycleManager.deactivate('media');
         if (this.presenterRegistry.getCurrent() === 'media' && this.stateMachine.isExpanded())
-            this.compactNotch();
-        else
+            this.compactNotch(true);
+        else if (hadMedia && !this._collapsing && (this.stateMachine.isCompact() ||
+            (this.stateMachine.isAnimating() && !this.notch.has_style_class_name('expanded-state')))) {
+            // Recenter split -> single smoothly instead of snapping the layout.
+            this._collapsing = true;
+            this._skipCollapseSqueeze = true;
+            this.stateMachine.transitionTo('animating');
+            this.secondaryNotch?.ease({opacity: 0, duration: 150});
+            this.animationController.compact();
+        } else
             this.layoutManager.updateLayout();
     }
 
@@ -849,12 +863,13 @@ export class NotchController {
             return;
         }
 
-        // Hide secondary notch immediately
-        if (this.secondaryNotch) {
-            this.secondaryNotch.hide();
-        }
-
         const currentPresenter = isAuto ? this.presenterRegistry.getCurrent() : this.cycleManager.current();
+        if (!isAuto && !this.stateMachine.isAnimating())
+            this.presenterRegistry.switchTo(currentPresenter, false);
+        // Presenter activation may rebuild compact layout and show the split
+        // actor. Hide it after activation, before starting the expansion.
+        this.secondaryNotch?.hide();
+
         const presenter = this.presenterRegistry.getPresenter(currentPresenter);
 
         // ✅ FIX: Check if presenter has valid expanded container
@@ -898,7 +913,8 @@ export class NotchController {
         this.animationController.expand();
     }
 
-    compactNotch() {
+    compactNotch(force = false) {
+        if (!force && this.notch?.hover) return;
         if (this.volumeView?.isDragging || this.brightnessView?.isDragging) return;
         if (!this.notch) return; // Notch chưa được tạo
         if (!this.stateMachine.isExpanded()) return;
@@ -920,9 +936,12 @@ export class NotchController {
         this._collapsing = false;
         this.stateMachine.transitionTo('compact');
         this.layoutManager.updateLayout();
+        const skipSqueeze = this._skipCollapseSqueeze;
+        this._skipCollapseSqueeze = false;
+        if (this._resumePendingHover()) return;
         const event = this._expansionQueue.shift();
         if (!event) {
-            this.animationController.squeeze();
+            if (!skipSqueeze) this.animationController.squeeze();
             return;
         }
         this.presenterRegistry.switchTo(event.presenterName, true);
@@ -934,6 +953,13 @@ export class NotchController {
             this._scheduleAutoCollapse('queued-expansion', NotchConstants.TIMEOUT_COLLAPSE +
                 NotchConstants.ANIMATION_EXPAND_DURATION);
         }
+    }
+
+    _resumePendingHover() {
+        if (!this._hoverExpansionPending || !this.notch?.hover) return false;
+        this._hoverExpansionPending = false;
+        this.expandNotch(false);
+        return true;
     }
 
     squeeze() {

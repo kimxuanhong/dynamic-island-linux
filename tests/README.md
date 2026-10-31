@@ -44,3 +44,5 @@ on resume, repeated paused updates, and cleanup when a browser disappears.
 3 seconds for nonempty track metadata and is canceled on pause/player loss.
 
 `tests/gnome-icons.js` verifies bundled SVG lookup, dynamic icon changes, and preservation of externally supplied artwork.
+
+`tests/gnome-media-hover.js` checks smooth media removal, hover arriving during recentering, battery presenter selection, and hover/leave lifetime.

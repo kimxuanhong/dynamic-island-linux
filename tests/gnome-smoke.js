@@ -136,6 +136,15 @@ export async function run() {
     await Scripting.sleep(900);
     if (controller.cycleManager.count() > 1 && !controller.secondaryNotch.visible)
         throw new Error('Secondary notch did not return after collapse');
+    controller.cycleManager.activate('media');
+    controller.cycleManager.activate('battery');
+    controller.presenterRegistry.switchTo('media', true);
+    controller.expandNotch(false);
+    if (controller.secondaryNotch.visible)
+        throw new Error('Manual expansion re-showed secondary notch during presenter activation');
+    await Scripting.sleep(500);
+    if (controller.secondaryNotch.visible)
+        throw new Error('Secondary notch remained visible after manual expansion');
     extension.stateObj.disable();
     print('DYNAMIC_ISLAND_EXPANSION_PASS');
     await Scripting.sleep(700);

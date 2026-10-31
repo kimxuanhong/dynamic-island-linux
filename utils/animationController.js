@@ -40,7 +40,7 @@ export class AnimationController {
                 this.controller.stateMachine.transitionTo('expanded');
                 if (this.controller.presenterRegistry.getCurrent() === 'media' &&
                     !this.controller.cycleManager.has('media'))
-                    this.controller.compactNotch();
+                    this.controller.compactNotch(true);
             }
         });
     }
@@ -62,6 +62,8 @@ export class AnimationController {
         notch.ease({
             width: geometry.width,
             height: this.controller.height,
+            scale_x: this.controller.originalScale,
+            scale_y: this.controller.originalScale,
             x: geometry.x,
             y: y,
             duration: NotchConstants.ANIMATION_COMPACT_DURATION,
@@ -96,8 +98,10 @@ export class AnimationController {
                     onComplete: () => {
                         if (this.controller._expansionQueue.length)
                             this.controller._finishCollapse();
-                        else
+                        else {
                             this.controller.stateMachine.transitionTo('compact');
+                            this.controller._resumePendingHover();
+                        }
                     }
                 });
             }
