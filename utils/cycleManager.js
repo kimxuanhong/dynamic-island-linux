@@ -4,7 +4,8 @@ export class CycleManager {
         this._currentPos = -1;
     }
 
-    activate(obj) {
+    activate(obj, select = true) {
+        const current = this.current();
         const existingIndex = this._items.indexOf(obj);
 
         if (existingIndex !== -1) {
@@ -14,7 +15,8 @@ export class CycleManager {
 
         // Luôn thêm vào cuối và SET làm current
         this._items.push(obj);
-        this._currentPos = this._items.length - 1;
+        this._currentPos = select ? this._items.length - 1
+            : Math.max(0, this._items.indexOf(current));
     }
 
     deactivate(obj) {

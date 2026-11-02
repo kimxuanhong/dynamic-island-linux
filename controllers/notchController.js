@@ -17,6 +17,8 @@ import {TimeoutManager} from '../utils/timeoutManager.js';
 import {InputMethodManager} from '../models/inputMethodManager.js';
 import {InputMethodView} from '../views/inputMethodView.js';
 
+import {NetworkSpeedManager} from '../models/networkSpeedManager.js';
+import {NetworkSpeedView} from '../views/networkSpeedView.js';
 import {NetworkManager} from '../models/networkManager.js';
 import {EventView} from '../views/eventView.js';
 
@@ -52,6 +54,12 @@ export class NotchController {
 
         // Settings
         this.settings = settings;
+        if (settings && !settings.get_user_value('default-content') && settings.get_user_value('idle-content')) {
+            const old = settings.get_string('idle-content');
+            settings.set_string('default-content', ['clock', 'hidden', 'battery'].includes(old)
+                ? old : old === 'media' ? 'hidden' : 'battery');
+            settings.reset('idle-content');
+        }
 
         // UI Actors
         this.notch = null;
@@ -112,8 +120,8 @@ export class NotchController {
             this.settings?.connect(`changed::${key}`, () => this._syncLevelSettings())
         ).filter(Boolean);
 
-        this._idleSignal = this.settings?.connect('changed::idle-content', () => this._syncIdleContent());
-        this._syncIdleContent();
+        this._defaultSignal = this.settings?.connect('changed::default-content', () => this._syncDefaultContent());
+        this._syncDefaultContent();
 
         this._eventSignals = ['show-window-events', 'notification-style'].map(key =>
             this.settings?.connect(`changed::${key}`, () => this._syncEventSettings())
@@ -127,6 +135,7 @@ export class NotchController {
         this.inputMethodManager = new InputMethodManager();
         this.batteryManager = new BatteryManager();
         this.networkManager = new NetworkManager();
+        this.networkSpeedManager = new NetworkSpeedManager();
         this.bluetoothManager = new BluetoothManager();
         this.mediaManager = new MediaManager();
         this.volumeManager = new VolumeManager();
@@ -141,6 +150,7 @@ export class NotchController {
     _initializeViews() {
         this.inputMethodView = new InputMethodView();
         this.networkView = new EventView();
+        this.networkSpeedView = new NetworkSpeedView();
         this.batteryView = new BatteryView();
         this.bluetoothView = new BluetoothView();
         this.mediaView = new MediaView(this.mediaManager, this.volumeManager, this.bluetoothManager);
@@ -163,6 +173,7 @@ export class NotchController {
         this.allViewsMap = new Map([
             ['input-method', this.inputMethodView],
             ['network', this.networkView],
+            ['network-speed', this.networkSpeedView],
             ['battery', this.batteryView],
             ['bluetooth', this.bluetoothView],
             ['media', this.mediaView],
@@ -194,6 +205,12 @@ export class NotchController {
             getCompactContainer: () => this._clockLabel,
             getSecondaryContainer: () => this._clockSecondary,
             getExpandedContainer: () => null,
+            onActivate: () => this.layoutManager.updateLayout(),
+        });
+        this.presenterRegistry.register('network-speed', {
+            getCompactContainer: () => this.networkSpeedView.compactContainer,
+            getSecondaryContainer: () => null,
+            getExpandedContainer: () => this.networkSpeedView.expandedContainer,
             onActivate: () => this.layoutManager.updateLayout(),
         });
         this.presenterRegistry.register('network', {
@@ -372,6 +389,7 @@ export class NotchController {
             this.inputMethodView.update(info);
             this._requestAutoExpansion('input-method', 'input-method', 2000);
         });
+        this.networkSpeedManager.addCallback(info => this.networkSpeedView.updateSpeed(info));
         this.networkManager.addCallback(info => this._onNetworkChanged(info));
         this.batteryManager.addCallback((info) => this._onBatteryChanged(info));
         this.bluetoothManager.addCallback((info) => this._onBluetoothChanged(info));
@@ -555,7 +573,7 @@ export class NotchController {
             return;
         }
         if (!this.cycleManager.has('battery'))
-            this.cycleManager.activate('battery');
+            this.cycleManager.activate('battery', false);
         this.batteryView.updateBattery(info);
         this.layoutManager.updateLayout();
         if (info.isCharging) {
@@ -752,6 +770,7 @@ export class NotchController {
 
             if (!this.cycleManager.has('media')) {
                 this.cycleManager.activate('media');
+                this.layoutManager.updateLayout();
             }
 
             this._pendingMediaInfo = info;
@@ -798,7 +817,11 @@ export class NotchController {
             this._requestAutoExpansion('uxplay', 'uxplay', NotchConstants.TIMEOUT_RECORDING);
         } else {
             this.cycleManager.deactivate('uxplay');
-            this.layoutManager.updateLayout();
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'uxplay');
+            this.timeoutManager.clear('uxplay');
+            if (this.presenterRegistry.getCurrent() === 'uxplay' &&
+                this.notch.has_style_class_name('expanded-state')) this.compactNotch(true);
+            else this.layoutManager.updateLayout();
         }
         
         if (this.stateMachine.isCompact()) {
@@ -878,6 +901,7 @@ export class NotchController {
     }
 
     _hideAllExpandedViews(except = null) {
+        if (this.networkSpeedView.expandedContainer !== except) this.networkSpeedView.expandedContainer.hide();
         if (this.notificationView.expandedContainer !== except) this.notificationView.hide();
         if (this.networkView.expandedContainer !== except) this.networkView.hide();
         if (this.inputMethodView.expandedContainer !== except)
@@ -903,6 +927,7 @@ export class NotchController {
     }
 
     _hideAllCompactViews() {
+        this.networkSpeedView.compactContainer.hide();
         this._clockLabel?.hide();
         this._clockSecondary?.hide();
         this.batteryView.compactContainer.hide();
@@ -1074,13 +1099,17 @@ export class NotchController {
         this.animationController.squeeze();
     }
 
-    _syncIdleContent() {
-        const mode = this.settings?.get_string('idle-content') ?? 'auto';
+    _syncDefaultContent() {
+        const mode = this.settings?.get_string('default-content') ?? 'battery';
+        const activities = ['media', 'recording', 'camera', 'uxplay'];
         this.cycleManager.setFilter(name => {
-            if (!['battery', 'media', 'clock'].includes(name)) return true;
-            if (mode === 'auto') return name !== 'clock';
+            if (activities.some(active => this.cycleManager.has(active)))
+                return activities.includes(name);
             return name === mode;
         });
+        this.networkSpeedManager.setEnabled(mode === 'network-speed');
+        if (mode === 'network-speed') this.cycleManager.activate('network-speed', false);
+        else this.cycleManager.deactivate('network-speed');
         if (this._clockTimer) GLib.source_remove(this._clockTimer);
         this._clockTimer = 0;
         if (mode === 'clock') {
@@ -1092,13 +1121,13 @@ export class NotchController {
             };
             update();
             this._clockTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, update);
-            this.cycleManager.activate('clock');
+            this.cycleManager.activate('clock', false);
         } else {
             this.cycleManager.deactivate('clock');
         }
         const current = this.presenterRegistry.getCurrent();
-        if (['battery', 'media', 'clock'].includes(current) &&
-            mode !== 'auto' && current !== mode &&
+        if (['battery', 'clock', 'network-speed'].includes(current) &&
+            current !== mode &&
             this.notch.has_style_class_name('expanded-state'))
             this.compactNotch(true);
         else
@@ -1177,8 +1206,8 @@ export class NotchController {
         this._levelSignals = [];
         for (const id of this._eventSignals ?? []) this.settings.disconnect(id);
         this._eventSignals = [];
-        if (this._idleSignal) this.settings.disconnect(this._idleSignal);
-        this._idleSignal = 0;
+        if (this._defaultSignal) this.settings.disconnect(this._defaultSignal);
+        this._defaultSignal = 0;
         if (this._clockTimer) GLib.source_remove(this._clockTimer);
         this._clockTimer = 0;
         for (const actor of [this._clockLabel, this._clockSecondary]) actor?.destroy();
@@ -1208,6 +1237,8 @@ export class NotchController {
             }
         }
 
+        this.networkSpeedManager.destroy();
+        this.networkSpeedView.destroy();
         this.networkManager.destroy();
         this.networkView.destroy();
         this.inputMethodManager.destroy();

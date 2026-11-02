@@ -30,12 +30,14 @@ export async function run() {
         c.compactNotch(true);
         await sample([c.notch], [c.monitorWidth / 2], `${size} collapse`, 42);
         c.cycleManager.activate('media');
+        c.cycleManager.activate('recording');
         c.layoutManager.updateLayout();
         await Scripting.sleep(100);
         const centers = [center(c.notch), center(c.secondaryNotch)];
         c.squeeze();
         await sample([c.notch, c.secondaryNotch], centers, `${size} split squeeze`);
         c.cycleManager.deactivate('media');
+        c.cycleManager.deactivate('recording');
         c.layoutManager.updateLayout();
     }
     e._settings.set_string('island-size', 'small');

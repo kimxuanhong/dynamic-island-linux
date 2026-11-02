@@ -1,0 +1,10 @@
+import {parseNetworkCounters, networkRate, formatRate} from '../utils/networkRate.js';
+const row = (name, rx, tx) => `${name}: ${rx} 0 0 0 0 0 0 0 ${tx} 0 0 0 0 0 0 0`;
+const before = parseNetworkCounters([row('lo', 9000, 9000), row('eth0', 1000, 2000)].join('\n'));
+const after = parseNetworkCounters([row('eth0', 5000, 4000), row('wlan0', 999999, 999999)].join('\n'));
+const rate = networkRate(before, after, 2);
+if (rate.rx !== 2000 || rate.tx !== 1000 || before.has('lo')) throw new Error('Rate or interface baseline incorrect');
+const reset = networkRate(after, parseNetworkCounters(row('eth0', 1, 1)), 1);
+if (reset.rx || reset.tx) throw new Error('Counter reset produced a spike');
+if (formatRate(1500000) !== '1.5 MB/s' || formatRate(0) !== '0 B/s') throw new Error('Rate units incorrect');
+print('DYNAMIC_ISLAND_NETWORK_RATE_PASS');

@@ -84,22 +84,22 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         });
         group.add(marginRow);
 
-        const idleValues = ['auto', 'battery', 'media', 'clock', 'hidden'];
-        const idleRow = new Adw.ComboRow({
-            title: 'Idle Content',
-            subtitle: 'Choose what stays visible between events; privacy indicators still appear',
-            model: Gtk.StringList.new(['Automatic', 'Battery if present', 'Media only', 'Clock', 'Hidden']),
-            selected: idleValues.indexOf(settings.get_string('idle-content')),
+        const defaultValues = ['battery', 'clock', 'network-speed', 'hidden'];
+        const defaultRow = new Adw.ComboRow({
+            title: 'Default Content',
+            subtitle: 'Shown when nothing is active. Media, microphone, camera and screen sharing always take priority.',
+            model: Gtk.StringList.new(['Battery if present', 'Clock', 'Network speed', 'Hidden']),
+            selected: defaultValues.indexOf(settings.get_string('default-content')),
         });
-        idleRow.connect('notify::selected', row => settings.set_string('idle-content', idleValues[row.selected]));
-        const idleSignal = settings.connect('changed::idle-content', () => {
-            idleRow.selected = idleValues.indexOf(settings.get_string('idle-content'));
+        defaultRow.connect('notify::selected', row => settings.set_string('default-content', defaultValues[row.selected]));
+        const defaultSignal = settings.connect('changed::default-content', () => {
+            defaultRow.selected = defaultValues.indexOf(settings.get_string('default-content'));
         });
         window.connect('close-request', () => {
-            settings.disconnect(idleSignal);
+            settings.disconnect(defaultSignal);
             return false;
         });
-        group.add(idleRow);
+        group.add(defaultRow);
 
         const levels = new Adw.PreferencesGroup({title: 'Volume and Brightness'});
         page.add(levels);

@@ -10,10 +10,16 @@
     <key name="show-bluetooth" type="b"><default>true</default><summary>Show Bluetooth connection changes</summary></key>
     <key name="microphone-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island microphone indicator</summary></key>
     <key name="camera-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island camera indicator</summary></key>
+    <key name="default-content" type="s">
+      <default>"battery"</default>
+      <choices><choice value="battery"/><choice value="clock"/><choice value="network-speed"/><choice value="hidden"/></choices>
+      <summary>Default content</summary>
+      <description>Fallback when no media, microphone, camera, or screen sharing is active. Active sessions always take priority.</description>
+    </key>
     <key name="idle-content" type="s">
       <default>"auto"</default>
       <choices><choice value="auto"/><choice value="battery"/><choice value="media"/><choice value="clock"/><choice value="hidden"/></choices>
-      <summary>Content while idle</summary>
+      <summary>Legacy idle selection (migrated to default-content)</summary>
       <description>Choose compact idle content. Active privacy indicators and temporary events remain available.</description>
     </key>
     <key name="show-volume" type="b"><default>true</default><summary>Show volume changes</summary></key>

@@ -23,6 +23,7 @@ export async function run() {
             !c.notch.get_style().includes('0.4'))
             throw new Error(`Appearance/position failed for ${size}`);
         c.cycleManager.activate('media');
+        c.cycleManager.activate('recording');
         c.layoutManager.updateLayout();
         await Scripting.sleep(100);
         const [mainX] = c.notch.get_transformed_position();
@@ -31,6 +32,7 @@ export async function run() {
         if (Math.abs(secondaryX - mainX - mainWidth - 10 * scale) > 1)
             throw new Error(`Split gap failed for ${size}`);
         c.cycleManager.deactivate('media');
+        c.cycleManager.deactivate('recording');
         c.layoutManager.updateLayout();
     }
     settings.set_string('island-size', 'large');

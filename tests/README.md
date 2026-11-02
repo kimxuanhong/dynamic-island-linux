@@ -57,8 +57,13 @@ checks pointer interactions on scaled controls.
 `tests/gnome-level-settings.js` checks live level toggles, OSD replacement and
 fallback, display duration, dismissal, and restoration of the OSD method on disable.
 
-`tests/gnome-idle-settings.js` checks all idle modes, keeping active data across
-mode changes, privacy indicators, clock replacement by temporary events, and timer cleanup.
+`tests/gnome-idle-settings.js` checks default battery/clock/network-speed/hidden content,
+replacement by every activity, two-notch sequencing without fallback leakage,
+returning to the default, and stopping unused speed polling.
+`tests/gnome-default-battery-event.js` checks charging/unplugging events while the
+battery is replaced by media/mic, and restoration of active or hidden content.
+`gjs -m tests/network-rate.js` checks rate units, elapsed time, new interfaces,
+loopback exclusion, and counter resets.
 
 `tests/gnome-privacy.js` checks concurrent mic/camera sessions, exact app exclusions,
 live exclusion changes during expansion, queue removal, and indicator dismissal.

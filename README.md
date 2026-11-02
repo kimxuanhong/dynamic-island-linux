@@ -111,7 +111,7 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ### 🎨 Giao diện
 - Animation mượt mà, tự nhiên
 - Tự động mở rộng/thu nhỏ dựa trên nội dung
-- Split notch: hiển thị đồng thời media và pin
+- Split notch: quản lý đồng thời các phiên media, mic, camera và chia sẻ qua sequence hai notch
 - Hover effects và transitions đẹp mắt
 - Tích hợp hoàn hảo với GNOME Shell
 
@@ -176,7 +176,9 @@ gnome-extensions prefs dynamic-island@xuanhong
 - **Show Volume / Show Brightness**: bật/tắt thông báo thay đổi âm lượng/độ sáng trong Island.
 - **Replace System Overlays**: thay OSD âm lượng/độ sáng bằng Island khi loại tương ứng được bật. OSD khác vẫn giữ nguyên; mặc định tắt.
 - **Display Time**: thời gian hiển thị âm lượng/độ sáng từ 1–10 giây.
-- **Idle Content**: chọn nội dung compact khi rảnh: Automatic (pin và media đang hoạt động), Battery if present, Media only, Clock (24 giờ), hoặc Hidden. Nếu nội dung đã chọn không có thì notch ẩn. Chỉ báo microphone/camera/chia sẻ và sự kiện tạm thời vẫn hiển thị.
+- **Default Content**: nội dung mặc định khi không có phiên hoạt động: Battery if present, Clock (24 giờ), Network speed hoặc Hidden. Media, microphone, camera và UxPlay luôn thay thế nội dung mặc định; chỉ các phiên hoạt động tham gia sequence hai notch. Khi tất cả kết thúc, nội dung mặc định tự trở lại. Sự kiện cắm/rút sạc vẫn hiện thẻ pin tạm thời kể cả khi pin đang bị thay thế.
+
+**Network speed** hiển thị tốc độ nhận (↓) và gửi (↑), cập nhật mỗi giây, đơn vị B/s, KB/s, MB/s. Đây là lưu lượng tổng trên card mạng vật lý, gồm cả mạng LAN, không phải đo băng thông Internet. Không đếm lại lưu lượng trên loopback, VPN hay bridge. Nếu không đọc được dữ liệu thì hiển thị “—”.
 
 ### Tương tác cơ bản
 
