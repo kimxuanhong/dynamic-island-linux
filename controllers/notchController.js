@@ -69,6 +69,7 @@ export class NotchController {
         this._collapsing = false;
         this._hiding = false;
         this._revealing = false;
+        this._notificationIconActive = false;
         this._hoverExpansionPending = false;
         this._animatedIcons = new Map();
         this._destroyed = false; // ✅ Track destruction state
@@ -531,7 +532,8 @@ export class NotchController {
     }
 
     _animateNotificationIcon(info) {
-        if (!this.notch) return;
+        if (!this.notch || this._destroyed) return;
+        this._notificationIconActive = true;
 
         const [notchX, notchY] = this.notch.get_transformed_position();
         const [notchWidth, notchHeight] = this.notch.get_transformed_size();
@@ -555,8 +557,12 @@ export class NotchController {
             },
             moveDuration: this.settings?.get_int('notification-animation-duration') ?? NotchConstants.ANIMATION_NOTIFICATION_MOVE,
             onComplete: () => {
-                this.layoutManager.updateLayout();
-                this.squeeze();
+                this._notificationIconActive = false;
+                if (this._expansionQueue.length) this._finishCollapse();
+                else {
+                    this.layoutManager.updateLayout();
+                    this.squeeze();
+                }
             }
         });
     }
@@ -692,11 +698,32 @@ export class NotchController {
         const style = this.settings?.get_string('notification-style') ?? 'icon';
         if (style === 'off') return;
         if (style === 'icon') {
-            this._animateNotificationIcon(info);
+            this._queueNotificationIcon(info);
         } else {
             this.notificationView.updateNotification(info);
             this._requestAutoExpansion('notification', 'notification',
                 (this.settings?.get_int('notification-display-time') ?? 3) * 1000);
+        }
+    }
+
+    _queueNotificationIcon(info) {
+        if (this._destroyed) return;
+        if (this.notch.visible && this.stateMachine.isCompact() && !this._notificationIconActive) {
+            this._animateNotificationIcon(info);
+            return;
+        }
+        this._expansionQueue.push({presenterName: 'notification-icon', info});
+        if (!this.notch.visible || this._hiding) {
+            if (this.cycleManager.count()) this.layoutManager.updateLayout();
+            else {
+                this._hideAllCompactViews();
+                this._hideAllExpandedViews();
+                this.animationController.reveal();
+            }
+        } else if (!this._collapsing && !this._revealing && !this._notificationIconActive &&
+            !this.volumeView?.isDragging && !this.brightnessView?.isDragging &&
+            !this.timeoutManager.has('queued-wait')) {
+            this._scheduleAutoCollapse('queued-wait', NotchConstants.TIMEOUT_VOLUME);
         }
     }
 
@@ -710,7 +737,12 @@ export class NotchController {
         const disabled = [];
         if (!this.settings.get_boolean('show-window-events')) disabled.push('window');
         if (this.settings.get_string('notification-style') !== 'card') disabled.push('notification');
-        this._cleanupAnimatedIcon('notification');
+        if (this.settings.get_string('notification-style') !== 'icon') {
+            this._cleanupAnimatedIcon('notification');
+            this._notificationIconActive = false;
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'notification-icon');
+            this.layoutManager.updateLayout();
+        }
         for (const name of disabled) {
             this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== name);
             this.timeoutManager.clear(name);
@@ -850,7 +882,7 @@ export class NotchController {
             this._scheduleAutoCollapse(timeoutKey, delay);
             return;
         }
-        const busy = this._collapsing || this.stateMachine.isAnimating() ||
+        const busy = this._notificationIconActive || this._collapsing || this.stateMachine.isAnimating() ||
             (this.stateMachine.isExpanded() && current !== presenterName);
         if (busy) {
             const previous = this._expansionQueue[this._expansionQueue.length - 1];
@@ -1089,10 +1121,14 @@ export class NotchController {
         if (!this._expansionQueue.length) this.layoutManager.updateLayout();
         const skipSqueeze = this._skipCollapseSqueeze;
         this._skipCollapseSqueeze = false;
-        if (this._resumePendingHover()) return;
+        if (this._expansionQueue[0]?.presenterName !== 'notification-icon' && this._resumePendingHover()) return;
         const event = this._expansionQueue.shift();
         if (!event) {
             if (!skipSqueeze && !this._hiding && this.notch.visible) this.animationController.squeeze();
+            return;
+        }
+        if (event.presenterName === 'notification-icon') {
+            this._animateNotificationIcon(event.info);
             return;
         }
         this._dispatchingExpansion = true;

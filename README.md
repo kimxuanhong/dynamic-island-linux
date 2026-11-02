@@ -94,6 +94,7 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ### 🔔 Thông báo
 - Chọn **Off / Flying icon / Expanded card** tại Preferences → Notifications and Windows
 - Icon bay có thể là icon app, thư hoặc máy bay; chỉnh thời gian animation từ 200–3000 ms
+- Nếu đang ẩn và không có nội dung compact, mở notch compact trống trước rồi mới chạy icon; giữ notch đến hết thông báo rồi thu lại. Nếu đã có compact thì dùng ngay nội dung đang hiện.
 - Thẻ mở rộng hiển thị tiêu đề và nội dung, tự ẩn sau 1–10 giây
 
 ### 🪟 Sự kiện cửa sổ

@@ -36,7 +36,8 @@ export class LayoutManager {
     _updateCompactLayout() {
         if (this.controller.cycleManager.count() === 0) {
             // A temporary event is waiting for compact reveal to finish.
-            if (this.controller._revealing && this.controller._expansionQueue.length) return;
+            if (this.controller._notificationIconActive ||
+                (this.controller._revealing && this.controller._expansionQueue.length)) return;
             this.controller.animationController.hide();
             this.controller.secondaryNotch?.hide();
             return;

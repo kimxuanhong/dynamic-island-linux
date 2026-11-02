@@ -84,3 +84,7 @@ size during running animations to catch stale scale targets.
 `tests/gnome-hidden-animation.js` samples centered hide/reveal in all sizes,
 checks compact-before-expand/hide ordering, and reverses a running hide when
 a default choice or a new event arrives.
+
+`tests/gnome-notification-compact.js` checks empty compact reveal before flying icons,
+FIFO notifications, keeping compact visible, reusing existing content, and canceling
+queued notifications when disabled.

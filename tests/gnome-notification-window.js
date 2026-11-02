@@ -18,6 +18,7 @@ export async function run() {
     s.set_string('notification-icon', 'airplane');
     s.set_int('notification-animation-duration', 200);
     c._onNotificationReceived({title: 'Flying'});
+    await Scripting.sleep(500);
     if (!c._animatedIcons.has('notification')) throw new Error('Flying icon missing');
     await Scripting.sleep(800);
     if (c._animatedIcons.size) throw new Error('Flying icon leaked');
@@ -27,7 +28,7 @@ export async function run() {
     await Scripting.sleep(500);
     if (!c.notch.visible || c.notificationView.statusLabel.text !== 'Hello' ||
         !c.notificationView.detailsLabel.text.includes('Body text')) throw new Error('Notification card missing');
-    await Scripting.sleep(1500);
+    await Scripting.sleep(2200);
     if (c.notch.visible) throw new Error('Notification card did not expire');
     const child = Gio.Subprocess.new(['gjs', '-c', `
         imports.gi.versions.Gtk = '4.0';
