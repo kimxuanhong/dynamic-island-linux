@@ -56,7 +56,7 @@ Một GNOME Shell Extension hiển thị thông tin phát nhạc, thông báo, v
 - 📷 Camera đang hoạt động
 - 🎙️ Microphone đang ghi âm
 - 🔔 Thông báo hệ thống
-- 🪟 Ứng dụng đang mở
+- 🪟 Thông báo mở/đóng cửa sổ
 - 🔌 Bluetooth
 - 🌐 Wi-Fi và Ethernet (NetworkManager)
 
@@ -92,8 +92,14 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 - Giới hạn: nguồn âm thanh không xác định vẫn hiện chỉ báo; camera hiện được nhận diện qua process mở `/dev/video*`, nên app qua portal có thể hiện tên process trung gian
 
 ### 🔔 Thông báo
-- Hiển thị thông báo hệ thống với animation đẹp mắt
-- Icon máy bay bay qua màn hình (có thể tùy chỉnh)
+- Chọn **Off / Flying icon / Expanded card** tại Preferences → Notifications and Windows
+- Icon bay có thể là icon app, thư hoặc máy bay; chỉnh thời gian animation từ 200–3000 ms
+- Thẻ mở rộng hiển thị tiêu đề và nội dung, tự ẩn sau 1–10 giây
+
+### 🪟 Sự kiện cửa sổ
+- Hiển thị thẻ có icon và tên app khi mở/đóng cửa sổ mới
+- Đây là thông báo sự kiện, không phải danh sách ứng dụng đang chạy
+- Bật/tắt bằng **Window Open and Close Events** trong Preferences
 
 ### 🌐 Kết nối mạng
 - Hiển thị kết nối/ngắt kết nối Wi-Fi và Ethernet, cùng tên connection profile

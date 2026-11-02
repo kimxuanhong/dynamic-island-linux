@@ -119,6 +119,33 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('level-display-time', duration, 'value', Gio.SettingsBindFlags.DEFAULT);
         levels.add(duration);
 
+        const events = new Adw.PreferencesGroup({title: 'Notifications and Windows'});
+        page.add(events);
+        const windowRow = new Adw.SwitchRow({title: 'Window Open and Close Events',
+            subtitle: 'Temporary events for new or closed windows; not a running app list'});
+        settings.bind('show-window-events', windowRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        events.add(windowRow);
+        for (const [key, title, values, labels] of [
+            ['notification-style', 'Notification Style', ['off', 'icon', 'card'], ['Off', 'Flying icon', 'Expanded card']],
+            ['notification-icon', 'Flying Icon', ['app', 'mail', 'airplane'], ['Application icon', 'Mail', 'Airplane']],
+        ]) {
+            const row = new Adw.ComboRow({title, model: Gtk.StringList.new(labels),
+                selected: values.indexOf(settings.get_string(key))});
+            row.connect('notify::selected', () => settings.set_string(key, values[row.selected]));
+            const id = settings.connect(`changed::${key}`, () => { row.selected = values.indexOf(settings.get_string(key)); });
+            window.connect('close-request', () => { settings.disconnect(id); return false; });
+            events.add(row);
+        }
+        for (const [key, title, lower, upper, step] of [
+            ['notification-animation-duration', 'Flying Icon Duration (ms)', 200, 3000, 100],
+            ['notification-display-time', 'Card Display Time (seconds)', 1, 10, 1],
+        ]) {
+            const row = new Adw.SpinRow({title,
+                adjustment: new Gtk.Adjustment({lower, upper, step_increment: step})});
+            settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
+            events.add(row);
+        }
+
         const connections = new Adw.PreferencesGroup({title: 'Connections'});
         page.add(connections);
         for (const [key, title] of [['show-network', 'Wi-Fi and Ethernet Events'], ['show-bluetooth', 'Bluetooth Events']]) {

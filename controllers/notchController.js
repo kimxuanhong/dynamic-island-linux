@@ -115,6 +115,10 @@ export class NotchController {
         this._idleSignal = this.settings?.connect('changed::idle-content', () => this._syncIdleContent());
         this._syncIdleContent();
 
+        this._eventSignals = ['show-window-events', 'notification-style'].map(key =>
+            this.settings?.connect(`changed::${key}`, () => this._syncEventSettings())
+        ).filter(Boolean);
+
         // Initial state
         this._updateUI();
     }
@@ -270,14 +274,14 @@ export class NotchController {
 
         this.presenterRegistry.register('notification', {
             getCompactContainer: () => null,
-            getExpandedContainer: () => null,
+            getExpandedContainer: () => this.notificationView.expandedContainer,
             getSecondaryContainer: () => null,
             onActivate: () => this._showOnlyView('notification')
         });
 
         this.presenterRegistry.register('window', {
             getCompactContainer: () => null,
-            getExpandedContainer: () => null,
+            getExpandedContainer: () => this.windowView.expandedContainer,
             getSecondaryContainer: () => null,
             onActivate: () => this._showOnlyView('window')
         });
@@ -508,11 +512,8 @@ export class NotchController {
     _animateNotificationIcon(info) {
         if (!this.notch) return;
 
-        this.presenterRegistry.switchTo('notification', true);
-
         const [notchX, notchY] = this.notch.get_transformed_position();
-        const notchWidth = this.notch.width;
-        const notchHeight = this.notch.height;
+        const [notchWidth, notchHeight] = this.notch.get_transformed_size();
         const iconSize = NotchConstants.NOTIFICATION_ICON_SIZE;
         const padding = NotchConstants.NOTIFICATION_ICON_PADDING;
 
@@ -520,17 +521,18 @@ export class NotchController {
         const endX = notchX + notchWidth - padding - iconSize;
         const iconY = notchY + (notchHeight / 2) - (iconSize / 2);
 
+        const iconChoice = this.settings?.get_string('notification-icon') ?? 'app';
         this._animateIconMove('notification', {
             startX,
             startY: iconY,
             endX,
             iconConfig: {
-                icon_name: 'mail-unread-symbolic',
+                icon_name: iconChoice === 'airplane' ? 'airplane-mode-symbolic' : 'mail-unread-symbolic',
                 icon_size: iconSize,
                 style: 'color: white;',
-                gicon: info.gicon
+                gicon: iconChoice === 'app' ? info.gicon : null
             },
-            moveDuration: NotchConstants.ANIMATION_NOTIFICATION_MOVE,
+            moveDuration: this.settings?.get_int('notification-animation-duration') ?? NotchConstants.ANIMATION_NOTIFICATION_MOVE,
             onComplete: () => {
                 this.layoutManager.updateLayout();
                 this.squeeze();
@@ -664,23 +666,33 @@ export class NotchController {
     }
 
     _onNotificationReceived(info) {
-        if (this.stateMachine.isCompact()) {
+        const style = this.settings?.get_string('notification-style') ?? 'icon';
+        if (style === 'off') return;
+        if (style === 'icon') {
             this._animateNotificationIcon(info);
+        } else {
+            this.notificationView.updateNotification(info);
+            this._requestAutoExpansion('notification', 'notification',
+                (this.settings?.get_int('notification-display-time') ?? 3) * 1000);
         }
     }
 
     _onWindowLaunched(info) {
-        if (info.event === 'closed') {
-            if (this.stateMachine.isCompact()) {
-                this.squeeze();
-            }
-            return;
-        }
-
+        if (this.settings && !this.settings.get_boolean('show-window-events')) return;
         this.windowView.updateWindow(info);
+        this._requestAutoExpansion('window', 'window', NotchConstants.TIMEOUT_WINDOW);
+    }
 
-        if (this.stateMachine.isCompact()) {
-            this.squeeze();
+    _syncEventSettings() {
+        const disabled = [];
+        if (!this.settings.get_boolean('show-window-events')) disabled.push('window');
+        if (this.settings.get_string('notification-style') !== 'card') disabled.push('notification');
+        this._cleanupAnimatedIcon('notification');
+        for (const name of disabled) {
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== name);
+            this.timeoutManager.clear(name);
+            if (this.presenterRegistry.getCurrent() === name &&
+                this.notch.has_style_class_name('expanded-state')) this.compactNotch(true);
         }
     }
 
@@ -847,6 +859,7 @@ export class NotchController {
     _cancelTemporaryPresenterTimeouts() {
         this.timeoutManager.clear('input-method');
         this.timeoutManager.clear('network');
+        this.timeoutManager.clear('notification');
         this.timeoutManager.clear('collapse');
         this.timeoutManager.clear('queued-wait');
         this.timeoutManager.clear('queued-expansion');
@@ -865,6 +878,7 @@ export class NotchController {
     }
 
     _hideAllExpandedViews(except = null) {
+        if (this.notificationView.expandedContainer !== except) this.notificationView.hide();
         if (this.networkView.expandedContainer !== except) this.networkView.hide();
         if (this.inputMethodView.expandedContainer !== except)
             this.inputMethodView.expandedContainer.hide();
@@ -894,7 +908,7 @@ export class NotchController {
         this.batteryView.compactContainer.hide();
         this.bluetoothView.compactContainer.hide();
         this.mediaView.compactContainer.hide();
-        this.notificationView.compactContainer.hide();
+        this.notificationView.hide();
         this.windowView.compactContainer.hide();
         this.recordingView.compactContainer.hide();
         this.cameraView.compactContainer.hide();
@@ -1139,6 +1153,8 @@ export class NotchController {
         for (const id of this._levelSignals ?? [])
             this.settings.disconnect(id);
         this._levelSignals = [];
+        for (const id of this._eventSignals ?? []) this.settings.disconnect(id);
+        this._eventSignals = [];
         if (this._idleSignal) this.settings.disconnect(this._idleSignal);
         this._idleSignal = 0;
         if (this._clockTimer) GLib.source_remove(this._clockTimer);

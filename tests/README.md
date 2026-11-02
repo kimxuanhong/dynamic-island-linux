@@ -66,3 +66,7 @@ Backend monitor-source parsing tests run with `go test ./modules/microphone/...`
 
 `tests/gnome-network.js` checks startup silence, Wi-Fi/Ethernet transitions,
 deduplication, disconnect identity, VPN fallback, disabling events, and cleanup.
+
+`tests/gnome-notification-window.js` checks notification modes and timing, opens
+and closes a real GTK window, and verifies disabling window events.
+`tests/gnome-preferences.js` opens and closes the actual extension preferences window.

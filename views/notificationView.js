@@ -1,35 +1,10 @@
-import Clutter from 'gi://Clutter';
-import St from 'gi://St';
+import {EventView} from './eventView.js';
 
-export class NotificationView {
-    constructor() {
-        this._buildExpandedView();
-    }
-
-    _buildExpandedView() {
-        this.compactContainer = new St.BoxLayout({
-            orientation: Clutter.Orientation.HORIZONTAL,
-            x_expand: true,
-            y_expand: true,
-            visible: false
-        });
-    }
-
-    show() {
-        this.compactContainer.show();
-    }
-
-    hide() {
-        this.compactContainer.hide();
-    }
-
-    destroy() {
-        if (this.compactContainer) {
-            this.compactContainer.destroy();
-        }
+export class NotificationView extends EventView {
+    constructor() { super('Notification'); }
+    updateNotification(info) {
+        this.update({title: info.title || info.appName || 'Notification',
+            detail: [info.appName, info.body].filter(Boolean).join(' — '),
+            icon: 'mail-unread-symbolic', gicon: info.gicon});
     }
 }
-
-// ============================================
-// 2F. VIEW - Xử lý Giao diện Window Launch (WindowView)
-// ============================================

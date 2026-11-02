@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="dynamic-island">
   <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="show-window-events" type="b"><default>true</default><summary>Show window open and close events</summary></key>
+    <key name="notification-style" type="s"><default>"icon"</default><choices><choice value="off"/><choice value="icon"/><choice value="card"/></choices><summary>Notification presentation</summary></key>
+    <key name="notification-icon" type="s"><default>"app"</default><choices><choice value="app"/><choice value="mail"/><choice value="airplane"/></choices><summary>Flying notification icon</summary></key>
+    <key name="notification-animation-duration" type="i"><default>800</default><range min="200" max="3000"/><summary>Flying icon animation duration in milliseconds</summary></key>
+    <key name="notification-display-time" type="i"><default>3</default><range min="1" max="10"/><summary>Notification card display time in seconds</summary></key>
     <key name="show-network" type="b"><default>true</default><summary>Show Wi-Fi and Ethernet connection changes</summary></key>
     <key name="show-bluetooth" type="b"><default>true</default><summary>Show Bluetooth connection changes</summary></key>
     <key name="microphone-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island microphone indicator</summary></key>

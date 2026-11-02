@@ -100,6 +100,7 @@ export class WindowView {
 
     updateWindow(windowInfo) {
         const {appName, appIcon} = windowInfo;
+        this.statusLabel.text = windowInfo.event === 'closed' ? 'Window Closed' : 'Window Opened';
 
         // Update compact view
         this.appLabel.set_text(appName);
