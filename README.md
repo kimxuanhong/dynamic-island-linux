@@ -85,7 +85,10 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ### 📷 Thông báo Camera & Microphone
 - Cảnh báo khi camera được kích hoạt
 - Cảnh báo khi microphone đang ghi âm
-- Bảo vệ quyền riêng tư của bạn
+- Loại bỏ nguồn monitor của loa khỏi chỉ báo microphone khi PulseAudio/PipeWire cung cấp thông tin nguồn
+- Trong Preferences, thêm app ID, tên process hoặc tên app chính xác vào **Microphone Excluded Apps / Camera Excluded Apps**, phân cách bằng dấu phẩy rồi Apply; chỉ ảnh hưởng chỉ báo trong Island
+- Nhiều app dùng đồng thời được theo dõi riêng; loại trừ app áp dụng ngay
+- Giới hạn: nguồn âm thanh không xác định vẫn hiện chỉ báo; camera hiện được nhận diện qua process mở `/dev/video*`, nên app qua portal có thể hiện tên process trung gian
 
 ### 🔔 Thông báo
 - Hiển thị thông báo hệ thống với animation đẹp mắt

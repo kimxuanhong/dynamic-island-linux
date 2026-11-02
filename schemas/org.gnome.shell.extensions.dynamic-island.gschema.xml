@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="dynamic-island">
   <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="microphone-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island microphone indicator</summary></key>
+    <key name="camera-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island camera indicator</summary></key>
     <key name="idle-content" type="s">
       <default>"auto"</default>
       <choices><choice value="auto"/><choice value="battery"/><choice value="media"/><choice value="clock"/><choice value="hidden"/></choices>

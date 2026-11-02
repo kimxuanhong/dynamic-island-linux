@@ -156,6 +156,7 @@ func (s *CameraSource) checkAndPublish(bus core.Bus) {
 			s.activeApps[key] = true
 			event := core.NewEvent(core.EventCameraStart, app.AppName, app.PID)
 			event.Metadata["device"] = "camera"
+			event.Metadata["process"] = app.AppName
 			if app.DevicePath != "" {
 				event.Metadata["device_path"] = app.DevicePath
 			}
@@ -165,12 +166,13 @@ func (s *CameraSource) checkAndPublish(bus core.Bus) {
 
 	for key := range s.activeApps {
 		if !currentMap[key] {
-			parts := strings.Split(key, ":")
-			if len(parts) >= 2 {
-				pid, _ := strconv.Atoi(parts[1])
+			separator := strings.LastIndex(key, ":")
+			if separator >= 0 {
+				appName := key[:separator]
+				pid, _ := strconv.Atoi(key[separator+1:])
 				delete(s.activeApps, key)
 
-				event := core.NewEvent(core.EventCameraStop, parts[0], pid)
+				event := core.NewEvent(core.EventCameraStop, appName, pid)
 				event.Metadata["device"] = "camera"
 				bus.Publish(event)
 			}

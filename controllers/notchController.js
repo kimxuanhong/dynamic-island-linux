@@ -125,8 +125,8 @@ export class NotchController {
         this.brightnessManager = new BrightnessManager();
         this.notificationManager = new NotificationManager();
         this.windowManager = new WindowManager();
-        this.recordingManager = new RecordingManager();
-        this.cameraManager = new CameraManager();
+        this.recordingManager = new RecordingManager(this.settings);
+        this.cameraManager = new CameraManager(this.settings);
         this.uxplayManager = new UxplayManager();
     }
 
@@ -578,7 +578,13 @@ export class NotchController {
             this._requestAutoExpansion('recording', 'recording', NotchConstants.TIMEOUT_RECORDING);
         } else {
             this.cycleManager.deactivate('recording');
-            this.layoutManager.updateLayout();
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'recording');
+            this.timeoutManager.clear('recording');
+            if (this.presenterRegistry.getCurrent() === 'recording' &&
+                this.notch.has_style_class_name('expanded-state'))
+                this.compactNotch(true);
+            else
+                this.layoutManager.updateLayout();
         }
         if (this.stateMachine.isCompact()) {
             this.squeeze();
@@ -593,7 +599,13 @@ export class NotchController {
             this._requestAutoExpansion('camera', 'camera', NotchConstants.TIMEOUT_RECORDING);
         } else {
             this.cycleManager.deactivate('camera');
-            this.layoutManager.updateLayout();
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'camera');
+            this.timeoutManager.clear('camera');
+            if (this.presenterRegistry.getCurrent() === 'camera' &&
+                this.notch.has_style_class_name('expanded-state'))
+                this.compactNotch(true);
+            else
+                this.layoutManager.updateLayout();
         }
         if (this.stateMachine.isCompact()) {
             this.squeeze();
@@ -973,8 +985,9 @@ export class NotchController {
         if (!force && this.notch?.hover) return;
         if (this.volumeView?.isDragging || this.brightnessView?.isDragging) return;
         if (!this.notch) return; // Notch chưa được tạo
-        if (!this.stateMachine.isExpanded()) return;
-        if (this.stateMachine.isAnimating()) return;
+        const opening = this.stateMachine.isAnimating() && !this._collapsing &&
+            this.notch.has_style_class_name('expanded-state');
+        if (!this.stateMachine.isExpanded() && !(force && opening)) return;
 
         this._collapsing = true;
         // Transition to animating state

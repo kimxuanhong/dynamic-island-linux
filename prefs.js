@@ -119,6 +119,20 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('level-display-time', duration, 'value', Gio.SettingsBindFlags.DEFAULT);
         levels.add(duration);
 
+        const privacy = new Adw.PreferencesGroup({title: 'Privacy Indicators',
+            description: 'Exclusions affect only the island. Enter exact app IDs, process names, or reported app names, separated by commas.'});
+        page.add(privacy);
+        for (const [key, title] of [
+            ['microphone-excluded-apps', 'Microphone Excluded Apps'],
+            ['camera-excluded-apps', 'Camera Excluded Apps'],
+        ]) {
+            const row = new Adw.EntryRow({title, text: settings.get_strv(key).join(', '),
+                show_apply_button: true});
+            row.connect('apply', () => settings.set_strv(key,
+                [...new Set(row.text.split(',').map(value => value.trim()).filter(Boolean))]));
+            privacy.add(row);
+        }
+
         window.add(page);
     }
 }

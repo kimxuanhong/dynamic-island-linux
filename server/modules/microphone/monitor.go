@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"dynamic-island-server/core"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -83,8 +84,7 @@ func (s *MicrophoneSource) checkAndPublish(bus core.Bus) {
 
 	if !s.initialized {
 		// Should not happen, but be safe
-		s.initializeActiveApps()
-		return
+		s.initialized = true
 	}
 
 	current := getMicrophoneApps()
@@ -98,18 +98,21 @@ func (s *MicrophoneSource) checkAndPublish(bus core.Bus) {
 			s.activeApps[key] = true
 			event := core.NewEvent(core.EventMicrophoneStart, app.AppName, app.PID)
 			event.Metadata["device"] = "microphone"
+			event.Metadata["app_id"] = app.AppID
+			event.Metadata["process"] = app.Process
 			bus.Publish(event)
 		}
 	}
 
 	for key := range s.activeApps {
 		if !currentMap[key] {
-			parts := strings.Split(key, ":")
-			if len(parts) >= 2 {
-				pid, _ := strconv.Atoi(parts[1])
+			separator := strings.LastIndex(key, ":")
+			if separator >= 0 {
+				appName := key[:separator]
+				pid, _ := strconv.Atoi(key[separator+1:])
 				delete(s.activeApps, key)
 
-				event := core.NewEvent(core.EventMicrophoneStop, parts[0], pid)
+				event := core.NewEvent(core.EventMicrophoneStop, appName, pid)
 				event.Metadata["device"] = "microphone"
 				bus.Publish(event)
 			}
@@ -118,8 +121,11 @@ func (s *MicrophoneSource) checkAndPublish(bus core.Bus) {
 }
 
 type AppInfo struct {
-	AppName string
-	PID     int
+	AppID       string
+	Process     string
+	SourceIndex int
+	AppName     string
+	PID         int
 }
 
 func getMicrophoneApps() []AppInfo {
@@ -129,7 +135,26 @@ func getMicrophoneApps() []AppInfo {
 	if err != nil {
 		return []AppInfo{}
 	}
-	return parsePactlOutput(string(output))
+	apps := parsePactlOutput(string(output))
+	// A source-output may capture playback rather than a physical microphone.
+	// Classify its source through PulseAudio/PipeWire's monitor_of_sink field.
+	sourcesCmd := exec.Command("pactl", "--format=json", "list", "sources")
+	sourcesCmd.Env = append(sourcesCmd.Environ(), "LC_ALL=C")
+	sources, sourceErr := sourcesCmd.Output()
+	if sourceErr != nil {
+		return apps
+	} // Unknown sources remain visible.
+	monitors, err := monitorSources(sources)
+	if err != nil {
+		return apps
+	}
+	filtered := make([]AppInfo, 0, len(apps))
+	for _, app := range apps {
+		if !monitors[app.SourceIndex] {
+			filtered = append(filtered, app)
+		}
+	}
+	return filtered
 }
 
 func parsePactlOutput(output string) []AppInfo {
@@ -162,21 +187,46 @@ func parsePactlOutput(output string) []AppInfo {
 }
 
 var reAppName = regexp.MustCompile(`application.name\s*=\s*"([^"]+)"`)
+var reSource = regexp.MustCompile(`(?m)^\s*Source:\s*(\d+)`)
+var reAppID = regexp.MustCompile(`application.id\s*=\s*"([^"]+)"`)
+var reProcess = regexp.MustCompile(`application.process.binary\s*=\s*"([^"]+)"`)
+
+// PulseAudio uses null, "n/a", or UINT32_MAX when a source is not a monitor.
+func monitorSources(data []byte) (map[int]bool, error) {
+	var sources []struct {
+		Index   int             `json:"index"`
+		Monitor json.RawMessage `json:"monitor_of_sink"`
+	}
+	if err := json.Unmarshal(data, &sources); err != nil {
+		return nil, err
+	}
+	result := make(map[int]bool)
+	for _, source := range sources {
+		value := strings.Trim(string(source.Monitor), "\"")
+		if value == "" || value == "null" || value == "n/a" || value == "4294967295" || value == "-1" {
+			continue
+		}
+		// Numeric monitor sink index or a named sink are both valid.
+		result[source.Index] = true
+	}
+	return result, nil
+}
+
 var rePID = regexp.MustCompile(`application.process.id\s*=\s*"?(\d+)"?`)
 
 // Blacklist of apps that should NOT trigger microphone recording events
 // These are typically audio processors, effects, or system components
 var microphoneBlacklist = map[string]bool{
-	"PulseEffects":     true,
-	"pulseeffects":     true,
-	"EasyEffects":      true,
-	"easyeffects":      true,
-	"PulseAudio":       true,
-	"pulseaudio":       true,
-	"PipeWire":         true,
-	"pipewire":         true,
-	"GNOME Shell":      true,
-	"gnome-shell":      true,
+	"PulseEffects": true,
+	"pulseeffects": true,
+	"EasyEffects":  true,
+	"easyeffects":  true,
+	"PulseAudio":   true,
+	"pulseaudio":   true,
+	"PipeWire":     true,
+	"pipewire":     true,
+	"GNOME Shell":  true,
+	"gnome-shell":  true,
 }
 
 func parsePactlBlock(block string) *AppInfo {
@@ -209,5 +259,15 @@ func parsePactlBlock(block string) *AppInfo {
 		return nil
 	}
 
-	return &AppInfo{AppName: app, PID: pid}
+	info := &AppInfo{AppName: app, PID: pid, SourceIndex: -1}
+	if m := reSource.FindStringSubmatch(block); len(m) == 2 {
+		info.SourceIndex, _ = strconv.Atoi(m[1])
+	}
+	if m := reAppID.FindStringSubmatch(block); len(m) == 2 {
+		info.AppID = m[1]
+	}
+	if m := reProcess.FindStringSubmatch(block); len(m) == 2 {
+		info.Process = m[1]
+	}
+	return info
 }

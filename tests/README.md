@@ -59,3 +59,7 @@ fallback, display duration, dismissal, and restoration of the OSD method on disa
 
 `tests/gnome-idle-settings.js` checks all idle modes, keeping active data across
 mode changes, privacy indicators, clock replacement by temporary events, and timer cleanup.
+
+`tests/gnome-privacy.js` checks concurrent mic/camera sessions, exact app exclusions,
+live exclusion changes during expansion, queue removal, and indicator dismissal.
+Backend monitor-source parsing tests run with `go test ./modules/microphone/...` from `server/`.
