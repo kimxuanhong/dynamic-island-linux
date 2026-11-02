@@ -20,6 +20,7 @@ export async function run() {
         }
     };
     c._onBatteryChanged({isPresent: true, percentage: 75, isCharging: false});
+    await Scripting.sleep(650);
     for (const size of ['small', 'normal', 'large']) {
         e._settings.set_string('island-size', size);
         await Scripting.sleep(100);

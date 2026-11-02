@@ -5,7 +5,6 @@ export class BatteryManager {
     constructor() {
         this._serverProxy = null;
         this._callbacks = [];
-        this._wasCharging = false;
         this._currentPercentage = 0;
         this._isCharging = false;
         this._isPresent = false;
@@ -14,7 +13,32 @@ export class BatteryManager {
         this._isInitializing = true;
         this._hasReceivedValue = false; // Flag để biết đã nhận được giá trị từ server chưa
 
+        this._hasPowerState = false;
+        this._powerSignal = 0;
+        this._destroyed = false;
+        this._initPowerConnection();
         this._initServerConnection();
+    }
+
+    _initPowerConnection() {
+        const PowerProxy = Gio.DBusProxy.makeProxyWrapper(`<node>
+            <interface name="org.freedesktop.UPower">
+                <property name="OnBattery" type="b" access="read"/>
+            </interface></node>`);
+        this._powerProxy = new PowerProxy(Gio.DBus.system, 'org.freedesktop.UPower',
+            '/org/freedesktop/UPower', (proxy, error) => {
+                if (error || this._destroyed) return;
+                const update = () => {
+                    if (typeof proxy.OnBattery !== 'boolean') return;
+                    const plugged = !proxy.OnBattery;
+                    if (this._hasPowerState && plugged === this._isPlugged) return;
+                    this._hasPowerState = true;
+                    this._isPlugged = plugged;
+                    this._notifyCallbacks();
+                };
+                this._powerSignal = proxy.connect('g-properties-changed', update);
+                update();
+            });
     }
 
     _initServerConnection() {
@@ -171,11 +195,6 @@ export class BatteryManager {
             return;
         }
 
-        // Detect charging state change for auto-expand
-        const wasCharging = this._wasCharging;
-        this._wasCharging = info.isCharging;
-        info.shouldAutoExpand = info.isCharging && !wasCharging;
-
         this._callbacks.forEach(cb => cb(info));
     }
 
@@ -188,12 +207,17 @@ export class BatteryManager {
             percentage: this._currentPercentage,
             isCharging: this._isCharging,
             isPresent: this._isPresent,
+            isPlugged: this._hasPowerState ? this._isPlugged : null,
             timeToEmpty: this._timeToEmpty || 0,
             timeToFull: this._timeToFull || 0
         };
     }
 
     destroy() {
+        this._destroyed = true;
+        if (this._powerSignal) this._powerProxy.disconnect(this._powerSignal);
+        this._powerSignal = 0;
+        this._powerProxy = null;
         if (this._serverProxy) {
             this._serverProxy = null;
         }

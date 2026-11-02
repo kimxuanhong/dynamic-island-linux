@@ -9,11 +9,15 @@ export class LayoutManager {
     }
 
     updateLayout() {
-        if (!this.controller.notch || this.controller._collapsing) return;
+        if (!this.controller.notch || this.controller._collapsing || this.controller._dispatchingExpansion) return;
         const state = this.controller.stateMachine.getState();
         const expanding = state === 'animating' &&
             this.controller.notch.has_style_class_name('expanded-state');
-        if (state === 'expanded' || expanding) {
+        if (expanding) {
+            this.controller.secondaryNotch?.hide();
+            return;
+        }
+        if (state === 'expanded') {
             this._updateExpandedLayout();
         } else {
             this._updateCompactLayout();
@@ -31,10 +35,16 @@ export class LayoutManager {
 
     _updateCompactLayout() {
         if (this.controller.cycleManager.count() === 0) {
-            this.controller.notch.hide();
+            // A temporary event is waiting for compact reveal to finish.
+            if (this.controller._revealing && this.controller._expansionQueue.length) return;
+            this.controller.animationController.hide();
             this.controller.secondaryNotch?.hide();
             return;
         }
+        const c = this.controller;
+        const revealFrom = !c.notch.visible ? {width: 0, x: c._calculateNotchX(0)}
+            : (c._hiding || c._revealing) ? {width: c.notch.width, x: c.notch.x} : null;
+        c.animationController.cancelHide();
         this.controller.notch.show();
         const isSingle = this.controller.cycleManager.count() <= 1;
         if (!isSingle) {
@@ -42,6 +52,7 @@ export class LayoutManager {
         } else {
             this._updateDefaultLayout();
         }
+        if (revealFrom) c.animationController.reveal(revealFrom);
     }
 
     _updateSplitModeLayout() {
@@ -65,8 +76,10 @@ export class LayoutManager {
             this.controller._calculateNotchY() :
             NotchConstants.NOTCH_Y_POSITION;
 
-        this.controller.notch.set_width(mainWidth);
-        this.controller.notch.set_position(startX, startY);
+        if (!this.controller._revealing) {
+            this.controller.notch.set_width(mainWidth);
+            this.controller.notch.set_position(startX, startY);
+        }
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.set_position(startX + (mainWidth + gap) * this.controller.originalScale +
                 (this.controller.originalScale - 1) * (secWidth - mainWidth) / 2, startY);
@@ -156,14 +169,14 @@ export class LayoutManager {
         }
 
         // Set position
-        this.controller.notch.set_width(this.controller.width);
+        if (!this.controller._revealing) this.controller.notch.set_width(this.controller.width);
         const startX = this.controller._calculateNotchX ?
             this.controller._calculateNotchX(this.controller.width) :
             Math.floor((this.controller.monitorWidth - this.controller.width) / 2);
         const startY = this.controller._calculateNotchY ?
             this.controller._calculateNotchY() :
             NotchConstants.NOTCH_Y_POSITION;
-        this.controller.notch.set_position(startX, startY);
+        if (!this.controller._revealing) this.controller.notch.set_position(startX, startY);
 
         // Get container before removing children
         const currentPresenterName = this.controller.cycleManager.current();

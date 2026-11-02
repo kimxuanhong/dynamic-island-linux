@@ -74,6 +74,74 @@ export class AnimationController {
         });
     }
 
+    hide() {
+        const c = this.controller;
+        if (!c.notch?.visible || c._hiding) return;
+        c._hiding = true;
+        c._revealing = false;
+        c.notch.remove_all_transitions();
+        c.secondaryNotch?.remove_all_transitions();
+        c.secondaryNotch?.hide();
+        c.notch.set_scale(c.originalScale, c.originalScale);
+        c.stateMachine.transitionTo('animating');
+        c.notch.ease({
+            width: 0,
+            x: c._calculateNotchX(0),
+            duration: NotchConstants.ANIMATION_HIDE_DURATION,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+            onComplete: () => {
+                if (c._destroyed) return;
+                c._hiding = false;
+                c.notch.hide();
+                c.notch.set_width(c.width);
+                c.notch.set_position(c._calculateNotchX(c.width), c._calculateNotchY());
+                c.stateMachine.transitionTo('compact');
+                if (c._expansionQueue.length) c._finishCollapse();
+            },
+        });
+    }
+
+    reveal(from = null) {
+        const c = this.controller;
+        const start = from ?? (c.notch.visible
+            ? {width: c.notch.width, x: c.notch.x}
+            : {width: 0, x: c._calculateNotchX(0)});
+        this.cancelHide();
+        c.notch.remove_all_transitions();
+        c._revealing = true;
+        c.notch.remove_style_class_name('expanded-state');
+        c.notch.add_style_class_name('compact-state');
+        c.notch.set_size(start.width, c.height);
+        c.notch.set_position(start.x, c._calculateNotchY());
+        c.notch.set_scale(c.originalScale, c.originalScale);
+        c.notch.show();
+        c.stateMachine.transitionTo('animating');
+        const target = this.calculateCompactGeometry();
+        c.notch.ease({
+            width: target.width, x: target.x,
+            duration: NotchConstants.ANIMATION_HIDE_DURATION,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+            onComplete: () => {
+                if (c._destroyed) return;
+                c._revealing = false;
+                c.stateMachine.transitionTo('compact');
+                if (c._expansionQueue.length) c._finishCollapse();
+                else {
+                    c.layoutManager.updateLayout();
+                    c._resumePendingHover();
+                }
+            },
+        });
+    }
+
+    cancelHide() {
+        const c = this.controller;
+        if (!c._hiding) return;
+        c._hiding = false;
+        c.notch.remove_all_transitions();
+        c.stateMachine.transitionTo('compact');
+    }
+
     squeeze() {
         if (!this.controller.notch) return;
 

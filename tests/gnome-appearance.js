@@ -11,6 +11,7 @@ export async function run() {
     await Scripting.sleep(1000);
     const settings = extension.stateObj._settings;
     c._onBatteryChanged({isPresent: true, percentage: 75, isCharging: false});
+    await Scripting.sleep(650);
     for (const [size, scale] of [['small', 0.85], ['large', 1.15], ['normal', 1]]) {
         settings.set_string('island-size', size);
         settings.set_int('background-opacity', 40);

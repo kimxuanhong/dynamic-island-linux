@@ -7,7 +7,7 @@ export class BatteryView {
     constructor() {
         this._chargingAnimationTimer = null;
         this._currentAnimationFrame = 0;
-        this._lastChargingState = null; // Track charging state changes
+        this._lastPluggedState = null; // Track charging state changes
         this._lastPercentageState = null; // Track percentage milestones
         this._expandCallback = null; // Callback to trigger expand
         this._buildCompactView();
@@ -153,13 +153,13 @@ export class BatteryView {
             this._chargeTrack.hide();
             this.hide();
             this._lastNotifiedState = null;
-            this._lastChargingState = null;
+            this._lastPluggedState = null;
             this._lastPercentageState = null;
             return;
         }
 
         // 🔔 Check and send notifications
-        this._checkBatteryNotifications(percentage, isCharging);
+        this._checkBatteryNotifications(percentage, batteryInfo.isPlugged);
 
         // Update compact view
         this.percentageLabel.set_text(`${percentage}%`);
@@ -247,60 +247,17 @@ export class BatteryView {
     }
 
     /**
-     * Check battery state changes and trigger expand view
+     * Announce external power transitions; percentage updates remain silent
      * @param {number} percentage - Battery percentage
-     * @param {boolean} isCharging - Whether battery is charging
+     * @param {boolean} isPlugged - Whether external power is connected
      */
-    _checkBatteryNotifications(percentage, isCharging) {
-        let shouldExpand = false;
-
-        // 🔌 Detect charging state change (plug/unplug)
-        if (this._lastChargingState !== null && this._lastChargingState !== isCharging) {
-            shouldExpand = true;
-            this._lastChargingState = isCharging;
-        } else if (this._lastChargingState === null) {
-            // First time initialization
-            this._lastChargingState = isCharging;
-        }
-
-        // � Check percentage milestones (only when charging)
-        if (isCharging) {
-            // Battery almost full (≥90%)
-            if (percentage >= 90 && percentage < 100) {
-                if (this._lastPercentageState !== '90+') {
-                    shouldExpand = true;
-                    this._lastPercentageState = '90+';
-                }
-            }
-            // Battery full (100%)
-            else if (percentage === 100) {
-                if (this._lastPercentageState !== '100') {
-                    shouldExpand = true;
-                    this._lastPercentageState = '100';
-                }
-            }
-            // Reset milestone when below 90%
-            else if (percentage < 90) {
-                this._lastPercentageState = null;
-            }
-        } else {
-            // 🔴 Low battery warning (≤20% and not charging)
-            if (percentage <= 20) {
-                if (this._lastPercentageState !== '20-') {
-                    shouldExpand = true;
-                    this._lastPercentageState = '20-';
-                }
-            }
-            // Reset milestone when above 20%
-            else if (percentage > 20) {
-                this._lastPercentageState = null;
-            }
-        }
-
-        // Trigger expand view if needed
-        if (shouldExpand && this._expandCallback) {
-            this._expandCallback();
-        }
+    _checkBatteryNotifications(_percentage, isPlugged) {
+        if (typeof isPlugged !== 'boolean') return;
+        const changed = this._lastPluggedState !== null && this._lastPluggedState !== isPlugged;
+        this._lastPluggedState = isPlugged;
+        // Initial state and percentage refreshes are silent. Only a charging
+        // transition requests a temporary card.
+        if (changed) this._expandCallback?.();
     }
 
     /**
@@ -390,7 +347,7 @@ export class BatteryView {
 
     destroy() {
         this._stopChargingAnimation();
-        this._lastChargingState = null;
+        this._lastPluggedState = null;
         this._lastPercentageState = null;
         this._expandCallback = null;
         if (this.compactContainer) {

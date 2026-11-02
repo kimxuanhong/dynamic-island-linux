@@ -67,6 +67,8 @@ export class NotchController {
 
         this._expansionQueue = [];
         this._collapsing = false;
+        this._hiding = false;
+        this._revealing = false;
         this._hoverExpansionPending = false;
         this._animatedIcons = new Map();
         this._destroyed = false; // ✅ Track destruction state
@@ -323,6 +325,7 @@ export class NotchController {
     _createNotchActor() {
         this.notch = new St.BoxLayout({
             style_class: 'notch compact-state',
+            visible: false,
             orientation: Clutter.Orientation.HORIZONTAL,
             reactive: true,
             track_hover: true,
@@ -559,6 +562,7 @@ export class NotchController {
     }
 
     _onBatteryChanged(info) {
+        const wasPresent = this.cycleManager.has('battery');
         if (!info?.isPresent) {
             this.cycleManager.deactivate('battery');
             this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'battery');
@@ -566,6 +570,7 @@ export class NotchController {
             this.timeoutManager.clear('battery-auto-collapse');
             this.batteryView.updateBattery(info);
             this.notch.remove_style_class_name('charging');
+            if (!wasPresent) return;
             if (this.presenterRegistry.getCurrent() === 'battery' && this.stateMachine.isExpanded())
                 this.compactNotch(true);
             else
@@ -575,7 +580,7 @@ export class NotchController {
         if (!this.cycleManager.has('battery'))
             this.cycleManager.activate('battery', false);
         this.batteryView.updateBattery(info);
-        this.layoutManager.updateLayout();
+        if (!wasPresent) this.layoutManager.updateLayout();
         if (info.isCharging) {
             this.notch.add_style_class_name('charging');
         } else {
@@ -831,6 +836,14 @@ export class NotchController {
 
     _requestAutoExpansion(presenterName, timeoutKey, delay) {
         if (this._destroyed) return;
+        if (!this.notch.visible || this._hiding) {
+            if (this.cycleManager.count()) this.layoutManager.updateLayout();
+            else {
+                this._hideAllCompactViews();
+                this._hideAllExpandedViews();
+                this.animationController.reveal();
+            }
+        }
         const current = this.presenterRegistry.getCurrent();
         if (!this._collapsing && this.stateMachine.isAnimating() &&
             this.notch?.has_style_class_name('expanded-state') && current === presenterName) {
@@ -985,6 +998,12 @@ export class NotchController {
     expandNotch(isAuto = false) {
         if (!isAuto && !this.cycleManager.current()) return;
         if (!this.notch) return;
+        if (!this.notch.visible || this._hiding || this._revealing) {
+            if (!this._revealing) this.animationController.reveal();
+            this._expansionQueue.push({presenterName: isAuto
+                ? this.presenterRegistry.getCurrent() : this.cycleManager.current()});
+            return;
+        }
         if (this._collapsing) {
             this._expansionQueue.push({
                 presenterName: isAuto ? this.presenterRegistry.getCurrent() : this.cycleManager.current(),
@@ -1067,17 +1086,22 @@ export class NotchController {
         if (this._destroyed) return;
         this._collapsing = false;
         this.stateMachine.transitionTo('compact');
-        this.layoutManager.updateLayout();
+        if (!this._expansionQueue.length) this.layoutManager.updateLayout();
         const skipSqueeze = this._skipCollapseSqueeze;
         this._skipCollapseSqueeze = false;
         if (this._resumePendingHover()) return;
         const event = this._expansionQueue.shift();
         if (!event) {
-            if (!skipSqueeze) this.animationController.squeeze();
+            if (!skipSqueeze && !this._hiding && this.notch.visible) this.animationController.squeeze();
             return;
         }
-        this.presenterRegistry.switchTo(event.presenterName, true);
-        this.expandNotch(true);
+        this._dispatchingExpansion = true;
+        try {
+            this.presenterRegistry.switchTo(event.presenterName, true);
+            this.expandNotch(true);
+        } finally {
+            this._dispatchingExpansion = false;
+        }
         if (event.collapse) {
             const {timeoutKey, delay} = event.collapse;
             this._scheduleAutoCollapse(timeoutKey, delay + NotchConstants.ANIMATION_EXPAND_DURATION);
@@ -1088,6 +1112,10 @@ export class NotchController {
     }
 
     _resumePendingHover() {
+        if (!this.cycleManager.current()) {
+            this._hoverExpansionPending = false;
+            return false;
+        }
         if (!this._hoverExpansionPending || !this.notch?.hover) return false;
         this._hoverExpansionPending = false;
         this.expandNotch(false);
@@ -1095,7 +1123,7 @@ export class NotchController {
     }
 
     squeeze() {
-        if (!this.stateMachine.isCompact()) return;
+        if (!this.stateMachine.isCompact() || this._hiding) return;
         this.animationController.squeeze();
     }
 
@@ -1139,7 +1167,8 @@ export class NotchController {
         const scale = {small: 0.85, normal: 1, large: 1.15}[
             this.settings?.get_string('island-size') ?? 'normal'];
         const resized = scale !== this.originalScale;
-        const squeezing = this.stateMachine.isAnimating() && !this._collapsing &&
+        const hiding = this._hiding;
+        const squeezing = this.stateMachine.isAnimating() && !this._collapsing && !hiding && !this._revealing &&
             !this.notch.has_style_class_name('expanded-state');
         this.originalScale = scale;
         for (const actor of [this.notch, this.secondaryNotch]) {
@@ -1148,6 +1177,18 @@ export class NotchController {
                 if (squeezing) actor.remove_all_transitions();
                 actor.set_scale(scale, scale);
             }
+        }
+        if (resized && this._revealing) {
+            this.animationController.reveal({width: this.notch.width,
+                x: this._calculateNotchX(this.notch.width)});
+            return;
+        }
+        if (resized && hiding) {
+            this.animationController.cancelHide();
+            this.notch.set_width(this.width);
+            this.notch.set_position(this._calculateNotchX(this.width), this._calculateNotchY());
+            this.animationController.hide();
+            return;
         }
         // Retarget active animations so they cannot restore the previous size.
         if (resized && this._collapsing) {

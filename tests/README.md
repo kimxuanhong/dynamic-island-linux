@@ -61,7 +61,8 @@ fallback, display duration, dismissal, and restoration of the OSD method on disa
 replacement by every activity, two-notch sequencing without fallback leakage,
 returning to the default, and stopping unused speed polling.
 `tests/gnome-default-battery-event.js` checks charging/unplugging events while the
-battery is replaced by media/mic, and restoration of active or hidden content.
+battery is replaced by media/mic, restoration of active or hidden content,
+and silent percentage/full-charge updates while external power stays unchanged.
 `gjs -m tests/network-rate.js` checks rate units, elapsed time, new interfaces,
 loopback exclusion, and counter resets.
 
@@ -79,3 +80,7 @@ and closes a real GTK window, and verifies disabling window events.
 `tests/gnome-animation-center.js` samples the horizontal center throughout squeeze,
 expansion, and collapse at every size, checks both actors in split mode, and changes
 size during running animations to catch stale scale targets.
+
+`tests/gnome-hidden-animation.js` samples centered hide/reveal in all sizes,
+checks compact-before-expand/hide ordering, and reverses a running hide when
+a default choice or a new event arrives.

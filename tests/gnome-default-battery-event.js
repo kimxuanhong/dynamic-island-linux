@@ -10,8 +10,14 @@ export async function run() {
     await Scripting.sleep(1000);
     const c = e._notchController;
     e._settings.set_string('default-content', 'battery');
-    const battery = {isPresent: true, percentage: 75, isCharging: false};
+    const battery = {isPresent: true, percentage: 75, isCharging: false, isPlugged: false};
     c._onBatteryChanged(battery);
+    // Percentage milestones and the first battery reading must be silent.
+    let requests = 0;
+    const request = c._requestAutoExpansion.bind(c);
+    c._requestAutoExpansion = (...args) => { if (args[0] === 'battery') requests++; request(...args); };
+    for (const percentage of [19, 21, 90, 100, 75]) c._onBatteryChanged({...battery, percentage});
+    if (requests) throw new Error('Percentage-only update requested battery animation');
     c.cycleManager.activate('media');
     c.cycleManager.activate('recording');
     c.layoutManager.updateLayout();
@@ -22,11 +28,15 @@ export async function run() {
             throw new Error(`Battery entered activity sequence: ${visible}`);
     };
     for (const isCharging of [true, false]) {
-        c._onBatteryChanged({...battery, isCharging});
-        await Scripting.sleep(500);
+        c._onBatteryChanged({...battery, isCharging, isPlugged: isCharging});
+        await Scripting.sleep(900);
         if (c.presenterRegistry.getCurrent() !== 'battery' || !c.batteryView.expandedContainer.visible || !c.notch.visible)
             throw new Error(`Hidden battery did not expand on charging=${isCharging}`);
         assertActivities();
+        const before = requests;
+        for (const percentage of [90, 100])
+            c._onBatteryChanged({...battery, percentage, isCharging: false, isPlugged: isCharging});
+        if (requests !== before) throw new Error('Full battery or charging threshold animated without an AC change');
         await Scripting.sleep(3600);
         assertActivities();
         if (!c.stateMachine.isCompact() || !c.secondaryNotch.visible || c.batteryView.expandedContainer.visible)
@@ -38,8 +48,8 @@ export async function run() {
     if (c.cycleManager.current() !== 'battery' || !c.notch.visible)
         throw new Error('Default battery did not return after last activity');
     e._settings.set_string('default-content', 'hidden');
-    c._onBatteryChanged({...battery, isCharging: true});
-    await Scripting.sleep(500);
+    c._onBatteryChanged({...battery, isCharging: true, isPlugged: true});
+    await Scripting.sleep(900);
     if (!c.notch.visible || !c.batteryView.expandedContainer.visible)
         throw new Error('Hidden default suppressed charging event');
     await Scripting.sleep(3600);

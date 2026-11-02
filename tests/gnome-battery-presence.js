@@ -11,9 +11,11 @@ export async function run() {
     await Scripting.sleep(1000);
     const battery = {percentage: 75, isCharging: false, isPresent: true};
     c._onBatteryChanged(battery);
+    await Scripting.sleep(650);
     if (!c.cycleManager.has('battery') || !c.notch.visible)
         throw new Error('Present battery should show island');
     c._onBatteryChanged({...battery, isPresent: false});
+    await Scripting.sleep(650);
     if (c.cycleManager.has('battery') || c.notch.visible || c.secondaryNotch.visible)
         throw new Error('Absent battery should hide idle island');
     c._onVolumeChanged({volume: 42, isMuted: false});

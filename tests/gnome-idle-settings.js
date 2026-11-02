@@ -11,7 +11,8 @@ export async function run() {
     const c = e._notchController;
     const s = e._settings;
     c._onBatteryChanged({isPresent: true, percentage: 75, isCharging: false});
-    const assertSelection = (items, label) => {
+    const assertSelection = async (items, label) => {
+        await Scripting.sleep(c._hiding || c._revealing ? 550 : 30);
         const actual = c.cycleManager._visibleItems();
         if (actual.length !== items.length || items.some(item => !actual.includes(item)))
             throw new Error(`${label}: expected ${items}, got ${actual}`);
@@ -20,34 +21,34 @@ export async function run() {
     for (const mode of ['battery', 'clock', 'network-speed', 'hidden']) {
         s.set_string('default-content', mode);
         await Scripting.sleep(100);
-        assertSelection(mode === 'hidden' ? [] : [mode], `${mode} fallback`);
+        await assertSelection(mode === 'hidden' ? [] : [mode], `${mode} fallback`);
         for (const activity of ['media', 'recording', 'camera', 'uxplay']) {
             c.cycleManager.activate(activity);
             c.layoutManager.updateLayout();
-            assertSelection([activity], `${activity} replaces ${mode}`);
+            await assertSelection([activity], `${activity} replaces ${mode}`);
             if (c.secondaryNotch.visible) throw new Error('Default content leaked into secondary notch');
             c.cycleManager.deactivate(activity);
             c.layoutManager.updateLayout();
-            assertSelection(mode === 'hidden' ? [] : [mode], `${mode} restored after ${activity}`);
+            await assertSelection(mode === 'hidden' ? [] : [mode], `${mode} restored after ${activity}`);
         }
         c.cycleManager.activate('media');
         c.cycleManager.activate('recording');
         c.layoutManager.updateLayout();
-        assertSelection(['media', 'recording'], `${mode} concurrent activities`);
+        await assertSelection(['media', 'recording'], `${mode} concurrent activities`);
         if (!c.secondaryNotch.visible || c.cycleManager.getNext() === mode)
             throw new Error('Two-notch sequence includes fallback');
         c.cycleManager.next();
         c.layoutManager.updateLayout();
-        assertSelection(['media', 'recording'], 'Cycling activities');
+        await assertSelection(['media', 'recording'], 'Cycling activities');
         c.cycleManager.deactivate('media');
         c.layoutManager.updateLayout();
-        assertSelection(['recording'], 'Mic remains after media stops');
+        await assertSelection(['recording'], 'Mic remains after media stops');
         c.cycleManager.deactivate('recording');
         c.layoutManager.updateLayout();
     }
     s.set_string('default-content', 'battery');
     c._onBatteryChanged({isPresent: false, percentage: 0, isCharging: false});
-    assertSelection([], 'No battery fallback');
+    await assertSelection([], 'No battery fallback');
     s.set_string('default-content', 'clock');
     if (!/^\d\d:\d\d$/.test(c._clockLabel.text)) throw new Error('Clock not running');
     c._onVolumeChanged({volume: 42, isMuted: false});
@@ -64,10 +65,10 @@ export async function run() {
     c.mediaManager._updateMediaState({player: 'org.mpris.MediaPlayer2.test', status: 'Playing',
         title: 'Track', artist: 'Artist', length: 120000000, position: 1000000});
     await Scripting.sleep(100);
-    assertSelection(['media'], 'Playing media immediately replaces speed');
+    await assertSelection(['media'], 'Playing media immediately replaces speed');
     c._dismissMedia();
     await Scripting.sleep(900);
-    assertSelection(['network-speed'], 'Speed returns after media disappears');
+    await assertSelection(['network-speed'], 'Speed returns after media disappears');
     s.set_string('default-content', 'hidden');
     if (c.networkSpeedManager._timer) throw new Error('Unused speed polling still running');
     e.disable();
