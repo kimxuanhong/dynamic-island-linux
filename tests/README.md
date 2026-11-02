@@ -53,3 +53,6 @@ island without a battery, and showing temporary volume events while idle is hidd
 `tests/gnome-appearance.js` checks live opacity and size changes, centering, split
 spacing, expansion, and preserving scale after collapse. The brightness test
 checks pointer interactions on scaled controls.
+
+`tests/gnome-level-settings.js` checks live level toggles, OSD replacement and
+fallback, display duration, dismissal, and restoration of the OSD method on disable.

@@ -84,6 +84,24 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         });
         group.add(marginRow);
 
+        const levels = new Adw.PreferencesGroup({title: 'Volume and Brightness'});
+        page.add(levels);
+        for (const [key, title, subtitle] of [
+            ['show-volume', 'Show Volume', 'Show output volume changes in the island'],
+            ['show-brightness', 'Show Brightness', 'Show screen brightness changes in the island'],
+            ['hide-system-osd', 'Replace System Overlays', 'Replace enabled volume and brightness overlays; other system overlays remain visible'],
+        ]) {
+            const row = new Adw.SwitchRow({title, subtitle});
+            settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+            levels.add(row);
+        }
+        const duration = new Adw.SpinRow({
+            title: 'Display Time', subtitle: 'Seconds before volume or brightness closes',
+            adjustment: new Gtk.Adjustment({lower: 1, upper: 10, step_increment: 1}),
+        });
+        settings.bind('level-display-time', duration, 'value', Gio.SettingsBindFlags.DEFAULT);
+        levels.add(duration);
+
         window.add(page);
     }
 }

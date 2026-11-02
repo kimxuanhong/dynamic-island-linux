@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="dynamic-island">
   <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="show-volume" type="b"><default>true</default><summary>Show volume changes</summary></key>
+    <key name="show-brightness" type="b"><default>true</default><summary>Show brightness changes</summary></key>
+    <key name="hide-system-osd" type="b"><default>false</default><summary>Replace volume and brightness system overlays</summary></key>
+    <key name="level-display-time" type="i"><default>2</default><range min="1" max="10"/><summary>Volume and brightness display time in seconds</summary></key>
     <key name="background-opacity" type="i">
       <default>85</default>
       <range min="0" max="100"/>

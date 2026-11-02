@@ -105,6 +105,9 @@ export class NotchController {
             this.settings?.connect(`changed::${key}`, () => this._syncAppearance())
         ).filter(Boolean);
         this._syncAppearance();
+        this._levelSignals = ['show-volume', 'show-brightness'].map(key =>
+            this.settings?.connect(`changed::${key}`, () => this._syncLevelSettings())
+        ).filter(Boolean);
 
         // Initial state
         this._updateUI();
@@ -165,7 +168,7 @@ export class NotchController {
         });
 
         this.mediaView.setVolumeRequestHandler(() => {
-            this._requestAutoExpansion('volume', 'volume', NotchConstants.TIMEOUT_VOLUME);
+            this._requestAutoExpansion('volume', 'volume', this._levelDisplayTime());
         });
     }
 
@@ -584,16 +587,33 @@ export class NotchController {
         }
     }
 
+    _levelDisplayTime() {
+        return (this.settings?.get_int('level-display-time') ?? 2) * 1000;
+    }
+
+    _syncLevelSettings() {
+        for (const name of ['volume', 'brightness']) {
+            if (this.settings.get_boolean(`show-${name}`)) continue;
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== name);
+            this.timeoutManager.clear(name);
+            if (this.presenterRegistry.getCurrent() === name &&
+                this.notch.has_style_class_name('expanded-state'))
+                this.compactNotch(true);
+        }
+    }
+
     _onVolumeChanged(info) {
+        if (this.settings && !this.settings.get_boolean('show-volume')) return;
         this.volumeView.updateVolume(info);
 
-        this._requestAutoExpansion('volume', 'volume', NotchConstants.TIMEOUT_VOLUME);
+        this._requestAutoExpansion('volume', 'volume', this._levelDisplayTime());
     }
 
     _onBrightnessChanged(info) {
+        if (this.settings && !this.settings.get_boolean('show-brightness')) return;
         this.brightnessView.updateBrightness(info);
 
-        this._requestAutoExpansion('brightness', 'brightness', NotchConstants.TIMEOUT_BRIGHTNESS);
+        this._requestAutoExpansion('brightness', 'brightness', this._levelDisplayTime());
     }
 
     _onNotificationReceived(info) {
@@ -1033,6 +1053,9 @@ export class NotchController {
         for (const id of this._appearanceSignals ?? [])
             this.settings.disconnect(id);
         this._appearanceSignals = [];
+        for (const id of this._levelSignals ?? [])
+            this.settings.disconnect(id);
+        this._levelSignals = [];
         this._expansionQueue.length = 0;
 
         // Clear all timeouts

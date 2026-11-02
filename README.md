@@ -156,6 +156,9 @@ gnome-extensions prefs dynamic-island@xuanhong
 
 - **Background Opacity**: độ đậm của nền từ 0–100%; không làm mờ chữ và icon.
 - **Island Size**: Small (85%), Normal (100%), Large (115%); áp dụng ngay cho nội dung và vùng tương tác.
+- **Show Volume / Show Brightness**: bật/tắt thông báo thay đổi âm lượng/độ sáng trong Island.
+- **Replace System Overlays**: thay OSD âm lượng/độ sáng bằng Island khi loại tương ứng được bật. OSD khác vẫn giữ nguyên; mặc định tắt.
+- **Display Time**: thời gian hiển thị âm lượng/độ sáng từ 1–10 giây.
 
 ### Tương tác cơ bản
 

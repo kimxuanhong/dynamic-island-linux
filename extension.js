@@ -1,4 +1,4 @@
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {NotchController} from './controllers/notchController.js';
@@ -13,6 +13,7 @@ export default class DynamicIslandExtension extends Extension {
 
         this._notchController = new NotchController(this._settings);
         this._syncDatePanel();
+        this._setupSystemOsd();
 
         this._settingsSignals.push(
             this._settings.connect('changed::hide-datepanel', () =>
@@ -25,6 +26,8 @@ export default class DynamicIslandExtension extends Extension {
     }
 
     disable() {
+        this._osdInjection?.clear();
+        this._osdInjection = null;
         this._notchController?.destroy();
         this._notchController = null;
         this._restoreDatePanel(true);
@@ -34,6 +37,35 @@ export default class DynamicIslandExtension extends Extension {
 
         this._settingsSignals = null;
         this._settings = null;
+    }
+
+    _setupSystemOsd() {
+        this._osdInjection = new InjectionManager();
+        const manager = Main.osdWindowManager;
+        // Both the older show() API and newer showOne/showAll APIs use this
+        // per-monitor method. Leave unknown icons and unsupported APIs alone.
+        if (typeof manager?._showOsdWindow !== 'function') return;
+        const extension = this;
+        this._osdInjection.overrideMethod(manager, '_showOsdWindow', original => function (...args) {
+            const [, icon, , level] = args;
+            const names = icon?.get_names?.() ?? [];
+            const type = names.some(name => name.startsWith('audio-volume-')) ? 'volume'
+                : names.some(name => name.startsWith('display-brightness')) ? 'brightness' : null;
+            const settings = extension._settings;
+            const controller = extension._notchController;
+            if (!type || !settings?.get_boolean('hide-system-osd') ||
+                !settings.get_boolean(`show-${type}`) || !controller || controller._destroyed ||
+                !Number.isFinite(level))
+                return original.apply(this, args);
+            // Feed the replacement directly from Shell so suppression never
+            // depends on a working backend connection.
+            if (type === 'volume')
+                controller._onVolumeChanged({volume: Math.round(level * 100),
+                    isMuted: names.some(name => name.includes('muted'))});
+            else
+                controller._onBrightnessChanged({brightness: Math.round(level * 100)});
+            return undefined;
+        });
     }
 
     _syncDatePanel() {
