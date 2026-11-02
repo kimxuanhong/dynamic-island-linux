@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="dynamic-island">
   <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="background-opacity" type="i">
+      <default>85</default>
+      <range min="0" max="100"/>
+      <summary>Background opacity</summary>
+      <description>Opacity of the island background in percent; text and icons stay opaque.</description>
+    </key>
+    <key name="island-size" type="s">
+      <default>"normal"</default>
+      <choices><choice value="small"/><choice value="normal"/><choice value="large"/></choices>
+      <summary>Island size</summary>
+      <description>Scale the island, its content, and its interactive controls.</description>
+    </key>
     <key name="hide-datepanel" type="b">
       <default>false</default>
       <summary>Hide Date Panel</summary>

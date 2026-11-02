@@ -85,8 +85,8 @@ export class AnimationController {
         notch.remove_all_transitions();
 
         notch.ease({
-            scale_x: NotchConstants.SQUEEZE_SCALE_X,
-            scale_y: NotchConstants.ORIGINAL_SCALE,
+            scale_x: originalScale * NotchConstants.SQUEEZE_SCALE_X,
+            scale_y: originalScale,
             duration: NotchConstants.ANIMATION_SQUEEZE_DURATION,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
@@ -119,8 +119,8 @@ export class AnimationController {
         secondaryNotch.remove_all_transitions();
 
         secondaryNotch.ease({
-            scale_x: NotchConstants.SQUEEZE_SECONDARY_SCALE_X,
-            scale_y: NotchConstants.ORIGINAL_SCALE,
+            scale_x: originalScale * NotchConstants.SQUEEZE_SECONDARY_SCALE_X,
+            scale_y: originalScale,
             duration: NotchConstants.ANIMATION_SQUEEZE_DURATION,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {

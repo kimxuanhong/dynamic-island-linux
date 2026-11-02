@@ -16,6 +16,30 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         const group = new Adw.PreferencesGroup({title: 'Appearance'});
         page.add(group);
 
+        const opacityRow = new Adw.SpinRow({
+            title: 'Background Opacity',
+            subtitle: 'Percent; text and icons remain fully visible',
+            adjustment: new Gtk.Adjustment({lower: 0, upper: 100, step_increment: 5}),
+        });
+        settings.bind('background-opacity', opacityRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(opacityRow);
+
+        const sizeRow = new Adw.ComboRow({
+            title: 'Island Size',
+            model: Gtk.StringList.new(['Small', 'Normal', 'Large']),
+        });
+        const sizes = ['small', 'normal', 'large'];
+        sizeRow.selected = sizes.indexOf(settings.get_string('island-size'));
+        sizeRow.connect('notify::selected', row => settings.set_string('island-size', sizes[row.selected]));
+        window.connect('close-request', () => {
+            settings.disconnect(sizeSignal);
+            return false;
+        });
+        const sizeSignal = settings.connect('changed::island-size', () => {
+            sizeRow.selected = sizes.indexOf(settings.get_string('island-size'));
+        });
+        group.add(sizeRow);
+
         const hideDateRow = new Adw.SwitchRow({
             title: 'Hide Date Panel',
             subtitle: 'Hide the clock and calendar button in the top panel',

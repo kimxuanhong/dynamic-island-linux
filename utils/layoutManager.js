@@ -68,7 +68,7 @@ export class LayoutManager {
         this.controller.notch.set_width(mainWidth);
         this.controller.notch.set_position(startX, startY);
         if (this.controller.secondaryNotch) {
-            this.controller.secondaryNotch.set_position(startX + mainWidth + gap, startY);
+            this.controller.secondaryNotch.set_position(startX + (mainWidth + gap) * this.controller.originalScale, startY);
         }
 
         // Update content

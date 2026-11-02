@@ -101,6 +101,11 @@ export class NotchController {
         // Setup events
         this._setupMouseEvents();
 
+        this._appearanceSignals = ['background-opacity', 'island-size'].map(key =>
+            this.settings?.connect(`changed::${key}`, () => this._syncAppearance())
+        ).filter(Boolean);
+        this._syncAppearance();
+
         // Initial state
         this._updateUI();
     }
@@ -279,9 +284,8 @@ export class NotchController {
 
         this.notch.set_width(this.width);
         this.notch.set_height(this.height);
-        this.originalScale = 1.0;
         this.notch.set_scale(this.originalScale, this.originalScale);
-        this.notch.set_pivot_point(0.5, 0.5)
+        this.notch.set_pivot_point(0, 0)
 
         const initialX = this._calculateNotchX(this.width);
         const initialY = this._calculateNotchY();
@@ -313,7 +317,7 @@ export class NotchController {
 
         this.secondaryNotch.set_width(NotchConstants.SECONDARY_WIDTH);
         this.secondaryNotch.set_height(NotchConstants.SECONDARY_HEIGHT);
-        this.secondaryNotch.set_pivot_point(0.5, 0.5);
+        this.secondaryNotch.set_pivot_point(0, 0);
 
         // Click to swap
         connectClick(this.secondaryNotch, () => {
@@ -984,9 +988,20 @@ export class NotchController {
         this.animationController.squeeze();
     }
 
+    _syncAppearance() {
+        const opacity = (this.settings?.get_int('background-opacity') ?? 85) / 100;
+        this.originalScale = {small: 0.85, normal: 1, large: 1.15}[
+            this.settings?.get_string('island-size') ?? 'normal'];
+        for (const actor of [this.notch, this.secondaryNotch]) {
+            actor.set_style(`background-color: rgba(0, 0, 0, ${opacity});`);
+            actor.set_scale(this.originalScale, this.originalScale);
+        }
+        this.updatePosition();
+    }
+
     _calculateNotchX(notchWidth) {
         // Notch luôn ở giữa màn hình
-        return Math.floor((this.monitorWidth - notchWidth) / 2);
+        return Math.floor((this.monitorWidth - notchWidth * this.originalScale) / 2);
     }
 
     _calculateNotchY() {
@@ -1015,6 +1030,9 @@ export class NotchController {
     destroy() {
         // ✅ Mark as destroyed to prevent race conditions
         this._destroyed = true;
+        for (const id of this._appearanceSignals ?? [])
+            this.settings.disconnect(id);
+        this._appearanceSignals = [];
         this._expansionQueue.length = 0;
 
         // Clear all timeouts

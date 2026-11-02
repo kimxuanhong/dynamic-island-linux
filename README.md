@@ -146,6 +146,17 @@ curl -fsSL https://raw.githubusercontent.com/kimxuanhong/dynamic-island-linux/ma
 
 ## 🎮 Sử dụng
 
+### Cài đặt giao diện
+
+Mở Preferences của Dynamic Island trong ứng dụng Extensions, hoặc chạy:
+
+```sh
+gnome-extensions prefs dynamic-island@xuanhong
+```
+
+- **Background Opacity**: độ đậm của nền từ 0–100%; không làm mờ chữ và icon.
+- **Island Size**: Small (85%), Normal (100%), Large (115%); áp dụng ngay cho nội dung và vùng tương tác.
+
 ### Tương tác cơ bản
 
 - **Media Player**: Click vào đảo khi đang phát nhạc để mở rộng và điều khiển

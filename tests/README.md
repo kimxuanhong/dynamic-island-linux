@@ -49,3 +49,7 @@ on resume, repeated paused updates, and cleanup when a browser disappears.
 
 `tests/gnome-battery-presence.js` checks battery appearance/removal, hiding the idle
 island without a battery, and showing temporary volume events while idle is hidden.
+
+`tests/gnome-appearance.js` checks live opacity and size changes, centering, split
+spacing, expansion, and preserving scale after collapse. The brightness test
+checks pointer interactions on scaled controls.
