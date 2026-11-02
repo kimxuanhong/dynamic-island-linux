@@ -56,3 +56,6 @@ checks pointer interactions on scaled controls.
 
 `tests/gnome-level-settings.js` checks live level toggles, OSD replacement and
 fallback, display duration, dismissal, and restoration of the OSD method on disable.
+
+`tests/gnome-idle-settings.js` checks all idle modes, keeping active data across
+mode changes, privacy indicators, clock replacement by temporary events, and timer cleanup.

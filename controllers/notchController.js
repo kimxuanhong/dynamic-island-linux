@@ -109,6 +109,9 @@ export class NotchController {
             this.settings?.connect(`changed::${key}`, () => this._syncLevelSettings())
         ).filter(Boolean);
 
+        this._idleSignal = this.settings?.connect('changed::idle-content', () => this._syncIdleContent());
+        this._syncIdleContent();
+
         // Initial state
         this._updateUI();
     }
@@ -173,6 +176,16 @@ export class NotchController {
     }
 
     _registerPresenters() {
+        this._clockLabel = new St.Label({y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER, x_expand: true});
+        this._clockSecondary = new St.Label({y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER, x_expand: true});
+        this.presenterRegistry.register('clock', {
+            getCompactContainer: () => this._clockLabel,
+            getSecondaryContainer: () => this._clockSecondary,
+            getExpandedContainer: () => null,
+            onActivate: () => this.layoutManager.updateLayout(),
+        });
         this.presenterRegistry.register('input-method', {
             getCompactContainer: () => null,
             getExpandedContainer: () => this.inputMethodView.expandedContainer,
@@ -840,6 +853,8 @@ export class NotchController {
     }
 
     _hideAllCompactViews() {
+        this._clockLabel?.hide();
+        this._clockSecondary?.hide();
         this.batteryView.compactContainer.hide();
         this.bluetoothView.compactContainer.hide();
         this.mediaView.compactContainer.hide();
@@ -1008,6 +1023,37 @@ export class NotchController {
         this.animationController.squeeze();
     }
 
+    _syncIdleContent() {
+        const mode = this.settings?.get_string('idle-content') ?? 'auto';
+        this.cycleManager.setFilter(name => {
+            if (!['battery', 'media', 'clock'].includes(name)) return true;
+            if (mode === 'auto') return name !== 'clock';
+            return name === mode;
+        });
+        if (this._clockTimer) GLib.source_remove(this._clockTimer);
+        this._clockTimer = 0;
+        if (mode === 'clock') {
+            const update = () => {
+                const now = GLib.DateTime.new_now_local();
+                this._clockLabel.text = now.format('%H:%M');
+                this._clockSecondary.text = now.format('%H:%M');
+                return GLib.SOURCE_CONTINUE;
+            };
+            update();
+            this._clockTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, update);
+            this.cycleManager.activate('clock');
+        } else {
+            this.cycleManager.deactivate('clock');
+        }
+        const current = this.presenterRegistry.getCurrent();
+        if (['battery', 'media', 'clock'].includes(current) &&
+            mode !== 'auto' && current !== mode &&
+            this.notch.has_style_class_name('expanded-state'))
+            this.compactNotch(true);
+        else
+            this.layoutManager.updateLayout();
+    }
+
     _syncAppearance() {
         const opacity = (this.settings?.get_int('background-opacity') ?? 85) / 100;
         this.originalScale = {small: 0.85, normal: 1, large: 1.15}[
@@ -1056,6 +1102,11 @@ export class NotchController {
         for (const id of this._levelSignals ?? [])
             this.settings.disconnect(id);
         this._levelSignals = [];
+        if (this._idleSignal) this.settings.disconnect(this._idleSignal);
+        this._idleSignal = 0;
+        if (this._clockTimer) GLib.source_remove(this._clockTimer);
+        this._clockTimer = 0;
+        for (const actor of [this._clockLabel, this._clockSecondary]) actor?.destroy();
         this._expansionQueue.length = 0;
 
         // Clear all timeouts

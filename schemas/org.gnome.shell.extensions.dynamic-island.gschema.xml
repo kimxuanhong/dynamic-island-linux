@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="dynamic-island">
   <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="idle-content" type="s">
+      <default>"auto"</default>
+      <choices><choice value="auto"/><choice value="battery"/><choice value="media"/><choice value="clock"/><choice value="hidden"/></choices>
+      <summary>Content while idle</summary>
+      <description>Choose compact idle content. Active privacy indicators and temporary events remain available.</description>
+    </key>
     <key name="show-volume" type="b"><default>true</default><summary>Show volume changes</summary></key>
     <key name="show-brightness" type="b"><default>true</default><summary>Show brightness changes</summary></key>
     <key name="hide-system-osd" type="b"><default>false</default><summary>Replace volume and brightness system overlays</summary></key>

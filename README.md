@@ -159,6 +159,7 @@ gnome-extensions prefs dynamic-island@xuanhong
 - **Show Volume / Show Brightness**: bật/tắt thông báo thay đổi âm lượng/độ sáng trong Island.
 - **Replace System Overlays**: thay OSD âm lượng/độ sáng bằng Island khi loại tương ứng được bật. OSD khác vẫn giữ nguyên; mặc định tắt.
 - **Display Time**: thời gian hiển thị âm lượng/độ sáng từ 1–10 giây.
+- **Idle Content**: chọn nội dung compact khi rảnh: Automatic (pin và media đang hoạt động), Battery if present, Media only, Clock (24 giờ), hoặc Hidden. Nếu nội dung đã chọn không có thì notch ẩn. Chỉ báo microphone/camera/chia sẻ và sự kiện tạm thời vẫn hiển thị.
 
 ### Tương tác cơ bản
 

@@ -31,31 +31,34 @@ export class CycleManager {
         }
     }
 
+    setFilter(filter) {
+        this._filter = filter;
+    }
+
+    _visibleItems() {
+        return this._items.filter(item => !this._filter || this._filter(item));
+    }
+
     current() {
-        if (this._currentPos === -1 || this._items.length === 0) {
-            return null;
-        }
-        this._currentPos = Math.min(this._currentPos, this._items.length - 1);
-        return this._items[this._currentPos];
+        const items = this._visibleItems();
+        const selected = this._items[this._currentPos];
+        return items.includes(selected) ? selected : (items[0] ?? null);
     }
 
     next() {
-        if (this._items.length === 0) return null;
-        if (this._items.length === 1) return this._items[0];
-
-        this._currentPos = (this._currentPos + 1) % this._items.length;
-        return this._items[this._currentPos];
+        const next = this.getNext();
+        if (next !== null) this._currentPos = this._items.indexOf(next);
+        return next;
     }
 
     getNext() {
-        if (this._items.length <= 1) return this.current();
-
-        const nextPos = (this._currentPos + 1) % this._items.length;
-        return this._items[nextPos];
+        const items = this._visibleItems();
+        if (!items.length) return null;
+        return items[(items.indexOf(this.current()) + 1) % items.length];
     }
 
     count() {
-        return this._items.length;
+        return this._visibleItems().length;
     }
 
     has(name) {

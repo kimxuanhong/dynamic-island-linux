@@ -84,6 +84,23 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         });
         group.add(marginRow);
 
+        const idleValues = ['auto', 'battery', 'media', 'clock', 'hidden'];
+        const idleRow = new Adw.ComboRow({
+            title: 'Idle Content',
+            subtitle: 'Privacy indicators and temporary events remain visible',
+            model: Gtk.StringList.new(['Automatic', 'Battery if present', 'Media only', 'Clock', 'Hidden']),
+            selected: idleValues.indexOf(settings.get_string('idle-content')),
+        });
+        idleRow.connect('notify::selected', row => settings.set_string('idle-content', idleValues[row.selected]));
+        const idleSignal = settings.connect('changed::idle-content', () => {
+            idleRow.selected = idleValues.indexOf(settings.get_string('idle-content'));
+        });
+        window.connect('close-request', () => {
+            settings.disconnect(idleSignal);
+            return false;
+        });
+        group.add(idleRow);
+
         const levels = new Adw.PreferencesGroup({title: 'Volume and Brightness'});
         page.add(levels);
         for (const [key, title, subtitle] of [
