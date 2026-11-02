@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="dynamic-island">
   <schema id="org.gnome.shell.extensions.dynamic-island" path="/org/gnome/shell/extensions/dynamic-island/">
+    <key name="show-network" type="b"><default>true</default><summary>Show Wi-Fi and Ethernet connection changes</summary></key>
+    <key name="show-bluetooth" type="b"><default>true</default><summary>Show Bluetooth connection changes</summary></key>
     <key name="microphone-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island microphone indicator</summary></key>
     <key name="camera-excluded-apps" type="as"><default>[]</default><summary>Apps excluded from the island camera indicator</summary></key>
     <key name="idle-content" type="s">

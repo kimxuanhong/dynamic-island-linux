@@ -63,3 +63,6 @@ mode changes, privacy indicators, clock replacement by temporary events, and tim
 `tests/gnome-privacy.js` checks concurrent mic/camera sessions, exact app exclusions,
 live exclusion changes during expansion, queue removal, and indicator dismissal.
 Backend monitor-source parsing tests run with `go test ./modules/microphone/...` from `server/`.
+
+`tests/gnome-network.js` checks startup silence, Wi-Fi/Ethernet transitions,
+deduplication, disconnect identity, VPN fallback, disabling events, and cleanup.

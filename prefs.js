@@ -119,6 +119,14 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('level-display-time', duration, 'value', Gio.SettingsBindFlags.DEFAULT);
         levels.add(duration);
 
+        const connections = new Adw.PreferencesGroup({title: 'Connections'});
+        page.add(connections);
+        for (const [key, title] of [['show-network', 'Wi-Fi and Ethernet Events'], ['show-bluetooth', 'Bluetooth Events']]) {
+            const row = new Adw.SwitchRow({title});
+            settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+            connections.add(row);
+        }
+
         const privacy = new Adw.PreferencesGroup({title: 'Privacy Indicators',
             description: 'Exclusions affect only the island. Enter exact app IDs, process names, or reported app names, separated by commas.'});
         page.add(privacy);

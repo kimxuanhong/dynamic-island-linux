@@ -58,6 +58,7 @@ Một GNOME Shell Extension hiển thị thông tin phát nhạc, thông báo, v
 - 🔔 Thông báo hệ thống
 - 🪟 Ứng dụng đang mở
 - 🔌 Bluetooth
+- 🌐 Wi-Fi và Ethernet (NetworkManager)
 
 Extension hoạt động với một **backend server** viết bằng Go để theo dõi các sự kiện hệ thống thông qua D-Bus.
 
@@ -93,6 +94,13 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ### 🔔 Thông báo
 - Hiển thị thông báo hệ thống với animation đẹp mắt
 - Icon máy bay bay qua màn hình (có thể tùy chỉnh)
+
+### 🌐 Kết nối mạng
+- Hiển thị kết nối/ngắt kết nối Wi-Fi và Ethernet, cùng tên connection profile
+- Gom thay đổi liên tiếp khi chuyển mạng; không thông báo theo dao động cường độ sóng
+- Không thông báo lại trạng thái sẵn có lúc bật extension
+- Bật/tắt riêng Wi-Fi/Ethernet và Bluetooth trong Preferences → Connections
+- NetworkManager là tùy chọn; nếu không có thì chỉ phần thông báo Wi-Fi/Ethernet không hoạt động
 
 ### 🎨 Giao diện
 - Animation mượt mà, tự nhiên

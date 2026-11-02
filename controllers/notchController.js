@@ -17,6 +17,9 @@ import {TimeoutManager} from '../utils/timeoutManager.js';
 import {InputMethodManager} from '../models/inputMethodManager.js';
 import {InputMethodView} from '../views/inputMethodView.js';
 
+import {NetworkManager} from '../models/networkManager.js';
+import {EventView} from '../views/eventView.js';
+
 import {BatteryManager} from '../models/batteryManager.js';
 import {BluetoothManager} from '../models/bluetoothManager.js';
 import {BrightnessManager} from '../models/brightnessManager.js';
@@ -105,7 +108,7 @@ export class NotchController {
             this.settings?.connect(`changed::${key}`, () => this._syncAppearance())
         ).filter(Boolean);
         this._syncAppearance();
-        this._levelSignals = ['show-volume', 'show-brightness'].map(key =>
+        this._levelSignals = ['show-volume', 'show-brightness', 'show-network', 'show-bluetooth'].map(key =>
             this.settings?.connect(`changed::${key}`, () => this._syncLevelSettings())
         ).filter(Boolean);
 
@@ -119,6 +122,7 @@ export class NotchController {
     _initializeManagers() {
         this.inputMethodManager = new InputMethodManager();
         this.batteryManager = new BatteryManager();
+        this.networkManager = new NetworkManager();
         this.bluetoothManager = new BluetoothManager();
         this.mediaManager = new MediaManager();
         this.volumeManager = new VolumeManager();
@@ -132,6 +136,7 @@ export class NotchController {
 
     _initializeViews() {
         this.inputMethodView = new InputMethodView();
+        this.networkView = new EventView();
         this.batteryView = new BatteryView();
         this.bluetoothView = new BluetoothView();
         this.mediaView = new MediaView(this.mediaManager, this.volumeManager, this.bluetoothManager);
@@ -153,6 +158,7 @@ export class NotchController {
 
         this.allViewsMap = new Map([
             ['input-method', this.inputMethodView],
+            ['network', this.networkView],
             ['battery', this.batteryView],
             ['bluetooth', this.bluetoothView],
             ['media', this.mediaView],
@@ -185,6 +191,12 @@ export class NotchController {
             getSecondaryContainer: () => this._clockSecondary,
             getExpandedContainer: () => null,
             onActivate: () => this.layoutManager.updateLayout(),
+        });
+        this.presenterRegistry.register('network', {
+            getCompactContainer: () => null,
+            getExpandedContainer: () => this.networkView.expandedContainer,
+            getSecondaryContainer: () => null,
+            onActivate: () => this._showOnlyView('network'),
         });
         this.presenterRegistry.register('input-method', {
             getCompactContainer: () => null,
@@ -356,6 +368,7 @@ export class NotchController {
             this.inputMethodView.update(info);
             this._requestAutoExpansion('input-method', 'input-method', 2000);
         });
+        this.networkManager.addCallback(info => this._onNetworkChanged(info));
         this.batteryManager.addCallback((info) => this._onBatteryChanged(info));
         this.bluetoothManager.addCallback((info) => this._onBluetoothChanged(info));
         this.mediaManager.addCallback((info) => this._onMediaChanged(info));
@@ -553,7 +566,16 @@ export class NotchController {
         // (triggered by _checkBatteryNotifications in batteryView.updateBattery)
     }
 
+    _onNetworkChanged(info) {
+        if (this.settings && !this.settings.get_boolean('show-network')) return;
+        const label = info.kind === 'wifi' ? 'Wi-Fi' : 'Ethernet';
+        this.networkView.update({title: `${label} ${info.connected ? 'connected' : 'disconnected'}`,
+            detail: info.name, icon: info.kind === 'wifi' ? 'network-wireless-symbolic' : 'network-wired-symbolic'});
+        this._requestAutoExpansion('network', 'network', 3000);
+    }
+
     _onBluetoothChanged(info) {
+        if (this.settings && !this.settings.get_boolean('show-bluetooth')) return;
         this.bluetoothView.updateBluetooth(info);
 
 
@@ -617,7 +639,7 @@ export class NotchController {
     }
 
     _syncLevelSettings() {
-        for (const name of ['volume', 'brightness']) {
+        for (const name of ['volume', 'brightness', 'network', 'bluetooth']) {
             if (this.settings.get_boolean(`show-${name}`)) continue;
             this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== name);
             this.timeoutManager.clear(name);
@@ -824,6 +846,7 @@ export class NotchController {
 
     _cancelTemporaryPresenterTimeouts() {
         this.timeoutManager.clear('input-method');
+        this.timeoutManager.clear('network');
         this.timeoutManager.clear('collapse');
         this.timeoutManager.clear('queued-wait');
         this.timeoutManager.clear('queued-expansion');
@@ -842,6 +865,7 @@ export class NotchController {
     }
 
     _hideAllExpandedViews(except = null) {
+        if (this.networkView.expandedContainer !== except) this.networkView.hide();
         if (this.inputMethodView.expandedContainer !== except)
             this.inputMethodView.expandedContainer.hide();
         if (this.batteryView.expandedContainer !== except)
@@ -1146,6 +1170,8 @@ export class NotchController {
             }
         }
 
+        this.networkManager.destroy();
+        this.networkView.destroy();
         this.inputMethodManager.destroy();
         this.inputMethodView.destroy();
 
