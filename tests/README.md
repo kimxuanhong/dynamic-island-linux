@@ -70,3 +70,7 @@ deduplication, disconnect identity, VPN fallback, disabling events, and cleanup.
 `tests/gnome-notification-window.js` checks notification modes and timing, opens
 and closes a real GTK window, and verifies disabling window events.
 `tests/gnome-preferences.js` opens and closes the actual extension preferences window.
+
+`tests/gnome-animation-center.js` samples the horizontal center throughout squeeze,
+expansion, and collapse at every size, checks both actors in split mode, and changes
+size during running animations to catch stale scale targets.

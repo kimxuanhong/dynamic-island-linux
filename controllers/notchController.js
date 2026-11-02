@@ -317,7 +317,7 @@ export class NotchController {
         this.notch.set_width(this.width);
         this.notch.set_height(this.height);
         this.notch.set_scale(this.originalScale, this.originalScale);
-        this.notch.set_pivot_point(0, 0)
+        this.notch.set_pivot_point(0.5, 0);
 
         const initialX = this._calculateNotchX(this.width);
         const initialY = this._calculateNotchY();
@@ -349,7 +349,7 @@ export class NotchController {
 
         this.secondaryNotch.set_width(NotchConstants.SECONDARY_WIDTH);
         this.secondaryNotch.set_height(NotchConstants.SECONDARY_HEIGHT);
-        this.secondaryNotch.set_pivot_point(0, 0);
+        this.secondaryNotch.set_pivot_point(0.5, 0);
 
         // Click to swap
         connectClick(this.secondaryNotch, () => {
@@ -1107,18 +1107,40 @@ export class NotchController {
 
     _syncAppearance() {
         const opacity = (this.settings?.get_int('background-opacity') ?? 85) / 100;
-        this.originalScale = {small: 0.85, normal: 1, large: 1.15}[
+        const scale = {small: 0.85, normal: 1, large: 1.15}[
             this.settings?.get_string('island-size') ?? 'normal'];
+        const resized = scale !== this.originalScale;
+        const squeezing = this.stateMachine.isAnimating() && !this._collapsing &&
+            !this.notch.has_style_class_name('expanded-state');
+        this.originalScale = scale;
         for (const actor of [this.notch, this.secondaryNotch]) {
             actor.set_style(`background-color: rgba(0, 0, 0, ${opacity});`);
-            actor.set_scale(this.originalScale, this.originalScale);
+            if (resized) {
+                if (squeezing) actor.remove_all_transitions();
+                actor.set_scale(scale, scale);
+            }
+        }
+        // Retarget active animations so they cannot restore the previous size.
+        if (resized && this._collapsing) {
+            this.animationController.compact();
+            return;
+        }
+        if (resized && squeezing) this.stateMachine.transitionTo('compact');
+        if (resized && this.stateMachine.isAnimating() &&
+            this.notch.has_style_class_name('expanded-state')) {
+            this.animationController.expand();
+            return;
         }
         this.updatePosition();
+        if (resized && squeezing && this._expansionQueue.length) this._finishCollapse();
     }
 
-    _calculateNotchX(notchWidth) {
-        // Notch luôn ở giữa màn hình
-        return Math.floor((this.monitorWidth - notchWidth * this.originalScale) / 2);
+    _calculateNotchX(groupWidth, actorWidth = groupWidth) {
+        // Scaling about the horizontal center shifts the visible left edge by
+        // (1 - scale) * actorWidth / 2. Compensate using this actor's width,
+        // even when centering the wider split group.
+        return (this.monitorWidth - groupWidth * this.originalScale) / 2 +
+            (this.originalScale - 1) * actorWidth / 2;
     }
 
     _calculateNotchY() {

@@ -87,7 +87,7 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         const idleValues = ['auto', 'battery', 'media', 'clock', 'hidden'];
         const idleRow = new Adw.ComboRow({
             title: 'Idle Content',
-            subtitle: 'Privacy indicators and temporary events remain visible',
+            subtitle: 'Choose what stays visible between events; privacy indicators still appear',
             model: Gtk.StringList.new(['Automatic', 'Battery if present', 'Media only', 'Clock', 'Hidden']),
             selected: idleValues.indexOf(settings.get_string('idle-content')),
         });

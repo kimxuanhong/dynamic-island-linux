@@ -59,7 +59,7 @@ export class LayoutManager {
         const secWidth = NotchConstants.SECONDARY_WIDTH;
         const groupWidth = mainWidth + gap + secWidth;
         const startX = this.controller._calculateNotchX ?
-            this.controller._calculateNotchX(groupWidth) :
+            this.controller._calculateNotchX(groupWidth, mainWidth) :
             Math.floor((this.controller.monitorWidth - groupWidth) / 2);
         const startY = this.controller._calculateNotchY ?
             this.controller._calculateNotchY() :
@@ -68,7 +68,8 @@ export class LayoutManager {
         this.controller.notch.set_width(mainWidth);
         this.controller.notch.set_position(startX, startY);
         if (this.controller.secondaryNotch) {
-            this.controller.secondaryNotch.set_position(startX + (mainWidth + gap) * this.controller.originalScale, startY);
+            this.controller.secondaryNotch.set_position(startX + (mainWidth + gap) * this.controller.originalScale +
+                (this.controller.originalScale - 1) * (secWidth - mainWidth) / 2, startY);
         }
 
         // Update content

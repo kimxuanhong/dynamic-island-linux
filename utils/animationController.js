@@ -142,7 +142,7 @@ export class AnimationController {
             const secWidth = NotchConstants.SECONDARY_WIDTH;
             const groupWidth = mainWidth + gap + secWidth;
             const x = this.controller._calculateNotchX ? 
-                this.controller._calculateNotchX(groupWidth) : 
+                this.controller._calculateNotchX(groupWidth, mainWidth) :
                 Math.floor((this.controller.monitorWidth - groupWidth) / 2);
             return {
                 width: mainWidth,
