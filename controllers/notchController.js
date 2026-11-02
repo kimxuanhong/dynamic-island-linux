@@ -249,9 +249,7 @@ export class NotchController {
             onActivate: () => this._showOnlyView('window')
         });
 
-        // Set default presenter
-        this.cycleManager.activate('battery');
-        this.presenterRegistry.switchTo('battery');
+        // Wait for real content before showing the island.
     }
 
 
@@ -508,7 +506,23 @@ export class NotchController {
     }
 
     _onBatteryChanged(info) {
+        if (!info?.isPresent) {
+            this.cycleManager.deactivate('battery');
+            this._expansionQueue = this._expansionQueue.filter(event => event.presenterName !== 'battery');
+            this.timeoutManager.clear('battery-notification');
+            this.timeoutManager.clear('battery-auto-collapse');
+            this.batteryView.updateBattery(info);
+            this.notch.remove_style_class_name('charging');
+            if (this.presenterRegistry.getCurrent() === 'battery' && this.stateMachine.isExpanded())
+                this.compactNotch(true);
+            else
+                this.layoutManager.updateLayout();
+            return;
+        }
+        if (!this.cycleManager.has('battery'))
+            this.cycleManager.activate('battery');
         this.batteryView.updateBattery(info);
+        this.layoutManager.updateLayout();
         if (info.isCharging) {
             this.notch.add_style_class_name('charging');
         } else {
@@ -754,7 +768,7 @@ export class NotchController {
     _updateUI() {
         const info = this.batteryManager.getBatteryInfo();
         if (info) {
-            this.batteryView.updateBattery(info);
+            this._onBatteryChanged(info);
         }
         this.layoutManager.updateLayout();
     }
@@ -855,6 +869,7 @@ export class NotchController {
     }
 
     expandNotch(isAuto = false) {
+        if (!isAuto && !this.cycleManager.current()) return;
         if (!this.notch) return;
         if (this._collapsing) {
             this._expansionQueue.push({
@@ -883,6 +898,8 @@ export class NotchController {
             // log(`[DynamicIsland] NotchController: Expanded container is null for ${currentPresenter}`);
             return;
         }
+
+        this.notch.show();
 
         // If already expanded and auto-expand, just update view
         if (this.stateMachine.isExpanded() && isAuto) {

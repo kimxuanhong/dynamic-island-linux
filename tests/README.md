@@ -46,3 +46,6 @@ on resume, repeated paused updates, and cleanup when a browser disappears.
 `tests/gnome-icons.js` verifies bundled SVG lookup, dynamic icon changes, and preservation of externally supplied artwork.
 
 `tests/gnome-media-hover.js` checks smooth media removal, hover arriving during recentering, battery presenter selection, and hover/leave lifetime.
+
+`tests/gnome-battery-presence.js` checks battery appearance/removal, hiding the idle
+island without a battery, and showing temporary volume events while idle is hidden.

@@ -55,7 +55,7 @@ func (s *BatteryService) GetBatteryInfo() (percentage int32, isCharging bool, is
 	if !ok {
 		return 0, false, false, 0, 0, fmt.Errorf("invalid State type")
 	}
-	isCharging = (state == DeviceStateCharging || state == DeviceStateFullyCharged)
+	isCharging = (state == DeviceStateCharging)
 
 	isPresentVar, err := obj.GetProperty(upowerInterface + ".IsPresent")
 	if err != nil {

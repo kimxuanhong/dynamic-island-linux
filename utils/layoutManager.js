@@ -30,6 +30,12 @@ export class LayoutManager {
     }
 
     _updateCompactLayout() {
+        if (this.controller.cycleManager.count() === 0) {
+            this.controller.notch.hide();
+            this.controller.secondaryNotch?.hide();
+            return;
+        }
+        this.controller.notch.show();
         const isSingle = this.controller.cycleManager.count() <= 1;
         if (!isSingle) {
             this._updateSplitModeLayout();

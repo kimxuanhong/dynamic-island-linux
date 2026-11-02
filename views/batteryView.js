@@ -151,15 +151,10 @@ export class BatteryView {
         if (!isPresent) {
             this._stopChargingAnimation();
             this._chargeTrack.hide();
-            this.percentageLabel.set_text('AC');
-            this.iconLeft.icon_name = 'battery-missing-symbolic';
-            this.iconExpanded.icon_name = 'battery-missing-symbolic';
-            this.iconLeft.set_style(`color: #ffffff;`);
-            this.iconExpanded.set_style(`color: #ffffff;`);
-            this.percentageLabelExpanded.set_text('AC Power');
-            this.statusLabel.set_text('No Battery');
-            this.timeRemainingLabel.set_text('');
-            this._lastNotifiedState = null; // Reset notification state
+            this.hide();
+            this._lastNotifiedState = null;
+            this._lastChargingState = null;
+            this._lastPercentageState = null;
             return;
         }
 

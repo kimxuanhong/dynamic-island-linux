@@ -74,7 +74,8 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 ### 🔋 Thông tin Pin
 - Hiển thị phần trăm pin
 - Trạng thái sạc/không sạc
-- Tự động ẩn trên máy tính để bàn (không có pin)
+- Không hiển thị pin hoặc nguồn AC khi hệ thống báo không có pin
+- Khi không có pin và không có nội dung hoạt động, notch tự ẩn; nhạc và các sự kiện vẫn hiển thị bình thường
 
 ### 🔊 Điều khiển Âm lượng & Độ sáng
 - Hiển thị mức âm lượng khi thay đổi

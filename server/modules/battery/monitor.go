@@ -251,7 +251,7 @@ func (s *BatterySource) handleSignal(signal *dbus.Signal, bus core.Bus) {
 
 func (s *BatterySource) publishEvent(bus core.Bus, percentage int, state uint32, isPresent bool, timeToEmpty int64, timeToFull int64) {
 	s.mu.Lock()
-	isCharging := (state == DeviceStateCharging || state == DeviceStateFullyCharged)
+	isCharging := (state == DeviceStateCharging)
 
 	shouldPublish := !s.initialized ||
 		s.lastPercent != percentage ||
