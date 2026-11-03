@@ -83,20 +83,33 @@ export class AnimationController {
         c.secondaryNotch?.remove_all_transitions();
         c.secondaryNotch?.hide();
         c.notch.set_scale(c.originalScale, c.originalScale);
+        c.notch.set_opacity(255);
         c.stateMachine.transitionTo('animating');
+        const fadeWidth = Math.max(1, Math.min(c.notch.width, Math.round(c.width * 0.3)));
         c.notch.ease({
-            width: 0,
-            x: c._calculateNotchX(0),
-            duration: NotchConstants.ANIMATION_HIDE_DURATION,
+            width: fadeWidth,
+            x: c._calculateNotchX(fadeWidth),
+            duration: NotchConstants.ANIMATION_HIDE_DURATION - NotchConstants.ANIMATION_HIDE_FADE_DURATION,
             mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
             onComplete: () => {
-                if (c._destroyed) return;
-                c._hiding = false;
-                c.notch.hide();
-                c.notch.set_width(c.width);
-                c.notch.set_position(c._calculateNotchX(c.width), c._calculateNotchY());
-                c.stateMachine.transitionTo('compact');
-                if (c._expansionQueue.length) c._finishCollapse();
+                if (c._destroyed || !c._hiding) return;
+                c.notch.ease({
+                    width: 0,
+                    x: c._calculateNotchX(0),
+                    opacity: 0,
+                    duration: NotchConstants.ANIMATION_HIDE_FADE_DURATION,
+                    mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+                    onComplete: () => {
+                        if (c._destroyed || !c._hiding) return;
+                        c._hiding = false;
+                        c.notch.hide();
+                        c.notch.set_opacity(255);
+                        c.notch.set_width(c.width);
+                        c.notch.set_position(c._calculateNotchX(c.width), c._calculateNotchY());
+                        c.stateMachine.transitionTo('compact');
+                        if (c._expansionQueue.length) c._finishCollapse();
+                    },
+                });
             },
         });
     }
@@ -114,6 +127,7 @@ export class AnimationController {
         c.notch.set_size(start.width, c.height);
         c.notch.set_position(start.x, c._calculateNotchY());
         c.notch.set_scale(c.originalScale, c.originalScale);
+        c.notch.set_opacity(255);
         c.notch.show();
         c.stateMachine.transitionTo('animating');
         const target = this.calculateCompactGeometry();
@@ -139,6 +153,7 @@ export class AnimationController {
         if (!c._hiding) return;
         c._hiding = false;
         c.notch.remove_all_transitions();
+        c.notch.set_opacity(255);
         c.stateMachine.transitionTo('compact');
     }
 
