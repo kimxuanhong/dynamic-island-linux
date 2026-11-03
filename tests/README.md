@@ -106,5 +106,5 @@ initial identity without startup notifications, live Ethernet/disconnect labels,
 bundled network icons, and safe signal-handler cleanup.
 
 `tests/gnome-clock-calendar.js` opens the calendar through real pointer hover,
-checks date/today highlighting and fixed-card bounds, tests leap-year February,
+checks date/today highlighting, fixed-card bounds, and equal column centers with Vietnamese headings, tests leap-year February,
 clicks month navigation across a year boundary, and checks collapse on leave.

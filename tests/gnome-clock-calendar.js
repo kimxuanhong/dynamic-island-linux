@@ -37,10 +37,29 @@ export async function run() {
         if (ax < cardX - 1 || ay < cardY - 1 || ax + aw > cardX + 441 || ay + ah > cardY + 181)
             throw new Error('Calendar content overflowed fixed card');
     }
+    const assertColumns = () => {
+        const [gridX] = view._calendarGrid.get_transformed_position();
+        const [gridWidth] = view._calendarGrid.get_transformed_size();
+        const labels = [...view._weekdayLabels, ...view._dayLabels];
+        labels.forEach((actor, index) => {
+            const [ax] = actor.get_transformed_position();
+            const [aw] = actor.get_transformed_size();
+            const expected = gridX + (index % 7 + 0.5) * gridWidth / 7;
+            if (Math.abs(ax + aw / 2 - expected) > 1)
+                throw new Error(`Calendar column ${index % 7} is misaligned: ${ax + aw / 2} vs ${expected}`);
+        });
+    };
+    assertColumns();
+    // Vietnamese weekday headings, bold today, and one/two-digit days share columns.
+    view._weekdayLabels.forEach((actor, i) => { actor.text = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][i]; });
+    await Scripting.sleep(100);
+    assertColumns();
     view._followToday = false;
     view.setMonth(2024, 2);
     if (view._dayLabels.filter(day => !day.has_style_class_name('other-month')).length !== 29 || view._dayLabels[3].text !== '1')
         throw new Error('Leap-year calendar layout incorrect');
+    await Scripting.sleep(100);
+    assertColumns();
     view.setMonth(2024, 12);
     const next = view._monthButton.get_parent().get_last_child();
     const [nx, ny] = next.get_transformed_position();

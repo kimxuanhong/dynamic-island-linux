@@ -170,4 +170,6 @@
 .clock-calendar-weekday { font-size: 9px; text-align: center; color: rgba(255,255,255,0.55); }
 .clock-calendar-day { font-size: 10px; text-align: center; color: white; border-radius: 5px; }
 .clock-calendar-day.other-month { color: rgba(255,255,255,0.3); }
-.clock-calendar-day.today { background-color: #83c7ff; color: #101820; font-weight: 700; }
+.clock-calendar-cell { border-radius: 5px; }
+.clock-calendar-cell.today { background-color: #83c7ff; }
+.clock-calendar-day.today { color: #101820; font-weight: 700; }

@@ -37,27 +37,34 @@ export class ClockView {
         header.add_child(this._monthButton);
         header.add_child(next);
         calendar.add_child(header);
-        this._weekdays = new St.BoxLayout({height: 16});
-        for (let i = 0; i < 7; i++) {
-            const day = label('clock-calendar-weekday');
-            day.width = 34;
-            this._weekdays.add_child(day);
-        }
-        calendar.add_child(this._weekdays);
+        const layout = new Clutter.GridLayout({column_homogeneous: true, row_homogeneous: true});
+        this._calendarGrid = new St.Widget({layout_manager: layout, width: 244, height: 112});
+        this._weekdayLabels = [];
         this._dayLabels = [];
+        this._dayCells = [];
+        const cell = (text, column, row, styleClass) => {
+            // Center the label actor itself. Centering its ClutterText alone
+            // leaves short text aligned to the start of a wider St.Label.
+            text.x_expand = false;
+            text.x_align = Clutter.ActorAlign.CENTER;
+            const bin = new St.Bin({child: text, style_class: styleClass,
+                x_expand: true, y_expand: true});
+            layout.attach(bin, column, row, 1, 1);
+            return bin;
+        };
+        for (let column = 0; column < 7; column++) {
+            const day = label('clock-calendar-weekday');
+            this._weekdayLabels.push(day);
+            cell(day, column, 0, 'clock-calendar-cell');
+        }
         for (let row = 0; row < 6; row++) {
-            const week = new St.BoxLayout({height: 16});
             for (let column = 0; column < 7; column++) {
                 const day = label('clock-calendar-day');
-                day.width = 34;
-                day.clutter_text.set_line_alignment(Pango.Alignment.CENTER);
                 this._dayLabels.push(day);
-                week.add_child(day);
+                this._dayCells.push(cell(day, column, row + 1, 'clock-calendar-cell'));
             }
-            calendar.add_child(week);
         }
-        for (const weekday of this._weekdays.get_children())
-            weekday.clutter_text.set_line_alignment(Pango.Alignment.CENTER);
+        calendar.add_child(this._calendarGrid);
         this.expandedContainer = new St.BoxLayout({style_class: 'clock-expanded',
             x_expand: true, y_expand: true, visible: false});
         this.expandedContainer.add_child(summary);
@@ -100,14 +107,18 @@ export class ClockView {
     _renderMonth() {
         this._monthButton.label = this._month.format('%B %Y');
         const first = this._month.add_days(1 - this._month.get_day_of_week());
-        this._weekdays.get_children().forEach((actor, i) => { actor.text = first.add_days(i).format('%a'); });
+        this._weekdayLabels.forEach((actor, i) => { actor.text = first.add_days(i).format('%a'); });
         this._dayLabels.forEach((actor, i) => {
             const date = first.add_days(i);
             actor.text = date.format('%e').trim();
             actor.accessible_name = date.format('%A, %d %B %Y');
             actor.set_style_class_name('clock-calendar-day');
+            this._dayCells[i].set_style_class_name('clock-calendar-cell');
             if (date.get_month() !== this._month.get_month()) actor.add_style_class_name('other-month');
-            if (date.format('%F') === this._dateKey) actor.add_style_class_name('today');
+            if (date.format('%F') === this._dateKey) {
+                actor.add_style_class_name('today');
+                this._dayCells[i].add_style_class_name('today');
+            }
         });
     }
 
