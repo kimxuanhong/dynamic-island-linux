@@ -104,3 +104,7 @@ modes, preserving unread history, and restoring Shell methods on disable.
 `tests/gnome-network-identity.js` checks SSID decoding through libnm, profile fallback,
 initial identity without startup notifications, live Ethernet/disconnect labels,
 bundled network icons, and safe signal-handler cleanup.
+
+`tests/gnome-clock-calendar.js` opens the calendar through real pointer hover,
+checks date/today highlighting and fixed-card bounds, tests leap-year February,
+clicks month navigation across a year boundary, and checks collapse on leave.

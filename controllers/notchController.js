@@ -17,6 +17,7 @@ import {TimeoutManager} from '../utils/timeoutManager.js';
 import {InputMethodManager} from '../models/inputMethodManager.js';
 import {InputMethodView} from '../views/inputMethodView.js';
 
+import {ClockView} from '../views/clockView.js';
 import {NetworkSpeedManager} from '../models/networkSpeedManager.js';
 import {NetworkSpeedView} from '../views/networkSpeedView.js';
 import {NetworkManager} from '../models/networkManager.js';
@@ -151,6 +152,7 @@ export class NotchController {
     }
 
     _initializeViews() {
+        this.clockView = new ClockView();
         this.inputMethodView = new InputMethodView();
         this.networkView = new EventView();
         this.networkSpeedView = new NetworkSpeedView();
@@ -174,6 +176,7 @@ export class NotchController {
         this.uxplayView = new UxplayView();
 
         this.allViewsMap = new Map([
+            ['clock', this.clockView],
             ['input-method', this.inputMethodView],
             ['network', this.networkView],
             ['network-speed', this.networkSpeedView],
@@ -200,14 +203,12 @@ export class NotchController {
     }
 
     _registerPresenters() {
-        this._clockLabel = new St.Label({y_align: Clutter.ActorAlign.CENTER,
-            x_align: Clutter.ActorAlign.CENTER, x_expand: true});
-        this._clockSecondary = new St.Label({y_align: Clutter.ActorAlign.CENTER,
-            x_align: Clutter.ActorAlign.CENTER, x_expand: true});
+        this._clockLabel = this.clockView.compactContainer;
+        this._clockSecondary = this.clockView.secondaryContainer;
         this.presenterRegistry.register('clock', {
             getCompactContainer: () => this._clockLabel,
             getSecondaryContainer: () => this._clockSecondary,
-            getExpandedContainer: () => null,
+            getExpandedContainer: () => this.clockView.expandedContainer,
             onActivate: () => this.layoutManager.updateLayout(),
         });
         this.presenterRegistry.register('network-speed', {
@@ -972,6 +973,7 @@ export class NotchController {
     }
 
     _hideAllExpandedViews(except = null) {
+        if (this.clockView.expandedContainer !== except) this.clockView.expandedContainer.hide();
         if (this.networkSpeedView.expandedContainer !== except) this.networkSpeedView.expandedContainer.hide();
         if (this.notificationView.expandedContainer !== except) this.notificationView.hide();
         if (this.networkView.expandedContainer !== except) this.networkView.hide();
@@ -1208,9 +1210,7 @@ export class NotchController {
         this._clockTimer = 0;
         if (mode === 'clock') {
             const update = () => {
-                const now = GLib.DateTime.new_now_local();
-                this._clockLabel.text = now.format('%H:%M');
-                this._clockSecondary.text = now.format('%H:%M');
+                this.clockView.updateClock();
                 return GLib.SOURCE_CONTINUE;
             };
             update();
@@ -1323,7 +1323,7 @@ export class NotchController {
         this._defaultSignal = 0;
         if (this._clockTimer) GLib.source_remove(this._clockTimer);
         this._clockTimer = 0;
-        for (const actor of [this._clockLabel, this._clockSecondary]) actor?.destroy();
+        this.clockView.destroy();
         this._expansionQueue.length = 0;
 
         // Clear all timeouts

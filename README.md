@@ -180,6 +180,8 @@ gnome-extensions prefs dynamic-island@xuanhong
 - **Display Time**: thời gian hiển thị âm lượng/độ sáng từ 1–10 giây.
 - **Default Content**: nội dung mặc định khi không có phiên hoạt động: Battery if present, Clock (24 giờ), Network speed hoặc Hidden. Media, microphone, camera và UxPlay luôn thay thế nội dung mặc định; chỉ các phiên hoạt động tham gia sequence hai notch. Khi tất cả kết thúc, nội dung mặc định tự trở lại. Chỉ chuyển trạng thái cắm/rút sạc mới hiện thẻ pin tạm thời kể cả khi pin đang bị thay thế; cập nhật phần trăm pin và các mốc dung lượng không kích hoạt animation. Với Hidden, notch về compact rồi khép hai đầu vào tâm đồng thời mờ dần; khi có sự kiện cần thẻ expanded thì bung và hiện dần trực tiếp từ tâm, không dừng ở compact. Chỉ nội dung compact và notify dạng icon mới dùng animation mở compact.
 
+**Clock**: hover để xem thứ, ngày/tháng/năm và lịch tháng trong thẻ 440 × 180. Ngày hôm nay được đánh dấu; dùng hai mũi tên để chuyển tháng, bấm tên tháng để về tháng hiện tại. Rời chuột để thu về giờ compact.
+
 **Network speed** hiển thị tốc độ nhận (↓) và gửi (↑), cập nhật mỗi giây, đơn vị B/s, KB/s, MB/s. Thẻ mở rộng hiện tên Wi-Fi đang kết nối (hoặc Ethernet) cùng icon mạng riêng; thông tin tên mạng vẫn cập nhật kể cả khi tắt thông báo kết nối. Đây là lưu lượng tổng trên card mạng vật lý, gồm cả mạng LAN, không phải đo băng thông Internet. Không đếm lại lưu lượng trên loopback, VPN hay bridge. Nếu không đọc được dữ liệu thì hiển thị “—”.
 
 ### Tương tác cơ bản
