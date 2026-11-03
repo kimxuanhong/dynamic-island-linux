@@ -24,21 +24,18 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('background-opacity', opacityRow, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(opacityRow);
 
-        const sizeRow = new Adw.ComboRow({
-            title: 'Island Size',
-            model: Gtk.StringList.new(['Small', 'Normal', 'Large']),
+        const widthRow = new Adw.SpinRow({
+            title: 'Island Width',
+            subtitle: 'Compact width in pixels; text and icons keep their native size',
+            adjustment: new Gtk.Adjustment({
+                lower: 120,
+                upper: 320,
+                step_increment: 1,
+                page_increment: 10,
+            }),
         });
-        const sizes = ['small', 'normal', 'large'];
-        sizeRow.selected = sizes.indexOf(settings.get_string('island-size'));
-        sizeRow.connect('notify::selected', row => settings.set_string('island-size', sizes[row.selected]));
-        window.connect('close-request', () => {
-            settings.disconnect(sizeSignal);
-            return false;
-        });
-        const sizeSignal = settings.connect('changed::island-size', () => {
-            sizeRow.selected = sizes.indexOf(settings.get_string('island-size'));
-        });
-        group.add(sizeRow);
+        settings.bind('island-width', widthRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(widthRow);
 
         const hideDateRow = new Adw.SwitchRow({
             title: 'Hide Date Panel',
@@ -119,12 +116,8 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('level-display-time', duration, 'value', Gio.SettingsBindFlags.DEFAULT);
         levels.add(duration);
 
-        const events = new Adw.PreferencesGroup({title: 'Notifications and Windows'});
+        const events = new Adw.PreferencesGroup({title: 'Notifications'});
         page.add(events);
-        const windowRow = new Adw.SwitchRow({title: 'Window Open and Close Events',
-            subtitle: 'Temporary events for new or closed windows; not a running app list'});
-        settings.bind('show-window-events', windowRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        events.add(windowRow);
         for (const [key, title, values, labels] of [
             ['notification-style', 'Notification Style', ['off', 'icon', 'card'], ['Off', 'Flying icon', 'Expanded card']],
             ['notification-icon', 'Flying Icon', ['app', 'mail', 'airplane'], ['Application icon', 'Mail', 'Airplane']],

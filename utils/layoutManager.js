@@ -66,7 +66,7 @@ export class LayoutManager {
         }
 
         // Calculate positions using constants
-        const mainWidth = NotchConstants.COMPACT_WIDTH;
+        const mainWidth = this.controller.width;
         const gap = NotchConstants.SPLIT_GAP;
         const secWidth = NotchConstants.SECONDARY_WIDTH;
         const groupWidth = mainWidth + gap + secWidth;

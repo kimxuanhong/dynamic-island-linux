@@ -46,9 +46,9 @@ import {WindowView} from '../views/windowView.js';
 
 export class NotchController {
     constructor(settings = null) {
-        this.width = NotchConstants.COMPACT_WIDTH;
+        this.width = settings?.get_int('island-width') ?? NotchConstants.COMPACT_WIDTH;
         this.height = NotchConstants.COMPACT_HEIGHT;
-        this.expandedWidth = NotchConstants.EXPANDED_WIDTH;
+        this.expandedWidth = Math.round(NotchConstants.EXPANDED_WIDTH * this.width / NotchConstants.COMPACT_WIDTH);
         this.expandedHeight = NotchConstants.EXPANDED_HEIGHT;
         this.originalScale = NotchConstants.ORIGINAL_SCALE;
 
@@ -115,7 +115,7 @@ export class NotchController {
         // Setup events
         this._setupMouseEvents();
 
-        this._appearanceSignals = ['background-opacity', 'island-size'].map(key =>
+        this._appearanceSignals = ['background-opacity', 'island-width'].map(key =>
             this.settings?.connect(`changed::${key}`, () => this._syncAppearance())
         ).filter(Boolean);
         this._syncAppearance();
@@ -126,7 +126,7 @@ export class NotchController {
         this._defaultSignal = this.settings?.connect('changed::default-content', () => this._syncDefaultContent());
         this._syncDefaultContent();
 
-        this._eventSignals = ['show-window-events', 'notification-style'].map(key =>
+        this._eventSignals = ['notification-style'].map(key =>
             this.settings?.connect(`changed::${key}`, () => this._syncEventSettings())
         ).filter(Boolean);
 
@@ -297,13 +297,6 @@ export class NotchController {
             getExpandedContainer: () => this.notificationView.expandedContainer,
             getSecondaryContainer: () => null,
             onActivate: () => this._showOnlyView('notification')
-        });
-
-        this.presenterRegistry.register('window', {
-            getCompactContainer: () => null,
-            getExpandedContainer: () => this.windowView.expandedContainer,
-            getSecondaryContainer: () => null,
-            onActivate: () => this._showOnlyView('window')
         });
 
         // Wait for real content before showing the island.
@@ -728,14 +721,20 @@ export class NotchController {
     }
 
     _onWindowLaunched(info) {
-        if (this.settings && !this.settings.get_boolean('show-window-events')) return;
+        if (info.event === 'closed') {
+            if (this.stateMachine.isCompact())
+                this.squeeze();
+            return;
+        }
+
         this.windowView.updateWindow(info);
-        this._requestAutoExpansion('window', 'window', NotchConstants.TIMEOUT_WINDOW);
+
+        if (this.stateMachine.isCompact())
+            this.squeeze();
     }
 
     _syncEventSettings() {
         const disabled = [];
-        if (!this.settings.get_boolean('show-window-events')) disabled.push('window');
         if (this.settings.get_string('notification-style') !== 'card') disabled.push('notification');
         if (this.settings.get_string('notification-style') !== 'icon') {
             this._cleanupAnimatedIcon('notification');
@@ -877,8 +876,13 @@ export class NotchController {
             }
         }
         const current = this.presenterRegistry.getCurrent();
-        if (!this._collapsing && this.stateMachine.isAnimating() &&
-            this.notch?.has_style_class_name('expanded-state') && current === presenterName) {
+        if (current === presenterName && (this._revealing || this._collapsing ||
+            this.notch?.has_style_class_name('expanded-state'))) {
+            if (this._collapsing) {
+                this._collapsing = false;
+                this.stateMachine.transitionTo('animating');
+                this.animationController.expand();
+            }
             this._scheduleAutoCollapse(timeoutKey, delay);
             return;
         }
@@ -938,7 +942,6 @@ export class NotchController {
         this.timeoutManager.clear('brightness');
         this.timeoutManager.clear('bluetooth');
         this.timeoutManager.clear('bluetooth-defer');
-        this.timeoutManager.clear('window');
         this.timeoutManager.clear('recording');
         this.timeoutManager.clear('camera');
         this.timeoutManager.clear('uxplay');
@@ -961,8 +964,6 @@ export class NotchController {
             this.volumeView.expandedContainer.hide();
         if (this.brightnessView.expandedContainer !== except)
             this.brightnessView.expandedContainer.hide();
-        if (this.windowView.expandedContainer !== except)
-            this.windowView.expandedContainer.hide();
         if (this.recordingView.expandedContainer !== except)
             this.recordingView.expandedContainer.hide();
         if (this.cameraView.expandedContainer !== except)
@@ -1200,19 +1201,16 @@ export class NotchController {
 
     _syncAppearance() {
         const opacity = (this.settings?.get_int('background-opacity') ?? 85) / 100;
-        const scale = {small: 0.85, normal: 1, large: 1.15}[
-            this.settings?.get_string('island-size') ?? 'normal'];
-        const resized = scale !== this.originalScale;
+        const width = this.settings?.get_int('island-width') ?? NotchConstants.COMPACT_WIDTH;
+        const resized = width !== this.width;
         const hiding = this._hiding;
         const squeezing = this.stateMachine.isAnimating() && !this._collapsing && !hiding && !this._revealing &&
             !this.notch.has_style_class_name('expanded-state');
-        this.originalScale = scale;
+        this.width = width;
+        this.expandedWidth = Math.round(NotchConstants.EXPANDED_WIDTH * width / NotchConstants.COMPACT_WIDTH);
         for (const actor of [this.notch, this.secondaryNotch]) {
             actor.set_style(`background-color: rgba(0, 0, 0, ${opacity});`);
-            if (resized) {
-                if (squeezing) actor.remove_all_transitions();
-                actor.set_scale(scale, scale);
-            }
+            if (resized && squeezing) actor.remove_all_transitions();
         }
         if (resized && this._revealing) {
             this.animationController.reveal({width: this.notch.width,
@@ -1236,6 +1234,12 @@ export class NotchController {
             this.notch.has_style_class_name('expanded-state')) {
             this.animationController.expand();
             return;
+        }
+        if (resized && this.stateMachine.isExpanded()) {
+            this.notch.set_width(this.expandedWidth);
+            this.notch.set_position(this._calculateNotchX(this.expandedWidth), this._calculateNotchY());
+        } else if (resized && this.stateMachine.isCompact()) {
+            this.notch.set_width(this.width);
         }
         this.updatePosition();
         if (resized && squeezing && this._expansionQueue.length) this._finishCollapse();
