@@ -876,12 +876,26 @@ export class NotchController {
             }
         }
         const current = this.presenterRegistry.getCurrent();
-        if (current === presenterName && (this._revealing || this._collapsing ||
-            this.notch?.has_style_class_name('expanded-state'))) {
+        const levelChange = presenterName === 'volume' || presenterName === 'brightness';
+        const cardOpen = !this._revealing && !this._collapsing &&
+            this.notch.has_style_class_name('expanded-state');
+        if (levelChange && current !== presenterName && cardOpen && !this._notificationIconActive &&
+            !this.volumeView?.isDragging && !this.brightnessView?.isDragging) {
+            this._cancelTemporaryPresenterTimeouts();
+            this._expansionQueue = this._expansionQueue.filter(event =>
+                event.presenterName !== 'volume' && event.presenterName !== 'brightness');
+            this.presenterRegistry.switchTo(presenterName, true);
+            this.expandNotch(true);
+            this._scheduleAutoCollapse(timeoutKey, delay);
+            return;
+        }
+        if (current === presenterName && !this._revealing && !this._hiding &&
+            (this._collapsing || this.notch?.has_style_class_name('expanded-state'))) {
             if (this._collapsing) {
                 this._collapsing = false;
-                this.stateMachine.transitionTo('animating');
-                this.animationController.expand();
+                this.stateMachine.transitionTo('compact');
+                this.presenterRegistry.switchTo(presenterName, true);
+                this.expandNotch(true);
             }
             this._scheduleAutoCollapse(timeoutKey, delay);
             return;
@@ -915,7 +929,9 @@ export class NotchController {
         }
         this.timeoutManager.set(timeoutKey, delay, () => {
             if (this.stateMachine.isExpanded()) {
-                this.compactNotch();
+                // A released slider must not hold queued events indefinitely
+                // just because the pointer is still over the card.
+                this.compactNotch(this._expansionQueue.length > 0);
             }
         });
     }

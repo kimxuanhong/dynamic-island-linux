@@ -88,3 +88,7 @@ a default choice or a new event arrives.
 `tests/gnome-notification-compact.js` checks empty compact reveal before flying icons,
 FIFO notifications, keeping compact visible, reusing existing content, and canceling
 queued notifications when disabled.
+
+`tests/gnome-level-reopen.js` checks repeated volume/brightness actions after hiding,
+reversal during collapse, rapid key presses, immediate replacement of an expanded
+card without collapsing, and simultaneous width/opacity transitions in both directions.

@@ -53,7 +53,7 @@ export async function run() {
     };
     await Scripting.sleep(N.TIMEOUT_VOLUME + N.ANIMATION_COMPACT_DURATION + N.ANIMATION_EXPAND_DURATION + 150);
     if (!finished || c.presenterRegistry.getCurrent() !== 'battery' || !c.stateMachine.isExpanded())
-        throw new Error('First queued event did not open after adjustment and collapse');
+        throw new Error(`First queued event did not open after adjustment and collapse: current=${c.presenterRegistry.getCurrent()}, state=${c.stateMachine.getState()}, hover=${c.notch.hover}, dragging=${c.volumeView.isDragging}, queue=${c._expansionQueue.map(event => event.presenterName)}`);
     extension.stateObj.disable();
     print('DYNAMIC_ISLAND_INTERACTION_QUEUE_PASS');
 }

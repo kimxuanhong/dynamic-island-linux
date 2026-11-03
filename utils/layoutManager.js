@@ -43,8 +43,8 @@ export class LayoutManager {
             return;
         }
         const c = this.controller;
-        const revealFrom = !c.notch.visible ? {width: 0, x: c._calculateNotchX(0)}
-            : (c._hiding || c._revealing) ? {width: c.notch.width, x: c.notch.x} : null;
+        const revealFrom = !c.notch.visible ? {width: 0, x: c._calculateNotchX(0), opacity: 0}
+            : (c._hiding || c._revealing) ? {width: c.notch.width, x: c.notch.x, opacity: c.notch.opacity} : null;
         c.animationController.cancelHide();
         this.controller.notch.show();
         const isSingle = this.controller.cycleManager.count() <= 1;
