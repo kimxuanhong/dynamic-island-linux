@@ -27,7 +27,8 @@ export async function run() {
     if (!c.stateMachine.isExpanded() || !view.expandedContainer.visible || c.notch.width !== 440 || c.notch.height !== 180)
         throw new Error(`Hover did not open fixed-size clock calendar: state=${c.stateMachine.getState()}, hover=${c.notch.hover}, current=${c.presenterRegistry.getCurrent()}, visible=${view.expandedContainer.visible}, size=${c.notch.width}x${c.notch.height}`);
     const now = GLib.DateTime.new_now_local();
-    if (view._date.text !== now.format('%B %Y') || view._day.text !== now.format('%d') ||
+    const monthName = new Intl.DateTimeFormat('en-US', {month: 'long'}).format(new Date(now.get_year(), now.get_month() - 1, 1));
+    if (view._date.text !== `${monthName} ${now.get_year()}` || view._day.text !== now.format('%d') ||
         view._dayLabels.filter(day => day.has_style_class_name('today')).length !== 1)
         throw new Error('Current date or today highlight incorrect');
     const [cardX, cardY] = c.notch.get_transformed_position();

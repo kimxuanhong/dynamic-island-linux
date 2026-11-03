@@ -108,3 +108,6 @@ bundled network icons, and safe signal-handler cleanup.
 `tests/gnome-clock-calendar.js` opens the calendar through real pointer hover,
 checks date/today highlighting, fixed-card bounds, and equal column centers with Vietnamese headings, tests leap-year February,
 clicks month navigation across a year boundary, and checks collapse on leave.
+
+`tests/gnome-clock-centering.js` measures both the compact label and its text actor
+through minute/width updates, collapse and reveal, and checks English weekday/month names.

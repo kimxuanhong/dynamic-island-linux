@@ -4,6 +4,10 @@ import Pango from 'gi://Pango';
 import St from 'gi://St';
 import {connectClick} from '../utils/input.js';
 
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthTitle = date => `${MONTHS[date.get_month() - 1]} ${date.get_year()}`;
+
 function label(styleClass, text = '') {
     const actor = new St.Label({text, style_class: styleClass, x_expand: true,
         y_align: Clutter.ActorAlign.CENTER});
@@ -13,10 +17,14 @@ function label(styleClass, text = '') {
 
 export class ClockView {
     constructor() {
-        this.compactContainer = label('clock-compact');
-        this.secondaryContainer = label('clock-compact');
-        this.compactContainer.clutter_text.set_line_alignment(Pango.Alignment.CENTER);
-        this.secondaryContainer.clutter_text.set_line_alignment(Pango.Alignment.CENTER);
+        this.compactLabel = label('clock-compact');
+        this.secondaryLabel = label('clock-compact');
+        for (const text of [this.compactLabel, this.secondaryLabel]) {
+            text.x_expand = false;
+            text.x_align = Clutter.ActorAlign.CENTER;
+        }
+        this.compactContainer = new St.Bin({child: this.compactLabel, x_expand: true, y_expand: true});
+        this.secondaryContainer = new St.Bin({child: this.secondaryLabel, x_expand: true, y_expand: true});
         this._weekday = label('clock-weekday');
         this._day = label('clock-day');
         this._date = label('clock-date');
@@ -75,15 +83,15 @@ export class ClockView {
 
     updateClock(now = GLib.DateTime.new_now_local()) {
         this._now = now;
-        this.compactContainer.text = now.format('%H:%M');
-        this.secondaryContainer.text = this.compactContainer.text;
+        this.compactLabel.text = now.format('%H:%M');
+        this.secondaryLabel.text = this.compactLabel.text;
         this._time.text = now.format('%H:%M:%S');
         const dateKey = now.format('%F');
         if (this._dateKey === dateKey) return;
         this._dateKey = dateKey;
-        this._weekday.text = now.format('%A');
+        this._weekday.text = WEEKDAYS[now.get_day_of_week() - 1];
         this._day.text = now.format('%d');
-        this._date.text = now.format('%B %Y');
+        this._date.text = monthTitle(now);
         if (this._followToday) this.setMonth(now.get_year(), now.get_month());
         else this._renderMonth();
     }
@@ -105,13 +113,13 @@ export class ClockView {
     }
 
     _renderMonth() {
-        this._monthButton.label = this._month.format('%B %Y');
+        this._monthButton.label = monthTitle(this._month);
         const first = this._month.add_days(1 - this._month.get_day_of_week());
-        this._weekdayLabels.forEach((actor, i) => { actor.text = first.add_days(i).format('%a'); });
+        this._weekdayLabels.forEach((actor, i) => { actor.text = WEEKDAYS[i].slice(0, 3); });
         this._dayLabels.forEach((actor, i) => {
             const date = first.add_days(i);
             actor.text = date.format('%e').trim();
-            actor.accessible_name = date.format('%A, %d %B %Y');
+            actor.accessible_name = `${WEEKDAYS[date.get_day_of_week() - 1]}, ${date.format('%d')} ${monthTitle(date)}`;
             actor.set_style_class_name('clock-calendar-day');
             this._dayCells[i].set_style_class_name('clock-calendar-cell');
             if (date.get_month() !== this._month.get_month()) actor.add_style_class_name('other-month');

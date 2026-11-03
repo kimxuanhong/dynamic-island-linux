@@ -50,7 +50,7 @@ export async function run() {
     c._onBatteryChanged({isPresent: false, percentage: 0, isCharging: false});
     await assertSelection([], 'No battery fallback');
     s.set_string('default-content', 'clock');
-    if (!/^\d\d:\d\d$/.test(c._clockLabel.text)) throw new Error('Clock not running');
+    if (!/^\d\d:\d\d$/.test(c.clockView.compactLabel.text)) throw new Error('Clock not running');
     c._onVolumeChanged({volume: 42, isMuted: false});
     await Scripting.sleep(500);
     if (!c.notch.visible || c._clockLabel.visible) throw new Error('Temporary event did not replace clock');
