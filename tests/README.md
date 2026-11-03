@@ -94,5 +94,5 @@ reversal during collapse, rapid key presses, immediate replacement of an expande
 card without collapsing, and simultaneous width/opacity transitions in both directions.
 
 `tests/gnome-dimensions-expand.js` checks independent width/height changes, matching
-split heights, live expanded height changes, direct expansion from hidden, and
+split heights, fixed 440x180 expanded geometry while changing compact settings, direct expansion from hidden, and
 retaining empty-compact-first behavior for flying notifications.

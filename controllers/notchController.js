@@ -48,9 +48,8 @@ export class NotchController {
     constructor(settings = null) {
         this.width = settings?.get_int('island-width') ?? NotchConstants.COMPACT_WIDTH;
         this.height = settings?.get_int('island-height') ?? NotchConstants.COMPACT_HEIGHT;
-        this.expandedWidth = Math.round(NotchConstants.EXPANDED_WIDTH * this.width / NotchConstants.COMPACT_WIDTH);
-        this.expandedHeight = Math.max(NotchConstants.EXPANDED_HEIGHT,
-            Math.round(NotchConstants.EXPANDED_HEIGHT * this.height / NotchConstants.COMPACT_HEIGHT));
+        this.expandedWidth = NotchConstants.EXPANDED_WIDTH;
+        this.expandedHeight = NotchConstants.EXPANDED_HEIGHT;
         this.originalScale = NotchConstants.ORIGINAL_SCALE;
 
         // Settings
@@ -1239,9 +1238,7 @@ export class NotchController {
         this.width = width;
         this.height = height;
         this.secondaryNotch.set_height(height);
-        this.expandedHeight = Math.max(NotchConstants.EXPANDED_HEIGHT,
-            Math.round(NotchConstants.EXPANDED_HEIGHT * height / NotchConstants.COMPACT_HEIGHT));
-        this.expandedWidth = Math.round(NotchConstants.EXPANDED_WIDTH * width / NotchConstants.COMPACT_WIDTH);
+        // Width/height preferences affect compact geometry only.
         for (const actor of [this.notch, this.secondaryNotch]) {
             actor.set_style(`background-color: rgba(0, 0, 0, ${opacity});`);
             if (resized && squeezing) actor.remove_all_transitions();

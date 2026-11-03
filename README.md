@@ -174,7 +174,7 @@ gnome-extensions prefs dynamic-island@xuanhong
 ```
 
 - **Background Opacity**: độ đậm của nền từ 0–100%; không làm mờ chữ và icon.
-- **Island Width / Island Height**: chỉnh riêng chiều rộng (120–320 px) và chiều cao (36–88 px) của compact. Hai notch có cùng chiều cao; chữ và icon giữ kích thước gốc. Thẻ expanded điều chỉnh theo kích thước đã chọn và giữ chiều cao tối thiểu để đủ chỗ cho điều khiển.
+- **Island Width / Island Height**: chỉnh riêng chiều rộng (120–320 px) và chiều cao (36–88 px) của compact. Hai notch có cùng chiều cao; chữ và icon giữ kích thước gốc. Chỉ áp dụng cho compact; thẻ expanded giữ cố định 440 × 180 px.
 - **Show Volume / Show Brightness**: bật/tắt thông báo thay đổi âm lượng/độ sáng trong Island.
 - **Replace System Overlays**: thay OSD âm lượng/độ sáng bằng Island khi loại tương ứng được bật. OSD khác vẫn giữ nguyên; mặc định tắt.
 - **Display Time**: thời gian hiển thị âm lượng/độ sáng từ 1–10 giây.
