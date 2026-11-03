@@ -14,11 +14,22 @@ export class NetworkSpeedView extends EventView {
         this.compactContainer.add_child(this._upload);
         this.updateSpeed({rx: 0, tx: 0, available: true});
     }
+    setConnection(info) {
+        this._connection = info;
+        this.updateSpeed(this._rate ?? {rx: 0, tx: 0, available: true});
+    }
     updateSpeed({rx, tx, available}) {
+        this._rate = {rx, tx, available};
+        const connection = this._connection;
+        const connected = connection?.connected;
+        const wifi = connected && connection.kind === 'wifi';
+        const title = connected ? `${wifi ? 'Wi-Fi' : 'Ethernet'} · ${connection.name}` : 'Network speed';
+        const icon = connected ? (wifi ? 'network-wireless-symbolic' : 'network-wired-symbolic')
+            : 'network-transmit-receive-symbolic';
         this._download.text = `↓ ${available ? formatRate(rx) : '—'}`;
         this._upload.text = `↑ ${available ? formatRate(tx) : '—'}`;
-        this.update({title: 'Network speed',
-            detail: `${this._download.text}    ${this._upload.text}`, icon: 'network-transmit-receive-symbolic'});
+        this.update({title,
+            detail: `${this._download.text}    ${this._upload.text}`, icon});
     }
     show() { this.compactContainer.show(); super.show(); }
     hide() { this.compactContainer.hide(); super.hide(); }

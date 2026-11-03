@@ -100,3 +100,7 @@ retaining empty-compact-first behavior for flying notifications.
 `tests/gnome-system-replacements.js` checks 80% / 130x36 defaults, automatic
 brightness OSD replacement and fallback, real notification banners in card/off
 modes, preserving unread history, and restoring Shell methods on disable.
+
+`tests/gnome-network-identity.js` checks SSID decoding through libnm, profile fallback,
+initial identity without startup notifications, live Ethernet/disconnect labels,
+bundled network icons, and safe signal-handler cleanup.

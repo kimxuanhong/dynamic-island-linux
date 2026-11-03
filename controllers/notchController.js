@@ -387,6 +387,7 @@ export class NotchController {
             this._requestAutoExpansion('input-method', 'input-method', 2000);
         });
         this.networkSpeedManager.addCallback(info => this.networkSpeedView.updateSpeed(info));
+        this.networkManager.addStateCallback(info => this.networkSpeedView.setConnection(info));
         this.networkManager.addCallback(info => this._onNetworkChanged(info));
         this.batteryManager.addCallback((info) => this._onBatteryChanged(info));
         this.bluetoothManager.addCallback((info) => this._onBluetoothChanged(info));

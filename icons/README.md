@@ -11,3 +11,5 @@ Album art and application-provided GIcons are preserved. No system icon theme
 is installed or modified.
 
 Preview: [icon sheet](../docs/previews/island-icons.svg).
+
+Network cards use dedicated Wi-Fi, Ethernet, and transfer-arrow glyphs from the same grid.
