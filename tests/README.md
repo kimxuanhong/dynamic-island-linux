@@ -96,3 +96,7 @@ card without collapsing, and simultaneous width/opacity transitions in both dire
 `tests/gnome-dimensions-expand.js` checks independent width/height changes, matching
 split heights, fixed 440x180 expanded geometry while changing compact settings, direct expansion from hidden, and
 retaining empty-compact-first behavior for flying notifications.
+
+`tests/gnome-system-replacements.js` checks 80% / 130x36 defaults, automatic
+brightness OSD replacement and fallback, real notification banners in card/off
+modes, preserving unread history, and restoring Shell methods on disable.

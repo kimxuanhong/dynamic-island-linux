@@ -3,12 +3,12 @@
 // ============================================
 export const NotchConstants = {
     // Dimensions
-    COMPACT_WIDTH: 188,
-    COMPACT_HEIGHT: 44,
+    COMPACT_WIDTH: 130,
+    COMPACT_HEIGHT: 36,
     EXPANDED_WIDTH: 440,
     EXPANDED_HEIGHT: 180,
     SECONDARY_WIDTH: 56,
-    SECONDARY_HEIGHT: 44,
+    SECONDARY_HEIGHT: 36,
 
     // Split mode dimensions
     SPLIT_GAP: 10,

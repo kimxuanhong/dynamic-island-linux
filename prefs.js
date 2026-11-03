@@ -110,8 +110,8 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         page.add(levels);
         for (const [key, title, subtitle] of [
             ['show-volume', 'Show Volume', 'Show output volume changes in the island'],
-            ['show-brightness', 'Show Brightness', 'Show screen brightness changes in the island'],
-            ['hide-system-osd', 'Replace System Overlays', 'Replace enabled volume and brightness overlays; other system overlays remain visible'],
+            ['show-brightness', 'Show Brightness', 'Show brightness in the island and replace the GNOME brightness overlay'],
+            ['hide-system-osd', 'Replace System Volume Overlay', 'Replace the GNOME volume overlay when Show Volume is enabled'],
         ]) {
             const row = new Adw.SwitchRow({title, subtitle});
             settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
@@ -124,7 +124,7 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('level-display-time', duration, 'value', Gio.SettingsBindFlags.DEFAULT);
         levels.add(duration);
 
-        const events = new Adw.PreferencesGroup({title: 'Notifications'});
+        const events = new Adw.PreferencesGroup({title: 'Notifications', description: 'Expanded card replaces GNOME banners; notifications remain in system history.'});
         page.add(events);
         for (const [key, title, values, labels] of [
             ['notification-style', 'Notification Style', ['off', 'icon', 'card'], ['Off', 'Flying icon', 'Expanded card']],

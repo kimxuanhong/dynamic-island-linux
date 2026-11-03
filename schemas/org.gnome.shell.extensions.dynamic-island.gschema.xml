@@ -23,10 +23,10 @@
     </key>
     <key name="show-volume" type="b"><default>true</default><summary>Show volume changes</summary></key>
     <key name="show-brightness" type="b"><default>true</default><summary>Show brightness changes</summary></key>
-    <key name="hide-system-osd" type="b"><default>false</default><summary>Replace volume and brightness system overlays</summary></key>
+    <key name="hide-system-osd" type="b"><default>false</default><summary>Replace the volume system overlay</summary></key>
     <key name="level-display-time" type="i"><default>2</default><range min="1" max="10"/><summary>Volume and brightness display time in seconds</summary></key>
     <key name="background-opacity" type="i">
-      <default>85</default>
+      <default>80</default>
       <range min="0" max="100"/>
       <summary>Background opacity</summary>
       <description>Opacity of the island background in percent; text and icons stay opaque.</description>
@@ -38,13 +38,13 @@
       <description>Scale the island, its content, and its interactive controls.</description>
     </key>
     <key name="island-width" type="i">
-      <default>188</default>
+      <default>130</default>
       <range min="120" max="320"/>
       <summary>Island width</summary>
       <description>Compact island width in pixels.</description>
     </key>
     <key name="island-height" type="i">
-      <default>44</default>
+      <default>36</default>
       <range min="36" max="88"/>
       <summary>Island height</summary>
       <description>Compact island height in pixels. Expanded cards remain fixed at 440 by 180 pixels.</description>

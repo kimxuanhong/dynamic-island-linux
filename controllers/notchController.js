@@ -1228,7 +1228,7 @@ export class NotchController {
     }
 
     _syncAppearance() {
-        const opacity = (this.settings?.get_int('background-opacity') ?? 85) / 100;
+        const opacity = (this.settings?.get_int('background-opacity') ?? 80) / 100;
         const width = this.settings?.get_int('island-width') ?? NotchConstants.COMPACT_WIDTH;
         const height = this.settings?.get_int('island-height') ?? NotchConstants.COMPACT_HEIGHT;
         const resized = width !== this.width || height !== this.height;

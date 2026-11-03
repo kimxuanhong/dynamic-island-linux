@@ -1,7 +1,7 @@
 /* Original black notch palette with the redesigned view arrangements. */
 .notch, .notch-secondary {
     color: white;
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: rgba(0, 0, 0, 0.80);
     background-gradient-direction: none;
     border: none;
     box-shadow: none;
@@ -9,7 +9,7 @@
 .notch, .notch.compact-state { border-radius: 20px; }
 .notch-secondary { border-radius: 22px; }
 .notch.expanded-state { border-radius: 34px; }
-.notch:hover, .notch-secondary:hover { background-color: rgba(0, 0, 0, 0.85); }
+.notch:hover, .notch-secondary:hover { background-color: rgba(0, 0, 0, 0.80); }
 
 /* Semantic accents shared by icon tiles and controls. */
 .accent-mint { color: #00ff00; }

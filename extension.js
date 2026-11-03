@@ -14,6 +14,7 @@ export default class DynamicIslandExtension extends Extension {
         this._notchController = new NotchController(this._settings);
         this._syncDatePanel();
         this._setupSystemOsd();
+        this._setupNotificationBanners();
 
         this._settingsSignals.push(
             this._settings.connect('changed::hide-datepanel', () =>
@@ -26,6 +27,8 @@ export default class DynamicIslandExtension extends Extension {
     }
 
     disable() {
+        this._notificationInjection?.clear();
+        this._notificationInjection = null;
         this._osdInjection?.clear();
         this._osdInjection = null;
         this._notchController?.destroy();
@@ -53,7 +56,8 @@ export default class DynamicIslandExtension extends Extension {
                 : names.some(name => name.startsWith('display-brightness')) ? 'brightness' : null;
             const settings = extension._settings;
             const controller = extension._notchController;
-            if (!type || !settings?.get_boolean('hide-system-osd') ||
+            const replace = type === 'brightness' || settings?.get_boolean('hide-system-osd');
+            if (!type || !replace ||
                 !settings.get_boolean(`show-${type}`) || !controller || controller._destroyed ||
                 !Number.isFinite(level))
                 return original.apply(this, args);
@@ -66,6 +70,34 @@ export default class DynamicIslandExtension extends Extension {
                 controller._onBrightnessChanged({brightness: Math.round(level * 100)});
             return undefined;
         });
+    }
+
+    _setupNotificationBanners() {
+        this._notificationInjection = new InjectionManager();
+        const tray = Main.messageTray;
+        if (typeof tray?._showNotification !== 'function') return;
+        const extension = this;
+        // Intercept display, rather than changing app policies, acknowledgements,
+        // or notification storage. Existing sources also pass through this method.
+        this._notificationInjection.overrideMethod(tray, '_showNotification', original => function (...args) {
+            const controller = extension._notchController;
+            if (extension._settings?.get_string('notification-style') !== 'card' ||
+                !controller || controller._destroyed || !Array.isArray(this._notificationQueue))
+                return original.apply(this, args);
+            if (this._notificationQueue.length) {
+                this._notificationQueue.splice(0);
+                this.emit('queue-changed');
+            }
+            return undefined;
+        });
+        const sync = () => {
+            if (this._settings.get_string('notification-style') === 'card' && tray._banner) {
+                tray._notificationExpired = true;
+                tray._updateState();
+            }
+        };
+        this._settingsSignals.push(this._settings.connect('changed::notification-style', sync));
+        sync();
     }
 
     _syncDatePanel() {

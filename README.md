@@ -96,7 +96,7 @@ Extension hoạt động với một **backend server** viết bằng Go để t
 - Chọn **Off / Flying icon / Expanded card** tại Preferences → Notifications and Windows
 - Icon bay có thể là icon app, thư hoặc máy bay; chỉnh thời gian animation từ 200–3000 ms
 - Nếu đang ẩn và không có nội dung compact, mở notch compact trống trước rồi mới chạy icon; giữ notch đến hết thông báo rồi thu lại. Nếu đã có compact thì dùng ngay nội dung đang hiện.
-- Thẻ mở rộng hiển thị tiêu đề và nội dung, tự ẩn sau 1–10 giây
+- Thẻ mở rộng hiển thị tiêu đề và nội dung, tự ẩn sau 1–10 giây; thay banner GNOME khi được chọn. Thông báo vẫn còn trong lịch sử hệ thống và không bị đánh dấu đã đọc chỉ vì hiện trong Island.
 
 ### 🪟 Sự kiện cửa sổ
 - Hiển thị thẻ có icon và tên app khi mở/đóng cửa sổ mới
@@ -173,10 +173,10 @@ Mở Preferences của Dynamic Island trong ứng dụng Extensions, hoặc ch�
 gnome-extensions prefs dynamic-island@xuanhong
 ```
 
-- **Background Opacity**: độ đậm của nền từ 0–100%; không làm mờ chữ và icon.
-- **Island Width / Island Height**: chỉnh riêng chiều rộng (120–320 px) và chiều cao (36–88 px) của compact. Hai notch có cùng chiều cao; chữ và icon giữ kích thước gốc. Chỉ áp dụng cho compact; thẻ expanded giữ cố định 440 × 180 px.
+- **Background Opacity**: độ đậm của nền từ 0–100%, mặc định 80%; không làm mờ chữ và icon.
+- **Island Width / Island Height**: chỉnh riêng chiều rộng (120–320 px) và chiều cao (36–88 px) của compact, mặc định 130 × 36 px. Hai notch có cùng chiều cao; chữ và icon giữ kích thước gốc. Chỉ áp dụng cho compact; thẻ expanded giữ cố định 440 × 180 px.
 - **Show Volume / Show Brightness**: bật/tắt thông báo thay đổi âm lượng/độ sáng trong Island.
-- **Replace System Overlays**: thay OSD âm lượng/độ sáng bằng Island khi loại tương ứng được bật. OSD khác vẫn giữ nguyên; mặc định tắt.
+- **Replace System Volume Overlay**: thay OSD âm lượng bằng Island khi Show Volume được bật; mặc định tắt. Show Brightness tự thay OSD độ sáng khi bật và trả lại OSD gốc khi tắt. Các OSD khác vẫn giữ nguyên.
 - **Display Time**: thời gian hiển thị âm lượng/độ sáng từ 1–10 giây.
 - **Default Content**: nội dung mặc định khi không có phiên hoạt động: Battery if present, Clock (24 giờ), Network speed hoặc Hidden. Media, microphone, camera và UxPlay luôn thay thế nội dung mặc định; chỉ các phiên hoạt động tham gia sequence hai notch. Khi tất cả kết thúc, nội dung mặc định tự trở lại. Chỉ chuyển trạng thái cắm/rút sạc mới hiện thẻ pin tạm thời kể cả khi pin đang bị thay thế; cập nhật phần trăm pin và các mốc dung lượng không kích hoạt animation. Với Hidden, notch về compact rồi khép hai đầu vào tâm đồng thời mờ dần; khi có sự kiện cần thẻ expanded thì bung và hiện dần trực tiếp từ tâm, không dừng ở compact. Chỉ nội dung compact và notify dạng icon mới dùng animation mở compact.
 
