@@ -32,6 +32,7 @@ export class AnimationController {
         notch.ease({
             width: expandedWidth,
             height: expandedHeight,
+            opacity: 255,
             x: newX,
             y: newY,
             duration: NotchConstants.ANIMATION_EXPAND_DURATION,

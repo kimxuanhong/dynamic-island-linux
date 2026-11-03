@@ -30,7 +30,7 @@ export class LayoutManager {
         if (this.controller.secondaryNotch) {
             this.controller.secondaryNotch.hide();
         }
-        this.controller.notch.set_width(this.controller.expandedWidth);
+        this.controller.notch.set_size(this.controller.expandedWidth, this.controller.expandedHeight);
     }
 
     _updateCompactLayout() {
@@ -78,7 +78,7 @@ export class LayoutManager {
             NotchConstants.NOTCH_Y_POSITION;
 
         if (!this.controller._revealing) {
-            this.controller.notch.set_width(mainWidth);
+            this.controller.notch.set_size(mainWidth, this.controller.height);
             this.controller.notch.set_position(startX, startY);
         }
         if (this.controller.secondaryNotch) {
@@ -170,7 +170,7 @@ export class LayoutManager {
         }
 
         // Set position
-        if (!this.controller._revealing) this.controller.notch.set_width(this.controller.width);
+        if (!this.controller._revealing) this.controller.notch.set_size(this.controller.width, this.controller.height);
         const startX = this.controller._calculateNotchX ?
             this.controller._calculateNotchX(this.controller.width) :
             Math.floor((this.controller.monitorWidth - this.controller.width) / 2);

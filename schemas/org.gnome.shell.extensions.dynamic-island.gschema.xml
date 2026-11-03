@@ -43,6 +43,12 @@
       <summary>Island width</summary>
       <description>Compact island width in pixels.</description>
     </key>
+    <key name="island-height" type="i">
+      <default>44</default>
+      <range min="36" max="88"/>
+      <summary>Island height</summary>
+      <description>Compact island height in pixels; expanded cards retain enough space for their controls.</description>
+    </key>
     <key name="hide-datepanel" type="b">
       <default>false</default>
       <summary>Hide Date Panel</summary>

@@ -54,8 +54,8 @@ export async function run() {
     await Scripting.sleep(650);
     c._onVolumeChanged({volume: 42, isMuted: false});
     await Scripting.sleep(200);
-    if (!c._revealing || c.notch.height !== c.height || c.notch.width >= c.width)
-        throw new Error('Hidden event expanded before revealing compact geometry');
+    if (c._revealing || !c.notch.has_style_class_name('expanded-state') || c.notch.height <= c.height)
+        throw new Error('Hidden event did not expand directly');
     await Scripting.sleep(700);
     if (!c.stateMachine.isExpanded()) throw new Error('Event failed to expand after reveal');
     let compactBeforeHide = false;

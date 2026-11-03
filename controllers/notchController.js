@@ -47,9 +47,10 @@ import {WindowView} from '../views/windowView.js';
 export class NotchController {
     constructor(settings = null) {
         this.width = settings?.get_int('island-width') ?? NotchConstants.COMPACT_WIDTH;
-        this.height = NotchConstants.COMPACT_HEIGHT;
+        this.height = settings?.get_int('island-height') ?? NotchConstants.COMPACT_HEIGHT;
         this.expandedWidth = Math.round(NotchConstants.EXPANDED_WIDTH * this.width / NotchConstants.COMPACT_WIDTH);
-        this.expandedHeight = NotchConstants.EXPANDED_HEIGHT;
+        this.expandedHeight = Math.max(NotchConstants.EXPANDED_HEIGHT,
+            Math.round(NotchConstants.EXPANDED_HEIGHT * this.height / NotchConstants.COMPACT_HEIGHT));
         this.originalScale = NotchConstants.ORIGINAL_SCALE;
 
         // Settings
@@ -115,7 +116,7 @@ export class NotchController {
         // Setup events
         this._setupMouseEvents();
 
-        this._appearanceSignals = ['background-opacity', 'island-width'].map(key =>
+        this._appearanceSignals = ['background-opacity', 'island-width', 'island-height'].map(key =>
             this.settings?.connect(`changed::${key}`, () => this._syncAppearance())
         ).filter(Boolean);
         this._syncAppearance();
@@ -362,7 +363,7 @@ export class NotchController {
         });
 
         this.secondaryNotch.set_width(NotchConstants.SECONDARY_WIDTH);
-        this.secondaryNotch.set_height(NotchConstants.SECONDARY_HEIGHT);
+        this.secondaryNotch.set_height(this.height);
         this.secondaryNotch.set_pivot_point(0.5, 0);
 
         // Click to swap
@@ -867,13 +868,19 @@ export class NotchController {
 
     _requestAutoExpansion(presenterName, timeoutKey, delay) {
         if (this._destroyed) return;
-        if (!this.notch.visible || this._hiding) {
-            if (this.cycleManager.count()) this.layoutManager.updateLayout();
-            else {
-                this._hideAllCompactViews();
-                this._hideAllExpandedViews();
-                this.animationController.reveal();
+        if ((!this.notch.visible || this._hiding || this._revealing) &&
+            !this._notificationIconActive &&
+            !this._expansionQueue.some(event => event.presenterName === 'notification-icon')) {
+            this._cancelTemporaryPresenterTimeouts();
+            this._dispatchingExpansion = true;
+            try {
+                this.presenterRegistry.switchTo(presenterName, true);
+                this.expandNotch(true);
+            } finally {
+                this._dispatchingExpansion = false;
             }
+            this._scheduleAutoCollapse(timeoutKey, delay);
+            return;
         }
         const current = this.presenterRegistry.getCurrent();
         const levelChange = presenterName === 'volume' || presenterName === 'brightness';
@@ -1048,10 +1055,16 @@ export class NotchController {
         if (!isAuto && !this.cycleManager.current()) return;
         if (!this.notch) return;
         if (!this.notch.visible || this._hiding || this._revealing) {
-            if (!this._revealing) this.animationController.reveal();
-            this._expansionQueue.push({presenterName: isAuto
-                ? this.presenterRegistry.getCurrent() : this.cycleManager.current()});
-            return;
+            const hidden = !this.notch.visible;
+            this.notch.remove_all_transitions();
+            this._hiding = false;
+            this._revealing = false;
+            this.stateMachine.transitionTo('compact');
+            if (hidden) {
+                this.notch.set_size(0, 0);
+                this.notch.set_position(this._calculateNotchX(0), this._calculateNotchY());
+                this.notch.set_opacity(0);
+            }
         }
         if (this._collapsing) {
             this._expansionQueue.push({
@@ -1218,11 +1231,16 @@ export class NotchController {
     _syncAppearance() {
         const opacity = (this.settings?.get_int('background-opacity') ?? 85) / 100;
         const width = this.settings?.get_int('island-width') ?? NotchConstants.COMPACT_WIDTH;
-        const resized = width !== this.width;
+        const height = this.settings?.get_int('island-height') ?? NotchConstants.COMPACT_HEIGHT;
+        const resized = width !== this.width || height !== this.height;
         const hiding = this._hiding;
         const squeezing = this.stateMachine.isAnimating() && !this._collapsing && !hiding && !this._revealing &&
             !this.notch.has_style_class_name('expanded-state');
         this.width = width;
+        this.height = height;
+        this.secondaryNotch.set_height(height);
+        this.expandedHeight = Math.max(NotchConstants.EXPANDED_HEIGHT,
+            Math.round(NotchConstants.EXPANDED_HEIGHT * height / NotchConstants.COMPACT_HEIGHT));
         this.expandedWidth = Math.round(NotchConstants.EXPANDED_WIDTH * width / NotchConstants.COMPACT_WIDTH);
         for (const actor of [this.notch, this.secondaryNotch]) {
             actor.set_style(`background-color: rgba(0, 0, 0, ${opacity});`);
@@ -1235,7 +1253,7 @@ export class NotchController {
         }
         if (resized && hiding) {
             this.animationController.cancelHide();
-            this.notch.set_width(this.width);
+            this.notch.set_size(this.width, this.height);
             this.notch.set_position(this._calculateNotchX(this.width), this._calculateNotchY());
             this.animationController.hide();
             return;
@@ -1252,10 +1270,10 @@ export class NotchController {
             return;
         }
         if (resized && this.stateMachine.isExpanded()) {
-            this.notch.set_width(this.expandedWidth);
+            this.notch.set_size(this.expandedWidth, this.expandedHeight);
             this.notch.set_position(this._calculateNotchX(this.expandedWidth), this._calculateNotchY());
         } else if (resized && this.stateMachine.isCompact()) {
-            this.notch.set_width(this.width);
+            this.notch.set_size(this.width, this.height);
         }
         this.updatePosition();
         if (resized && squeezing && this._expansionQueue.length) this._finishCollapse();

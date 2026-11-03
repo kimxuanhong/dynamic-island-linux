@@ -82,7 +82,7 @@ expansion, and collapse at every size, checks both actors in split mode, and cha
 size during running animations to catch stale scale targets.
 
 `tests/gnome-hidden-animation.js` samples centered hide/reveal in all sizes,
-checks compact-before-expand/hide ordering, and reverses a running hide when
+checks direct hidden-to-expanded and compact-before-hide ordering, and reverses a running hide when
 a default choice or a new event arrives.
 
 `tests/gnome-notification-compact.js` checks empty compact reveal before flying icons,
@@ -92,3 +92,7 @@ queued notifications when disabled.
 `tests/gnome-level-reopen.js` checks repeated volume/brightness actions after hiding,
 reversal during collapse, rapid key presses, immediate replacement of an expanded
 card without collapsing, and simultaneous width/opacity transitions in both directions.
+
+`tests/gnome-dimensions-expand.js` checks independent width/height changes, matching
+split heights, live expanded height changes, direct expansion from hidden, and
+retaining empty-compact-first behavior for flying notifications.

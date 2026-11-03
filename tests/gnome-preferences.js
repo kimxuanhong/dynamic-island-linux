@@ -7,7 +7,6 @@ export async function run() {
     for (let i = 0; i < 20 && !extension?.stateObj; i++) await Scripting.sleep(250);
     if (!extension?.stateObj) throw new Error('Extension failed');
     Main.overview.hide();
-    extension.stateObj._settings.set_boolean('show-window-events', false);
     Gio.Subprocess.new(['gnome-extensions', 'prefs', 'dynamic-island@xuanhong'], Gio.SubprocessFlags.NONE);
     let window;
     for (let i = 0; i < 30; i++) {

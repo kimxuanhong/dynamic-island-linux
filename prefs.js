@@ -37,6 +37,14 @@ export default class DynamicIslandPreferences extends ExtensionPreferences {
         settings.bind('island-width', widthRow, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(widthRow);
 
+        const heightRow = new Adw.SpinRow({
+            title: 'Island Height',
+            subtitle: 'Compact height in pixels; text and icons keep their native size',
+            adjustment: new Gtk.Adjustment({lower: 36, upper: 88, step_increment: 1, page_increment: 4}),
+        });
+        settings.bind('island-height', heightRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(heightRow);
+
         const hideDateRow = new Adw.SwitchRow({
             title: 'Hide Date Panel',
             subtitle: 'Hide the clock and calendar button in the top panel',
