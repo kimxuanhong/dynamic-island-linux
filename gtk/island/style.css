@@ -1,0 +1,141 @@
+window.island-window,
+window.island-window.background,
+window.island-window.csd,
+window.island-window.csd > decoration,
+window.island-window decoration {
+	background: transparent;
+	background-color: transparent;
+	background-image: none;
+	box-shadow: none;
+	border: none;
+	outline: none;
+	border-radius: 0;
+	color: #f4f4f7;
+}
+.island-row { background: transparent; }
+.island, .battery-island { background: rgba(0, 0, 0, 0.80); border: none; box-shadow: none; }
+.island { border-radius: 20px; padding: 0; min-height: 36px; transition: border-radius 220ms ease, background 180ms ease; }
+.island.expanded { border-radius: 34px; }
+.battery-island { border-radius: 22px; min-width: 44px; min-height: 36px; padding: 0 6px; }
+.header { padding: 0 8px; min-height: 36px; }
+.compact-art { background: rgba(255, 255, 255, 0.1); border-radius: 6px; min-width: 24px; min-height: 24px; }
+.compact-battery { background: transparent; border-radius: 0; min-width: 24px; min-height: 24px; }
+.compact-battery.charging image { color: #00ff00; }
+.compact-battery.battery-high image { color: #7af0c5; }
+.compact-battery.battery-medium image { color: #ffce7a; }
+.compact-battery.battery-low image { color: #ff8b93; }
+.compact-battery.recording image { color: #c4a5ff; }
+.compact-battery.camera image { color: #7af0c5; }
+.compact-battery.uxplay image { color: #83c7ff; }
+.media-visualizer { min-width: 33px; min-height: 16px; }
+.media-visualizer-bar { background: rgba(255, 255, 255, 0.65); border-radius: 2px; min-width: 3px; }
+.secondary-visualizer .media-visualizer-bar { min-width: 2px; }
+.media-visualizer.recording .media-visualizer-bar { background: #c4a5ff; }
+.media-visualizer.camera .media-visualizer-bar { background: #7af0c5; }
+.media-visualizer.uxplay .media-visualizer-bar { background: #83c7ff; }
+.brand { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; }
+.muted { color: #a3a3b0; font-size: 12px; }
+.title { font-size: 17px; font-weight: 700; }
+.eyebrow { color: #b5a0ff; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; }
+.battery { color: rgba(255, 255, 255, 0.9); font-size: 12px; font-weight: 700; }
+.battery-compact { color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0; }
+.clock-compact { color: #fff; font-size: 14px; font-weight: 500; letter-spacing: 0; }
+.network-compact { color: #fff; font-size: 10px; font-weight: 600; letter-spacing: 0; }
+.battery.charging { color: #00ff00; }
+.privacy { color: #8ee5aa; }
+.secondary-privacy { color: #c4a5ff; }
+.secondary-privacy.camera { color: #7af0c5; }
+.secondary-privacy.uxplay { color: #83c7ff; }
+.content { padding: 10px 16px; }
+.art { background: linear-gradient(160deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; min-width: 60px; min-height: 60px; }
+.art image { color: rgba(255,255,255,0.88); }
+.island button { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.94); border: 1px solid rgba(255,255,255,0.08); box-shadow: none; border-radius: 20px; min-width: 40px; min-height: 40px; padding: 7px; transition: background 150ms ease, border-color 150ms ease; }
+.island button:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.2); }
+.island button:active { background: rgba(255,255,255,0.3); }
+.island button.play { background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.78)); color: #111; border-color: rgba(255,255,255,0.8); border-radius: 21px; min-width: 52px; min-height: 42px; }
+.island button.play:hover { background: #fff; }
+.island button.media-control { background: rgba(255,255,255,0.1); background-image: none; color: #fff; border: 1px solid rgba(255,255,255,0.08); box-shadow: none; border-radius: 50%; min-width: 40px; min-height: 40px; padding: 0; }
+.island button.media-control:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.2); }
+.island button.media-control.play { background-color: #e8e8e8; background-image: none; color: #111; border-color: rgba(255,255,255,0.8); border-radius: 50%; min-width: 44px; min-height: 44px; padding: 0; }
+.island button.media-control.play:hover { background: #fff; background-image: none; }
+.island button.pin, .island button.settings-button, .island button.quit-button { background: transparent; border: none; border-radius: 50%; min-width: 32px; min-height: 32px; padding: 5px; }
+.island button:disabled { opacity: 0.35; }
+.island scale { padding: 9px 0; }
+.island scale trough { min-height: 4px; background: rgba(255,255,255,0.2); border-radius: 8px; }
+.island scale highlight { background: #fff; border-radius: 8px; }
+.island scale slider { min-width: 10px; min-height: 10px; margin: -4px; background: #fff; border: 0; box-shadow: none; }
+.seek slider { min-width: 7px; min-height: 7px; margin: -3px; }
+.seek trough { min-height: 3px; }
+.island scale trough { background: rgba(255,255,255,0.2); background-image: none; border: 0; box-shadow: none; }
+.island scale trough highlight { background: #fff; background-image: none; border: 0; box-shadow: none; margin: 0; }
+.island scale slider { background: #fff; background-image: none; border: 0; box-shadow: 0 0 0 4px rgba(255,255,255,0.16); margin: 0; }
+.island scale slider:hover { background: #fff; }
+.controls { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.06); border-radius: 20px; padding: 10px 12px; }
+.level-card { padding: 2px; }
+.level-header { min-height: 60px; }
+.island button.level-icon-tile { background: rgba(255,255,255,0.10); background-image: none; border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; min-width: 50px; min-height: 50px; padding: 0; }
+.island button.level-icon-tile:hover { background: rgba(255,255,255,0.2); }
+.island button.level-icon-tile.accent-blue { color: #83c7ff; }
+.island button.level-icon-tile.accent-amber { color: #ffce7a; background-image: linear-gradient(160deg, rgba(255,206,122,0.18), rgba(255,206,122,0.04)); }
+.level-title { color: #fff; font-size: 18px; font-weight: 700; }
+.level-subtitle { color: rgba(255,255,255,0.7); font-size: 12px; }
+.level-value { color: #fff; font-size: 28px; font-weight: 600; }
+.level-value.accent-blue { color: #83c7ff; }
+.level-value.accent-amber { color: #ffce7a; }
+.level-footer { color: rgba(255,255,255,0.7); font-size: 11px; }
+.level-bounds { color: rgba(255,255,255,0.6); font-size: 10px; }
+.island scale.level-scale-control { padding: 0; }
+.island scale.level-scale-control trough { min-height: 18px; border-radius: 9px; }
+.island scale.level-scale-control highlight { min-height: 18px; border-radius: 9px; }
+.island scale.level-scale-control slider { min-width: 0; min-height: 0; background: transparent; box-shadow: none; }
+.separator { background: rgba(255,255,255,0.12); min-height: 1px; margin: 5px 0; }
+.notice { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.08); border-radius: 19px; padding: 12px; margin-bottom: 10px; }
+.notice-icon { color: rgba(255,255,255,0.9); }
+.island progressbar trough { background: rgba(255,255,255,0.2); min-height: 4px; border-radius: 6px; }
+.island progressbar progress { background: #fff; min-height: 4px; border-radius: 6px; }
+.footer { padding-top: 8px; }
+.footer label { font-size: 10px; color: rgba(255,255,255,0.6); }
+.settings { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.06); border-radius: 19px; padding: 12px; margin-top: 8px; }
+.settings label { font-size: 12px; }
+.preferences-window .preferences-page { padding: 28px 24px 36px; }
+.preferences-window .preferences-heading { font-size: 17px; font-weight: 700; padding-left: 4px; }
+.preferences-window .preferences-description { opacity: 0.7; font-size: 12px; }
+.preferences-window .preferences-card { background: rgba(127,127,127,0.10); border-radius: 12px; }
+.preferences-window .preferences-row { padding: 14px 16px; }
+.preferences-window .preferences-row + .preferences-row { border-top: 1px solid rgba(127,127,127,0.18); }
+.preferences-window .preferences-row-title { font-size: 14px; font-weight: 600; }
+.idle-view { padding: 0; }
+.idle-summary { padding: 0; }
+.status-card { padding: 8px 2px; }
+.status-icon-tile { min-width: 64px; min-height: 64px; border-radius: 18px; background: linear-gradient(160deg, rgba(131,199,255,0.18), rgba(131,199,255,0.04)); border: 1px solid rgba(255,255,255,0.12); color: #83c7ff; }
+.status-icon-tile.mint { background: linear-gradient(160deg, rgba(122,240,197,0.18), rgba(122,240,197,0.04)); color: #7af0c5; }
+.status-icon-tile.violet { background: linear-gradient(160deg, rgba(196,165,255,0.18), rgba(196,165,255,0.04)); color: #c4a5ff; }
+.status-icon-tile.battery-high { color: #7af0c5; }
+.status-icon-tile.battery-medium { color: #ffce7a; }
+.status-icon-tile.battery-low { color: #ff8b93; }
+.status-icon-tile.disconnected { color: #ff8b93; }
+.status-eyebrow { color: rgba(255,255,255,0.65); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; }
+.status-title { color: white; font-size: 18px; font-weight: 700; }
+.status-detail { color: rgba(255,255,255,0.8); font-size: 13px; }
+.status-detail.battery-active { color: #7af0c5; }
+.battery-detail-title.status-value { font-size: 36px; font-weight: 600; }
+.battery-progress { margin-top: 5px; }
+.island .battery-progress trough { min-height: 4px; background: rgba(255,255,255,0.2); background-image: none; border: 0; box-shadow: none; }
+.island .battery-progress progress { background: #7af0c5; background-image: none; border: 0; box-shadow: none; min-width: 2px; min-height: 4px; }
+.island .battery-progress.medium progress { background: #ffce7a; }
+.island .battery-progress.low progress { background: #ff8b93; }
+.clock-day { color: #fff; font-size: 40px; font-weight: 700; }
+.clock-weekday { color: rgba(255,255,255,0.7); font-size: 13px; }
+.clock-date { color: rgba(255,255,255,0.8); font-size: 12px; }
+.clock-time { color: #83c7ff; font-size: 18px; font-weight: 600; margin-top: 4px; }
+.battery-detail-title { color: #fff; font-size: 18px; font-weight: 700; }
+.clock-calendar { min-width: 244px; }
+.island button.clock-month-button, .island button.clock-month-heading { background: transparent; background-image: none; border: none; box-shadow: none; border-radius: 6px; min-width: 0; min-height: 24px; padding: 0; }
+.island button.clock-month-button { font-size: 18px; }
+.island button.clock-month-heading { font-size: 11px; font-weight: 600; }
+.island button.clock-month-button:hover, .island button.clock-month-heading:hover { background: rgba(255,255,255,0.12); }
+.clock-calendar-grid { min-width: 244px; min-height: 112px; }
+.clock-calendar-weekday { color: rgba(255,255,255,0.55); font-size: 9px; }
+.clock-calendar-day { border-radius: 5px; color: rgba(255,255,255,0.92); font-size: 10px; }
+.clock-calendar-day.other-month { color: rgba(255,255,255,0.3); }
+.clock-calendar-day.today { background: #83c7ff; color: #101820; font-weight: 700; }
